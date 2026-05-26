@@ -1,5 +1,6 @@
 import { projectConfigSchema, userConfigSchema } from "@realm/config/schemas";
 import {
+  capabilitySchema,
   configPatchProposalSchema,
   godRoleActionTypeSchema,
   messageSchema,
@@ -9,6 +10,10 @@ import {
   statePatchOperationSchema,
   statePatchResultSchema,
   statePatchSchema,
+  workflowApprovalSchema,
+  workflowArtifactSchema,
+  workflowReviewSchema,
+  workflowTaskSchema,
   worldSummarySchema,
 } from "@realm/core";
 import { z } from "zod";
@@ -26,6 +31,10 @@ export type {
   StatePatchOperation,
   StatePatchResult,
   TurnSummary,
+  WorkflowApproval,
+  WorkflowArtifact,
+  WorkflowReview,
+  WorkflowTask,
   WorldSummary,
 } from "@realm/core";
 export {
@@ -264,4 +273,71 @@ export const configPatchApplyResponseSchema = z.object({
 export const configRollbackResponseSchema = z.object({
   historyId: z.string().min(1),
   restoredPaths: z.array(z.string()),
+});
+
+export const createWorkflowArtifactRequestSchema = z.object({
+  title: z.string().min(1),
+  kind: workflowArtifactSchema.shape.kind,
+  content: z.string(),
+  ownerRoleId: z.string().min(1).optional(),
+  idempotencyKey: z.string().min(1).optional(),
+});
+
+export const createWorkflowArtifactResponseSchema = z.object({
+  artifact: workflowArtifactSchema,
+});
+
+export const createWorkflowTaskRequestSchema = z.object({
+  title: z.string().min(1),
+  description: z.string().default(""),
+  ownerRoleId: z.string().min(1).optional(),
+  artifactId: z.string().min(1).optional(),
+  idempotencyKey: z.string().min(1).optional(),
+});
+
+export const createWorkflowTaskResponseSchema = z.object({
+  task: workflowTaskSchema,
+});
+
+export const requestWorkflowReviewRequestSchema = z.object({
+  artifactId: z.string().min(1),
+  requestedBy: z.string().min(1),
+  reviewerRoleId: z.string().min(1),
+  summary: z.string().default(""),
+  idempotencyKey: z.string().min(1).optional(),
+});
+
+export const workflowReviewResponseSchema = z.object({
+  review: workflowReviewSchema,
+});
+
+export const decideWorkflowReviewRequestSchema = z.object({
+  reviewId: z.string().min(1),
+  artifactId: z.string().min(1),
+  reviewerRoleId: z.string().min(1),
+  decision: z.enum(["changes-requested", "approved"]),
+  summary: z.string().min(1),
+  idempotencyKey: z.string().min(1).optional(),
+});
+
+export const requestWorkflowApprovalRequestSchema = z.object({
+  capability: capabilitySchema,
+  requestedBy: z.string().min(1),
+  reason: z.string().min(1),
+  idempotencyKey: z.string().min(1).optional(),
+});
+
+export const workflowApprovalResponseSchema = z.object({
+  approval: workflowApprovalSchema,
+});
+
+export const decideWorkflowApprovalRequestSchema = z.object({
+  approvalId: z.string().min(1),
+  capability: capabilitySchema,
+  requestedBy: z.string().min(1),
+  decision: z.enum(["approved", "rejected"]),
+  decidedBy: z.string().min(1).optional(),
+  reason: z.string().min(1),
+  requestReason: z.string().min(1),
+  idempotencyKey: z.string().min(1).optional(),
 });

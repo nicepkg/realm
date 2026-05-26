@@ -1,4 +1,3 @@
-import { randomUUID } from "node:crypto";
 import path from "node:path";
 import type { ConfigAssistantPlanner } from "@realm/assistant";
 import {
@@ -13,7 +12,6 @@ import {
   type UserConfig,
 } from "@realm/config";
 import type {
-  Capability,
   ConfigPatchProposal,
   Message,
   RealmEvent,
@@ -21,9 +19,8 @@ import type {
   Room,
   WorldSummary,
 } from "@realm/core";
-import { makeId, nowIso } from "@realm/core";
 import { PackagePiBridge, type PiBridge } from "@realm/pi-bridge";
-import { CapabilityPolicy, type TrustTier } from "@realm/policy";
+import type { TrustTier } from "@realm/policy";
 import { PiRoleTurnRunner } from "@realm/runtime";
 import { type EventStore, InMemoryEventStore } from "@realm/storage";
 import { ConfigPatchService } from "./config-patch-service.ts";
@@ -36,6 +33,7 @@ import {
 import { FakeVerticalSliceService } from "./fake-vertical-slice-service.ts";
 import { type CreateRoomInput, MessageService, type SendMessageInput } from "./message-service.ts";
 import { resolveRoleModelSettings } from "./model-resolution-service.ts";
+import { ServicePolicyGate } from "./policy-gate.ts";
 import {
   type RoleMemoryInput,
   RoleMemoryService,
@@ -47,14 +45,17 @@ import {
   toPiAllowedSkills,
 } from "./role-turn-context.ts";
 import { SettingsService, type SettingsSnapshot } from "./settings-service.ts";
-import {
-  assertSafePathSegment,
-  DEFAULT_ALLOWED_CAPABILITIES,
-  humanizeId,
-  OWNER_ID,
-  resolvePiExtensionPaths,
-} from "./support.ts";
+import { assertSafePathSegment, humanizeId, resolvePiExtensionPaths } from "./support.ts";
 import { type TurnCancelResult, TurnControlService } from "./turn-control-service.ts";
+import {
+  type CreateWorkflowArtifactInput,
+  type CreateWorkflowTaskInput,
+  type DecideWorkflowApprovalInput,
+  type DecideWorkflowReviewInput,
+  type RequestWorkflowApprovalInput,
+  type RequestWorkflowReviewInput,
+  WorkflowService,
+} from "./workflow-service.ts";
 import {
   type AdminStatePatchInput,
   type GodRoleActionInput,
@@ -72,6 +73,14 @@ export type {
 } from "./extension-access-service.ts";
 export type { CreateRoomInput, SendMessageInput } from "./message-service.ts";
 export type { RoleMemoryInput, RoleMemoryWriteInput } from "./role-memory-service.ts";
+export type {
+  CreateWorkflowArtifactInput,
+  CreateWorkflowTaskInput,
+  DecideWorkflowApprovalInput,
+  DecideWorkflowReviewInput,
+  RequestWorkflowApprovalInput,
+  RequestWorkflowReviewInput,
+} from "./workflow-service.ts";
 export type {
   AdminStatePatchInput,
   GodRoleActionInput,
@@ -111,9 +120,8 @@ export type RealmApplicationServiceOptions = {
 
 export class RealmApplicationService {
   private readonly eventStore: EventStore;
-  private readonly trustTier: TrustTier;
   private readonly clock: () => Date;
-  private readonly policy = new CapabilityPolicy();
+  private readonly policyGate: ServicePolicyGate;
   private readonly piBridge: PiBridge;
   private readonly configPatchService: ConfigPatchService;
   private readonly extensionAccessService: ExtensionAccessService;
@@ -122,53 +130,65 @@ export class RealmApplicationService {
   private readonly settingsService: SettingsService;
   private readonly turnControlService = new TurnControlService();
   private readonly worldStateService: WorldStateService;
+  private readonly workflowService: WorkflowService;
   private readonly fakeVerticalSliceService: FakeVerticalSliceService | undefined;
 
   constructor(private readonly options: RealmApplicationServiceOptions) {
     this.eventStore = options.eventStore ?? new InMemoryEventStore();
-    this.trustTier = options.trustTier ?? "read-only";
+    const trustTier = options.trustTier ?? "read-only";
     this.clock = options.clock ?? (() => new Date());
+    this.policyGate = new ServicePolicyGate({
+      eventStore: this.eventStore,
+      trustTier,
+      clock: this.clock,
+    });
     this.piBridge = options.piBridge ?? new PackagePiBridge();
     this.configPatchService = new ConfigPatchService({
       eventStore: this.eventStore,
       clock: this.clock,
       patchStore: options.patchStore ?? new FileConfigPatchStore(options.root, this.clock),
       planner: options.configAssistantPlanner,
-      assertAllowed: (capability) => this.assertAllowed(capability),
-      appendAudit: (input) => this.appendAudit(input),
+      assertAllowed: (capability) => this.policyGate.assertAllowed(capability),
+      appendAudit: (input) => this.policyGate.appendAudit(input),
     });
     this.extensionAccessService = new ExtensionAccessService({
       eventStore: this.eventStore,
       clock: this.clock,
-      assertAllowed: (capability) => this.assertAllowed(capability),
-      appendAudit: (input) => this.appendAudit(input),
+      assertAllowed: (capability) => this.policyGate.assertAllowed(capability),
+      appendAudit: (input) => this.policyGate.appendAudit(input),
     });
     this.messageService = new MessageService({
       root: options.root,
       eventStore: this.eventStore,
       clock: this.clock,
-      assertAllowed: (capability) => this.assertAllowed(capability),
-      appendAudit: (input) => this.appendAudit(input),
+      assertAllowed: (capability) => this.policyGate.assertAllowed(capability),
+      appendAudit: (input) => this.policyGate.appendAudit(input),
     });
     this.roleMemoryService = new RoleMemoryService({
       root: options.root,
-      assertAllowed: (capability) => this.assertAllowed(capability),
-      appendAudit: (input) => this.appendAudit(input),
+      assertAllowed: (capability) => this.policyGate.assertAllowed(capability),
+      appendAudit: (input) => this.policyGate.appendAudit(input),
     });
     this.settingsService = new SettingsService(options.root, options.env);
     this.worldStateService = new WorldStateService({
       root: options.root,
       eventStore: this.eventStore,
       clock: this.clock,
-      assertAllowed: (capability) => this.assertAllowed(capability),
-      appendAudit: (input) => this.appendAudit(input),
+      assertAllowed: (capability) => this.policyGate.assertAllowed(capability),
+      appendAudit: (input) => this.policyGate.appendAudit(input),
+    });
+    this.workflowService = new WorkflowService({
+      eventStore: this.eventStore,
+      clock: this.clock,
+      assertAllowed: (capability) => this.policyGate.assertAllowed(capability),
+      appendAudit: (input) => this.policyGate.appendAudit(input),
     });
     this.fakeVerticalSliceService = options.fakeVerticalSlice
       ? new FakeVerticalSliceService({
           eventStore: this.eventStore,
           clock: this.clock,
           commitGodPatch: (input) => this.adminPatchState(input),
-          appendAudit: (input) => this.appendAudit(input),
+          appendAudit: (input) => this.policyGate.appendAudit(input),
         })
       : undefined;
     for (const tokenScope of options.extensionStaticTokens ?? []) {
@@ -191,8 +211,8 @@ export class RealmApplicationService {
 
   async updateUserSettings(input: UserConfig): Promise<SettingsSnapshot> {
     const snapshot = await this.settingsService.updateUserSettings(input);
-    this.appendAudit({
-      actorId: OWNER_ID,
+    this.policyGate.appendAudit({
+      actorId: "owner",
       action: "settings.user.updated",
       target: "user-config",
       reason: "User settings updated from Web UI.",
@@ -202,8 +222,8 @@ export class RealmApplicationService {
 
   async updateProjectSettings(input: ProjectConfig): Promise<SettingsSnapshot> {
     const snapshot = await this.settingsService.updateProjectSettings(input);
-    this.appendAudit({
-      actorId: OWNER_ID,
+    this.policyGate.appendAudit({
+      actorId: "owner",
       action: "settings.project.updated",
       target: "project-config",
       reason: "Project settings updated from Web UI.",
@@ -306,7 +326,7 @@ export class RealmApplicationService {
   }
 
   async runRoleTurn(input: RunRoleTurnInput): Promise<{ turnId: string; message: Message }> {
-    this.assertAllowed("turn.run");
+    this.policyGate.assertAllowed("turn.run");
     assertSafePathSegment(input.worldId, "worldId");
     assertSafePathSegment(input.roomId, "roomId");
     assertSafePathSegment(input.roleId, "roleId");
@@ -452,48 +472,27 @@ export class RealmApplicationService {
     return this.extensionAccessService.verifyAccess(input);
   }
 
-  private appendAudit(input: {
-    actorId: string;
-    action: string;
-    target: string;
-    reason: string;
-  }): void {
-    const createdAt = nowIso(this.clock());
-    this.eventStore.append({
-      eventId: makeId("event:audit", randomUUID()),
-      schemaVersion: 1,
-      aggregateId: "audit",
-      createdAt,
-      type: "audit.created",
-      audit: {
-        id: makeId("audit", randomUUID()),
-        actorId: input.actorId,
-        action: input.action,
-        target: input.target,
-        reason: input.reason,
-        createdAt,
-      },
-    });
+  createWorkflowArtifact(input: CreateWorkflowArtifactInput) {
+    return this.workflowService.createArtifact(input);
   }
 
-  private assertAllowed(capability: Capability): void {
-    const decision = this.policy.decide({
-      principal: { id: OWNER_ID, kind: "owner" },
-      capability,
-      trustTier: this.trustTier,
-      allowedCapabilities: DEFAULT_ALLOWED_CAPABILITIES,
-    });
+  createWorkflowTask(input: CreateWorkflowTaskInput) {
+    return this.workflowService.createTask(input);
+  }
 
-    if (!decision.allow) {
-      this.appendAudit({
-        actorId: OWNER_ID,
-        action: "policy.denied",
-        target: capability,
-        reason: decision.reason,
-      });
-      throw new Error(
-        decision.remediation ? `${decision.reason}. ${decision.remediation}` : decision.reason,
-      );
-    }
+  requestWorkflowReview(input: RequestWorkflowReviewInput) {
+    return this.workflowService.requestReview(input);
+  }
+
+  decideWorkflowReview(input: DecideWorkflowReviewInput) {
+    return this.workflowService.decideReview(input);
+  }
+
+  requestWorkflowApproval(input: RequestWorkflowApprovalInput) {
+    return this.workflowService.requestApproval(input);
+  }
+
+  decideWorkflowApproval(input: DecideWorkflowApprovalInput) {
+    return this.workflowService.decideApproval(input);
   }
 }

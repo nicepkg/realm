@@ -20,6 +20,7 @@ Pi CLI/RPC 子进程路径只作为显式诊断和兼容性冒烟，不是正常
 - 桌面微信式本地 Web UI；
 - 用户级和项目级设置界面；
 - 角色、房间、消息、私聊、临时群、全员群；
+- 软件公司工作流事件：artifact、task、review 和 approval gate；
 - 角色 prompt skill 与可调用 skill 发现；
 - Pi package bridge 运行角色回合；
 - 角色记忆和私有状态访问；

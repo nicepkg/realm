@@ -98,4 +98,51 @@ describe("core contracts", () => {
 
     expect(event.type).toBe("turn.completed");
   });
+
+  test("accepts workflow artifact and approval events", () => {
+    const artifactEvent = realmEventSchema.parse({
+      eventId: "event:workflow:artifact:1",
+      seq: 1,
+      schemaVersion: 1,
+      aggregateId: "world:software-company",
+      createdAt: "2026-05-27T00:00:00.000Z",
+      type: "workflow.artifact.created",
+      artifact: {
+        id: "artifact:1",
+        worldId: "software-company",
+        title: "Small Feature Spec",
+        kind: "spec",
+        status: "draft",
+        ownerRoleId: "product-manager",
+        content: "Build the smallest useful slice.",
+        createdAt: "2026-05-27T00:00:00.000Z",
+      },
+    });
+    const approvalEvent = realmEventSchema.parse({
+      eventId: "event:workflow:approval:1",
+      seq: 2,
+      schemaVersion: 1,
+      aggregateId: "world:software-company",
+      createdAt: "2026-05-27T00:01:00.000Z",
+      type: "workflow.approval.requested",
+      approval: {
+        id: "approval:1",
+        worldId: "software-company",
+        capability: "fs.project.write",
+        requestedBy: "engineer",
+        reason: "Patch the fixture implementation.",
+        status: "pending",
+        createdAt: "2026-05-27T00:01:00.000Z",
+      },
+    });
+
+    expect(artifactEvent).toMatchObject({
+      type: "workflow.artifact.created",
+      artifact: { status: "draft" },
+    });
+    expect(approvalEvent).toMatchObject({
+      type: "workflow.approval.requested",
+      approval: { capability: "fs.project.write" },
+    });
+  });
 });

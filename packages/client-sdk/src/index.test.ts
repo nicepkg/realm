@@ -221,4 +221,63 @@ describe("RealmHttpClient", () => {
     expect(requestBody).toMatchObject({ seed: "day-1" });
     expect(response.event.title).toBe("Unexpected Windfall");
   });
+
+  test("posts typed workflow commands to world endpoints", async () => {
+    const requestPaths: string[] = [];
+    const client = new RealmHttpClient({
+      fetchImpl: (async (input, init) => {
+        const path = new URL(String(input), "http://realm.test").pathname;
+        const body = JSON.parse(String(init?.body)) as Record<string, unknown>;
+        requestPaths.push(path);
+        if (path.endsWith("/workflow/artifacts")) {
+          return Response.json(
+            {
+              artifact: {
+                id: "artifact:1",
+                worldId: "software-company",
+                title: body.title,
+                kind: body.kind,
+                status: "draft",
+                content: body.content,
+                createdAt: "2026-05-27T00:00:00.000Z",
+              },
+            },
+            { status: 201 },
+          );
+        }
+        return Response.json(
+          {
+            approval: {
+              id: "approval:1",
+              worldId: "software-company",
+              capability: body.capability,
+              requestedBy: body.requestedBy,
+              reason: body.reason,
+              status: "pending",
+              createdAt: "2026-05-27T00:00:00.000Z",
+            },
+          },
+          { status: 201 },
+        );
+      }) as typeof fetch,
+    });
+
+    const artifact = await client.createWorkflowArtifact("software-company", {
+      title: "Add settings search",
+      kind: "spec",
+      content: "Users can search settings.",
+    });
+    const approval = await client.requestWorkflowApproval("software-company", {
+      capability: "fs.project.write",
+      requestedBy: "engineer",
+      reason: "Patch the fixture.",
+    });
+
+    expect(requestPaths).toEqual([
+      "/api/worlds/software-company/workflow/artifacts",
+      "/api/worlds/software-company/workflow/approvals",
+    ]);
+    expect(artifact.artifact.status).toBe("draft");
+    expect(approval.approval.status).toBe("pending");
+  });
 });

@@ -5,13 +5,19 @@ import {
   assistantConfigRequestSchema,
   createRoleRequestSchema,
   createRoomRequestSchema,
+  createWorkflowArtifactRequestSchema,
+  createWorkflowTaskRequestSchema,
   createWorldRequestSchema,
+  decideWorkflowApprovalRequestSchema,
+  decideWorkflowReviewRequestSchema,
   extensionMemoryReadRequestSchema,
   extensionMemoryWriteRequestSchema,
   extensionStateQueryRequestSchema,
   godRoleActionRequestSchema,
   naturalWorldEventRequestSchema,
   randomNaturalWorldEventRequestSchema,
+  requestWorkflowApprovalRequestSchema,
+  requestWorkflowReviewRequestSchema,
   runRoleTurnRequestSchema,
   sendMessageRequestSchema,
   updateProjectSettingsRequestSchema,
@@ -225,6 +231,59 @@ export function createRealmServer(options: RealmServerOptions): Hono {
   app.post("/api/config/history/:historyId/rollback", async (context) =>
     context.json(await service.rollbackConfigHistory(context.req.param("historyId"))),
   );
+
+  app.post("/api/worlds/:worldId/workflow/artifacts", async (context) => {
+    const request = createWorkflowArtifactRequestSchema.parse(await context.req.json());
+    const artifact = service.createWorkflowArtifact({
+      ...request,
+      worldId: context.req.param("worldId"),
+    });
+    return context.json({ artifact }, 201);
+  });
+
+  app.post("/api/worlds/:worldId/workflow/tasks", async (context) => {
+    const request = createWorkflowTaskRequestSchema.parse(await context.req.json());
+    const task = service.createWorkflowTask({ ...request, worldId: context.req.param("worldId") });
+    return context.json({ task }, 201);
+  });
+
+  app.post("/api/worlds/:worldId/workflow/reviews", async (context) => {
+    const request = requestWorkflowReviewRequestSchema.parse(await context.req.json());
+    const review = service.requestWorkflowReview({
+      ...request,
+      worldId: context.req.param("worldId"),
+    });
+    return context.json({ review }, 201);
+  });
+
+  app.post("/api/worlds/:worldId/workflow/reviews/:reviewId/decision", async (context) => {
+    const request = decideWorkflowReviewRequestSchema.parse(await context.req.json());
+    const review = service.decideWorkflowReview({
+      ...request,
+      worldId: context.req.param("worldId"),
+      reviewId: context.req.param("reviewId"),
+    });
+    return context.json({ review }, 201);
+  });
+
+  app.post("/api/worlds/:worldId/workflow/approvals", async (context) => {
+    const request = requestWorkflowApprovalRequestSchema.parse(await context.req.json());
+    const approval = service.requestWorkflowApproval({
+      ...request,
+      worldId: context.req.param("worldId"),
+    });
+    return context.json({ approval }, 201);
+  });
+
+  app.post("/api/worlds/:worldId/workflow/approvals/:approvalId/decision", async (context) => {
+    const request = decideWorkflowApprovalRequestSchema.parse(await context.req.json());
+    const approval = service.decideWorkflowApproval({
+      ...request,
+      worldId: context.req.param("worldId"),
+      approvalId: context.req.param("approvalId"),
+    });
+    return context.json({ approval }, 201);
+  });
 
   if (webDistDir) {
     app.get("/assets/*", async (context) => serveWebFile(context.req.path, webDistDir));

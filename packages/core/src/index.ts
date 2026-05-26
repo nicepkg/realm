@@ -257,6 +257,60 @@ export const configPatchProposalSchema = z.object({
 
 export type ConfigPatchProposal = z.infer<typeof configPatchProposalSchema>;
 
+export const workflowArtifactSchema = z.object({
+  id: idSchema,
+  worldId: idSchema,
+  title: z.string().min(1),
+  kind: z.enum(["spec", "task-brief", "review-request", "release-note", "note"]),
+  status: z.enum(["draft", "review", "approved", "implemented", "verified"]),
+  ownerRoleId: idSchema.optional(),
+  content: z.string(),
+  createdAt: isoDateSchema,
+});
+
+export type WorkflowArtifact = z.infer<typeof workflowArtifactSchema>;
+
+export const workflowTaskSchema = z.object({
+  id: idSchema,
+  worldId: idSchema,
+  title: z.string().min(1),
+  description: z.string().default(""),
+  status: z.enum(["todo", "in-progress", "blocked", "done"]),
+  ownerRoleId: idSchema.optional(),
+  artifactId: idSchema.optional(),
+  createdAt: isoDateSchema,
+});
+
+export type WorkflowTask = z.infer<typeof workflowTaskSchema>;
+
+export const workflowReviewSchema = z.object({
+  id: idSchema,
+  worldId: idSchema,
+  artifactId: idSchema,
+  requestedBy: idSchema,
+  reviewerRoleId: idSchema,
+  status: z.enum(["requested", "changes-requested", "approved"]),
+  summary: z.string().default(""),
+  createdAt: isoDateSchema,
+});
+
+export type WorkflowReview = z.infer<typeof workflowReviewSchema>;
+
+export const workflowApprovalSchema = z.object({
+  id: idSchema,
+  worldId: idSchema,
+  capability: capabilitySchema,
+  requestedBy: idSchema,
+  reason: z.string().min(1),
+  status: z.enum(["pending", "approved", "rejected"]),
+  decidedBy: idSchema.optional(),
+  decisionReason: z.string().optional(),
+  createdAt: isoDateSchema,
+  decidedAt: isoDateSchema.optional(),
+});
+
+export type WorkflowApproval = z.infer<typeof workflowApprovalSchema>;
+
 export const realmEventSchema = z.discriminatedUnion("type", [
   eventEnvelopeSchema.extend({
     type: z.literal("message.created"),
@@ -316,6 +370,30 @@ export const realmEventSchema = z.discriminatedUnion("type", [
   eventEnvelopeSchema.extend({
     type: z.literal("config.reloaded"),
     projectId: idSchema,
+  }),
+  eventEnvelopeSchema.extend({
+    type: z.literal("workflow.artifact.created"),
+    artifact: workflowArtifactSchema,
+  }),
+  eventEnvelopeSchema.extend({
+    type: z.literal("workflow.task.created"),
+    task: workflowTaskSchema,
+  }),
+  eventEnvelopeSchema.extend({
+    type: z.literal("workflow.review.requested"),
+    review: workflowReviewSchema,
+  }),
+  eventEnvelopeSchema.extend({
+    type: z.literal("workflow.review.decided"),
+    review: workflowReviewSchema,
+  }),
+  eventEnvelopeSchema.extend({
+    type: z.literal("workflow.approval.requested"),
+    approval: workflowApprovalSchema,
+  }),
+  eventEnvelopeSchema.extend({
+    type: z.literal("workflow.approval.decided"),
+    approval: workflowApprovalSchema,
   }),
 ]);
 

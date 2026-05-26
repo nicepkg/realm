@@ -9,7 +9,13 @@ import {
   createRoleRequestSchema,
   createRoomRequestSchema,
   createRoomResponseSchema,
+  createWorkflowArtifactRequestSchema,
+  createWorkflowArtifactResponseSchema,
+  createWorkflowTaskRequestSchema,
+  createWorkflowTaskResponseSchema,
   createWorldRequestSchema,
+  decideWorkflowApprovalRequestSchema,
+  decideWorkflowReviewRequestSchema,
   effectiveConfigResponseSchema,
   extensionMemoryReadRequestSchema,
   extensionMemoryReadResponseSchema,
@@ -28,6 +34,8 @@ import {
   naturalWorldEventResponseSchema,
   projectResponseSchema,
   randomNaturalWorldEventRequestSchema,
+  requestWorkflowApprovalRequestSchema,
+  requestWorkflowReviewRequestSchema,
   runRoleTurnRequestSchema,
   runRoleTurnResponseSchema,
   sendMessageRequestSchema,
@@ -36,6 +44,8 @@ import {
   startRoleTurnResponseSchema,
   updateProjectSettingsRequestSchema,
   updateUserSettingsRequestSchema,
+  workflowApprovalResponseSchema,
+  workflowReviewResponseSchema,
   worldStateResponseSchema,
 } from "@realm/api-contract";
 import type { z } from "zod";
@@ -202,6 +212,74 @@ export class RealmHttpClient {
       `/api/config/history/${encodeURIComponent(historyId)}/rollback`,
       {},
       configRollbackResponseSchema,
+    );
+  }
+
+  async createWorkflowArtifact(
+    worldId: string,
+    input: z.input<typeof createWorkflowArtifactRequestSchema>,
+  ): Promise<z.infer<typeof createWorkflowArtifactResponseSchema>> {
+    return this.post(
+      `/api/worlds/${encodeURIComponent(worldId)}/workflow/artifacts`,
+      createWorkflowArtifactRequestSchema.parse(input),
+      createWorkflowArtifactResponseSchema,
+    );
+  }
+
+  async createWorkflowTask(
+    worldId: string,
+    input: z.input<typeof createWorkflowTaskRequestSchema>,
+  ): Promise<z.infer<typeof createWorkflowTaskResponseSchema>> {
+    return this.post(
+      `/api/worlds/${encodeURIComponent(worldId)}/workflow/tasks`,
+      createWorkflowTaskRequestSchema.parse(input),
+      createWorkflowTaskResponseSchema,
+    );
+  }
+
+  async requestWorkflowReview(
+    worldId: string,
+    input: z.input<typeof requestWorkflowReviewRequestSchema>,
+  ): Promise<z.infer<typeof workflowReviewResponseSchema>> {
+    return this.post(
+      `/api/worlds/${encodeURIComponent(worldId)}/workflow/reviews`,
+      requestWorkflowReviewRequestSchema.parse(input),
+      workflowReviewResponseSchema,
+    );
+  }
+
+  async decideWorkflowReview(
+    worldId: string,
+    reviewId: string,
+    input: z.input<typeof decideWorkflowReviewRequestSchema>,
+  ): Promise<z.infer<typeof workflowReviewResponseSchema>> {
+    return this.post(
+      `/api/worlds/${encodeURIComponent(worldId)}/workflow/reviews/${encodeURIComponent(reviewId)}/decision`,
+      decideWorkflowReviewRequestSchema.parse(input),
+      workflowReviewResponseSchema,
+    );
+  }
+
+  async requestWorkflowApproval(
+    worldId: string,
+    input: z.input<typeof requestWorkflowApprovalRequestSchema>,
+  ): Promise<z.infer<typeof workflowApprovalResponseSchema>> {
+    return this.post(
+      `/api/worlds/${encodeURIComponent(worldId)}/workflow/approvals`,
+      requestWorkflowApprovalRequestSchema.parse(input),
+      workflowApprovalResponseSchema,
+    );
+  }
+
+  async decideWorkflowApproval(
+    worldId: string,
+    approvalId: string,
+    input: z.input<typeof decideWorkflowApprovalRequestSchema>,
+  ): Promise<z.infer<typeof workflowApprovalResponseSchema>> {
+    return this.post(
+      `/api/worlds/${encodeURIComponent(worldId)}/workflow/approvals/${encodeURIComponent(approvalId)}/decision`,
+      decideWorkflowApprovalRequestSchema.parse(input),
+      workflowApprovalResponseSchema,
     );
   }
 
