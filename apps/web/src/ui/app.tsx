@@ -11,6 +11,7 @@ import {
 } from "./realm-context.tsx";
 import { AppRail, ConversationHeader, ConversationList, WorldSwitcher } from "./realm-panels.tsx";
 import { SettingsPanel } from "./realm-settings.tsx";
+import { ProjectPatchPanel } from "./realm-workflow.tsx";
 import { useRealmAppState } from "./use-realm-app-state.ts";
 
 export function App() {
@@ -125,6 +126,33 @@ export function App() {
                 onRoleChange={app.setGodActionRoleId}
                 onReasonChange={app.setGodActionReason}
                 onApply={app.applyGodAction}
+              />
+              <ProjectPatchPanel
+                disabled={!app.selectedWorld}
+                roles={app.state.roles}
+                approvals={app.workflowApprovals}
+                patches={app.workflowProjectPatches}
+                requestedBy={app.workflowRequestedBy}
+                reason={app.workflowApprovalReason}
+                approvalId={app.workflowApprovalId}
+                title={app.projectPatchTitle}
+                path={app.projectPatchPath}
+                action={app.projectPatchAction}
+                content={app.projectPatchContent}
+                patchId={app.projectPatchId}
+                result={app.projectPatchResult}
+                onRequestedByChange={app.setWorkflowRequestedBy}
+                onReasonChange={app.setWorkflowApprovalReason}
+                onApprovalIdChange={app.setWorkflowApprovalId}
+                onTitleChange={app.setProjectPatchTitle}
+                onPathChange={app.setProjectPatchPath}
+                onActionChange={app.setProjectPatchAction}
+                onContentChange={app.setProjectPatchContent}
+                onPatchIdChange={app.setProjectPatchId}
+                onRequestApproval={app.requestProjectWriteApproval}
+                onApproveApproval={app.approveWorkflowApproval}
+                onProposePatch={app.proposeProjectPatch}
+                onApplyPatch={app.applyProjectPatch}
               />
               <TracePanel events={app.traceEvents} />
               <BuilderPanel

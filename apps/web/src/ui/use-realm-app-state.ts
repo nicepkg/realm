@@ -14,6 +14,7 @@ import type { CreateRoomKind, GodRoleAction } from "./realm-context.tsx";
 import type { AppSection } from "./realm-panels.tsx";
 import { connectEventFeed, parseMemberIds, parsePatchValue, slugify } from "./realm-ui-helpers.ts";
 import { buildConversationRows, isTraceEvent } from "./realm-view-model.ts";
+import { useProjectPatchWorkflow } from "./use-project-patch-workflow.ts";
 
 type AppState = {
   status: "loading" | "ready" | "error";
@@ -84,6 +85,14 @@ export function useRealmAppState() {
   );
   const traceEvents = state.events.filter(isTraceEvent).slice(-8);
   const selectedRole = state.roles.find((role) => role.id === runRoleId) ?? state.roles[0];
+  const projectPatchWorkflow = useProjectPatchWorkflow({
+    client,
+    events: state.events,
+    roles: state.roles,
+    selectedRoom,
+    selectedWorld,
+    reload: loadRealm,
+  });
 
   useEffect(() => {
     void loadRealm(selectedWorldId, selectedRoomId);
@@ -337,6 +346,7 @@ export function useRealmAppState() {
     proposeAssistantPatch,
     proposeRole,
     proposeWorld,
+    ...projectPatchWorkflow,
     reload: () => loadRealm(selectedWorld?.id, selectedRoom?.id),
     roleName,
     roomMembers,

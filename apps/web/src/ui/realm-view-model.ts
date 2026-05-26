@@ -1,4 +1,11 @@
-import type { Message, RealmEvent, RoleSummary, Room } from "@realm/api-contract";
+import type {
+  Message,
+  RealmEvent,
+  RoleSummary,
+  Room,
+  WorkflowApproval,
+  WorkflowProjectPatch,
+} from "@realm/api-contract";
 
 export type ConversationRow = {
   id: string;
@@ -108,6 +115,32 @@ export function isTraceEvent(event: RealmEvent): event is TraceEvent {
     event.type === "turn.cancelled" ||
     event.type === "tool.called"
   );
+}
+
+export function latestWorkflowApprovals(events: RealmEvent[]): WorkflowApproval[] {
+  const approvals = new Map<string, WorkflowApproval>();
+  for (const event of events) {
+    if (
+      event.type === "workflow.approval.requested" ||
+      event.type === "workflow.approval.decided"
+    ) {
+      approvals.set(event.approval.id, event.approval);
+    }
+  }
+  return [...approvals.values()].reverse();
+}
+
+export function latestProjectPatches(events: RealmEvent[]): WorkflowProjectPatch[] {
+  const patches = new Map<string, WorkflowProjectPatch>();
+  for (const event of events) {
+    if (
+      event.type === "workflow.project_patch.proposed" ||
+      event.type === "workflow.project_patch.applied"
+    ) {
+      patches.set(event.projectPatch.id, event.projectPatch);
+    }
+  }
+  return [...patches.values()].reverse();
 }
 
 export function describeTraceEvent(event: TraceEvent): { title: string; body: string } {

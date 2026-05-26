@@ -5,6 +5,8 @@ import {
   describeTraceEvent,
   displayNameForIdentity,
   isTraceEvent,
+  latestProjectPatches,
+  latestWorkflowApprovals,
   roomTypeLabel,
   turnStatusLabel,
 } from "./realm-view-model.ts";
@@ -106,6 +108,81 @@ describe("realm web view model", () => {
       title: "Turn completed: leijun",
       body: "Model: gpt-5 | Usage: 18 tokens (in 10, out 5, cache 2/1, $0.000033)",
     });
+  });
+
+  test("keeps latest workflow approvals and project patches by id", () => {
+    const events: RealmEvent[] = [
+      {
+        type: "workflow.approval.requested",
+        eventId: "event-approval-requested",
+        seq: 1,
+        schemaVersion: 1,
+        aggregateId: "world-software-company",
+        createdAt: "2026-05-26T01:00:00.000Z",
+        approval: {
+          id: "approval-1",
+          worldId: "software-company",
+          capability: "fs.project.write",
+          requestedBy: "engineer",
+          reason: "Patch src/title.ts",
+          status: "pending",
+          createdAt: "2026-05-26T01:00:00.000Z",
+        },
+      },
+      {
+        type: "workflow.approval.decided",
+        eventId: "event-approval-decided",
+        seq: 2,
+        schemaVersion: 1,
+        aggregateId: "world-software-company",
+        createdAt: "2026-05-26T01:01:00.000Z",
+        approval: {
+          id: "approval-1",
+          worldId: "software-company",
+          capability: "fs.project.write",
+          requestedBy: "engineer",
+          reason: "Patch src/title.ts",
+          status: "approved",
+          decidedBy: "owner",
+          decisionReason: "Scoped patch",
+          createdAt: "2026-05-26T01:01:00.000Z",
+          decidedAt: "2026-05-26T01:01:00.000Z",
+        },
+      },
+      {
+        type: "workflow.project_patch.proposed",
+        eventId: "event-patch-proposed",
+        seq: 3,
+        schemaVersion: 1,
+        aggregateId: "world-software-company",
+        createdAt: "2026-05-26T01:02:00.000Z",
+        projectPatch: {
+          id: "project-patch-1",
+          worldId: "software-company",
+          title: "Patch title",
+          summary: "",
+          requestedBy: "engineer",
+          status: "proposed",
+          files: [
+            {
+              path: "src/title.ts",
+              action: "update",
+              previousHash: "before",
+              nextHash: "after",
+              nextContent: "next",
+            },
+          ],
+          createdAt: "2026-05-26T01:02:00.000Z",
+        },
+      },
+    ];
+
+    expect(latestWorkflowApprovals(events)).toMatchObject([
+      { id: "approval-1", status: "approved" },
+    ]);
+    expect(latestProjectPatches(events)).toMatchObject([
+      { id: "project-patch-1", status: "proposed" },
+    ]);
   });
 });
 
