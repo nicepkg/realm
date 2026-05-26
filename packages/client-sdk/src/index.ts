@@ -63,11 +63,20 @@ import {
   worldTickTriggerResponseSchema,
 } from "@realm/api-contract";
 import type { z } from "zod";
-import { RealmHttpTransport } from "./http.ts";
+import { type RealmClientOptions, RealmHttpTransport } from "./http.ts";
+import { RealmSimulationClient } from "./simulation-client.ts";
 
 export type { RealmClientOptions } from "./http.ts";
+export { RealmSimulationClient } from "./simulation-client.ts";
 
 export class RealmHttpClient extends RealmHttpTransport {
+  readonly simulation: RealmSimulationClient;
+
+  constructor(options: RealmClientOptions = {}) {
+    super(options);
+    this.simulation = new RealmSimulationClient(options);
+  }
+
   async getProject(): Promise<z.infer<typeof projectResponseSchema>> {
     return this.get("/api/project", projectResponseSchema);
   }

@@ -56,6 +56,7 @@ export {
   statePatchResultSchema,
   statePatchSchema,
 } from "@realm/core";
+export * from "./simulation.ts";
 
 export const apiErrorSchema = z.object({
   ok: z.literal(false),

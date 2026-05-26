@@ -64,6 +64,29 @@ realm init --template software-company
 
 所有成功提交的状态变化都会进入快照和事件日志。
 
+## 高级模拟
+
+模拟世界可以运行确定性 tick，不需要每次 @all 都让所有角色消耗模型调用。
+调度器会用种子执行低成本 @all 激活，更新角色精力和声望，记录关系和道统记忆变化，并让每个决策可审计。
+
+Web UI 右侧检查器提供模拟控制：
+
+- 运行 N 个 tick；
+- 暂停和恢复；
+- 导出 replay hash 和 state hash；
+- 分叉世界快照，并从分叉恢复；
+- 启动或停止有上限的后台运行。
+
+同样的能力也可以通过本地 API 调用：
+
+```bash
+curl -s http://127.0.0.1:3737/api/worlds/cultivation/simulation/status
+curl -s -X POST http://127.0.0.1:3737/api/worlds/cultivation/simulation/ticks \
+  -H 'content-type: application/json' \
+  -d '{"ticks":2,"seed":"fixture-seed","maxActivations":1}'
+curl -s http://127.0.0.1:3737/api/worlds/cultivation/simulation/export
+```
+
 ## 开发
 
 ```bash

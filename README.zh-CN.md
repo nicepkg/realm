@@ -28,7 +28,8 @@ Pi CLI/RPC 子进程路径只作为显式诊断和兼容性冒烟，不是正常
 - Pi package bridge 运行角色回合；
 - 角色记忆和私有状态访问；
 - 使用同一套 API/client SDK 的终端 UI 客户端；
-- 上帝状态 patch、击杀/禁言/复活、自然事件、确定性随机自然事件；
+- 上帝状态 patch、击杀/禁言/复活、自然事件、确定性随机自然事件和世界事件回放；
+- 高级模拟控制：确定性 tick、低成本 @all 激活、精力、声望、关系、道统记忆、后台运行、暂停/恢复、导出和分叉；
 - 事件存储，支持 SSE 和 WebSocket；
 - 配置 patch 提案、应用、回滚、迁移和保留注释的 YAML 写入；
 - Bun 编译 CLI 二进制。
@@ -56,6 +57,16 @@ bun run apps/cli/src/index.ts open
 bun run apps/cli/src/index.ts tui --base-url http://127.0.0.1:3737 --once
 bun run apps/cli/src/index.ts tui --base-url http://127.0.0.1:3737 --send "hello from tui" --once
 bun run apps/cli/src/index.ts tui --base-url http://127.0.0.1:3737 --settings --once
+```
+
+高级模拟可以在 Web UI 右侧检查器操作，也可以通过本地 API 调用：
+
+```bash
+curl -s http://127.0.0.1:3737/api/worlds/cultivation/simulation/status
+curl -s -X POST http://127.0.0.1:3737/api/worlds/cultivation/simulation/ticks \
+  -H 'content-type: application/json' \
+  -d '{"ticks":2,"seed":"fixture-seed","maxActivations":1}'
+curl -s http://127.0.0.1:3737/api/worlds/cultivation/simulation/export
 ```
 
 npm 发布后的目标安装方式：

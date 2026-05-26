@@ -40,6 +40,14 @@ export function hashToken(token: string): string {
   return createHash("sha256").update(token).digest("hex");
 }
 
+export function stableHash(value: unknown): string {
+  return createHash("sha256").update(stableJson(value)).digest("hex");
+}
+
+export function stableJson(value: unknown): string {
+  return JSON.stringify(sortJson(value));
+}
+
 export function humanizeId(id: string): string {
   return id
     .split(/[-_]/g)
@@ -66,6 +74,20 @@ export function readJsonPointer(target: unknown, pointer: string): unknown {
     current = (current as Record<string, unknown>)[part];
   }
   return current;
+}
+
+function sortJson(value: unknown): unknown {
+  if (Array.isArray(value)) {
+    return value.map(sortJson);
+  }
+  if (typeof value !== "object" || value === null) {
+    return value;
+  }
+  return Object.fromEntries(
+    Object.entries(value)
+      .sort(([left], [right]) => left.localeCompare(right))
+      .map(([key, item]) => [key, sortJson(item)]),
+  );
 }
 
 export async function resolvePiExtensionPaths(configuredPath?: string): Promise<string[]> {

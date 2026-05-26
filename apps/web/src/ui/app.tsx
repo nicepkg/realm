@@ -12,6 +12,7 @@ import {
 import { WorldEventPanel } from "./realm-events.tsx";
 import { AppRail, ConversationHeader, ConversationList, WorldSwitcher } from "./realm-panels.tsx";
 import { SettingsPanel } from "./realm-settings.tsx";
+import { WorldSimulationPanel } from "./realm-simulation.tsx";
 import { ProjectPatchPanel } from "./realm-workflow.tsx";
 import { useRealmAppState } from "./use-realm-app-state.ts";
 
@@ -146,6 +147,32 @@ export function App() {
                 onTick={app.triggerWorldTick}
                 onTriggerCondition={app.triggerConditionWorldEvent}
                 onReplay={app.loadWorldEventReplay}
+              />
+              <WorldSimulationPanel
+                disabled={!app.selectedWorld}
+                ticks={app.simulationTicks}
+                maxActivations={app.simulationMaxActivations}
+                intervalMs={app.simulationIntervalMs}
+                seed={app.simulationSeed}
+                forkLabel={app.simulationForkLabel}
+                forkId={app.simulationForkId}
+                runId={app.simulationRunId}
+                result={app.simulationResult}
+                status={app.simulationStatus}
+                onTicksChange={app.setSimulationTicks}
+                onMaxActivationsChange={app.setSimulationMaxActivations}
+                onIntervalMsChange={app.setSimulationIntervalMs}
+                onSeedChange={app.setSimulationSeed}
+                onForkLabelChange={app.setSimulationForkLabel}
+                onForkIdChange={app.setSimulationForkId}
+                onRefresh={app.refreshSimulationStatus}
+                onRunTicks={app.runSimulationTicks}
+                onPause={app.pauseSimulation}
+                onResume={app.resumeSimulation}
+                onExport={app.exportSimulation}
+                onFork={app.forkSimulation}
+                onStartBackground={app.startBackgroundSimulation}
+                onStopBackground={app.stopBackgroundSimulation}
               />
               <ProjectPatchPanel
                 disabled={!app.selectedWorld}

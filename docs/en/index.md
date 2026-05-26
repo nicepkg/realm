@@ -64,6 +64,30 @@ World state is structured and versioned. Roles can query only their visible slic
 
 All committed state changes are snapshots and event log entries.
 
+## Advanced Simulation
+
+Simulation worlds can run deterministic ticks without spending a model call for every participant.
+The scheduler uses a seeded low-cost @all activation pass, updates role energy and reputation,
+records relationship and doctrine-memory changes, and keeps every decision auditable.
+
+The Web UI exposes simulation controls in the right inspector:
+
+- run N ticks;
+- pause and resume;
+- export replay and state hashes;
+- fork a world snapshot and resume from a fork;
+- start or stop a bounded background run.
+
+The same controls are available through the local API:
+
+```bash
+curl -s http://127.0.0.1:3737/api/worlds/cultivation/simulation/status
+curl -s -X POST http://127.0.0.1:3737/api/worlds/cultivation/simulation/ticks \
+  -H 'content-type: application/json' \
+  -d '{"ticks":2,"seed":"fixture-seed","maxActivations":1}'
+curl -s http://127.0.0.1:3737/api/worlds/cultivation/simulation/export
+```
+
 ## Development
 
 ```bash

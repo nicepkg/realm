@@ -15,7 +15,7 @@ import { makeId, nowIso } from "@realm/core";
 import { buildRandomNaturalEvent } from "@realm/scheduler";
 import type { EventStore } from "@realm/storage";
 import type { SendMessageInput } from "./message-service.ts";
-import { assertSafePathSegment, readJsonPointer } from "./support.ts";
+import { assertSafePathSegment, readJsonPointer, stableJson } from "./support.ts";
 import type { AdminStatePatchInput, WorldStateView } from "./world-state-service.ts";
 
 export type WorldEventTriggerInput = {
@@ -420,22 +420,4 @@ function belongsToWorld(event: RealmEvent, worldId: string): boolean {
 
 function hashReplay(events: readonly RealmEvent[]): string {
   return createHash("sha256").update(stableJson(events)).digest("hex");
-}
-
-function stableJson(value: unknown): string {
-  return JSON.stringify(sortJson(value));
-}
-
-function sortJson(value: unknown): unknown {
-  if (Array.isArray(value)) {
-    return value.map(sortJson);
-  }
-  if (typeof value !== "object" || value === null) {
-    return value;
-  }
-  return Object.fromEntries(
-    Object.entries(value)
-      .sort(([left], [right]) => left.localeCompare(right))
-      .map(([key, item]) => [key, sortJson(item)]),
-  );
 }

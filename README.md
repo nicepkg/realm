@@ -28,7 +28,8 @@ Realm is under active development, but the current vertical slice is usable:
 - Pi package bridge for role turns;
 - role memory and private world state access;
 - terminal UI client that uses the same API/client SDK as the Web UI;
-- God state patches, kill/mute/revive actions, natural events, and deterministic random natural events;
+- God state patches, kill/mute/revive actions, natural events, deterministic random natural events, and world event replay;
+- advanced simulation controls for deterministic ticks, low-cost @all activation, energy, reputation, relationships, doctrine memory, background runs, pause/resume, export, and forks;
 - event store with SSE and WebSocket streaming;
 - config patch proposals, apply, rollback, migration, and comment-preserving YAML writes;
 - Bun-compiled CLI binary.
@@ -62,6 +63,16 @@ Use the terminal client against a running local server:
 bun run apps/cli/src/index.ts tui --base-url http://127.0.0.1:3737 --once
 bun run apps/cli/src/index.ts tui --base-url http://127.0.0.1:3737 --send "hello from tui" --once
 bun run apps/cli/src/index.ts tui --base-url http://127.0.0.1:3737 --settings --once
+```
+
+Advanced simulation controls are available in the Web UI right inspector and through the local API:
+
+```bash
+curl -s http://127.0.0.1:3737/api/worlds/cultivation/simulation/status
+curl -s -X POST http://127.0.0.1:3737/api/worlds/cultivation/simulation/ticks \
+  -H 'content-type: application/json' \
+  -d '{"ticks":2,"seed":"fixture-seed","maxActivations":1}'
+curl -s http://127.0.0.1:3737/api/worlds/cultivation/simulation/export
 ```
 
 After npm publishing, the intended install path is:

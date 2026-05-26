@@ -40,6 +40,7 @@ export const pages: Record<Locale, DocPage> = {
       "Configuration",
       "Worlds",
       "State",
+      "Simulation",
       "Governance",
       "Development",
       "TUI",
@@ -115,6 +116,22 @@ export const pages: Record<Locale, DocPage> = {
         ],
       },
       {
+        id: "simulation",
+        title: "Advanced simulation",
+        body: [
+          "Simulation worlds can run deterministic ticks without spending a model call on every participant. The scheduler uses seeded low-cost @all activation, then updates role energy, reputation, relationships, and doctrine memory through typed state patches.",
+          "The Web UI exposes these controls from the contextual inspector so the messenger surface remains familiar. The same commands are available through the local API and client SDK for automation.",
+        ],
+        bullets: [
+          "Run bounded tick batches with a deterministic seed.",
+          "Pause and resume a world, including resume from a named fork.",
+          "Export replay and state hashes for reproducibility.",
+          "Fork world snapshots under .agents/state/worlds/<world>/forks/.",
+          "Start and stop bounded background simulation runs.",
+        ],
+        code: 'curl -s http://127.0.0.1:3737/api/worlds/cultivation/simulation/status\ncurl -s -X POST http://127.0.0.1:3737/api/worlds/cultivation/simulation/ticks \\\n  -H "content-type: application/json" \\\n  -d \'{"ticks":2,"seed":"fixture-seed","maxActivations":1}\'\ncurl -s http://127.0.0.1:3737/api/worlds/cultivation/simulation/export',
+      },
+      {
         id: "governance",
         title: "Tools, skills, and governance",
         body: [
@@ -170,7 +187,19 @@ export const pages: Record<Locale, DocPage> = {
     primaryAction: "快速开始",
     secondaryAction: "架构说明",
     badges: ["Bun + TypeScript", "PI 包优先", "本地优先", "支持二进制"],
-    nav: ["开始", "概念", "安装", "配置", "世界", "状态", "治理", "开发", "终端 UI", "部署"],
+    nav: [
+      "开始",
+      "概念",
+      "安装",
+      "配置",
+      "世界",
+      "状态",
+      "模拟",
+      "治理",
+      "开发",
+      "终端 UI",
+      "部署",
+    ],
     sections: [
       {
         id: "start",
@@ -239,6 +268,22 @@ export const pages: Record<Locale, DocPage> = {
           "击杀、禁言、复活、自然事件都走 typed God/Admin action。",
           "快照用于回放、回滚规划和调试。",
         ],
+      },
+      {
+        id: "simulation",
+        title: "高级模拟",
+        body: [
+          "模拟世界可以运行确定性 tick，不需要每次都让所有参与者消耗模型调用。调度器会用种子执行低成本 @all 激活，再通过 typed state patch 更新角色精力、声望、关系和道统记忆。",
+          "Web UI 会把这些控制放在上下文检查器里，不破坏熟悉的聊天界面。同样的命令也能通过本地 API 和 client SDK 自动化调用。",
+        ],
+        bullets: [
+          "用确定性 seed 运行有限 tick 批次。",
+          "暂停和恢复世界，也可以从指定 fork 恢复。",
+          "导出 replay hash 和 state hash，方便复现。",
+          "把世界快照分叉到 .agents/state/worlds/<world>/forks/。",
+          "启动和停止有上限的后台模拟运行。",
+        ],
+        code: 'curl -s http://127.0.0.1:3737/api/worlds/cultivation/simulation/status\ncurl -s -X POST http://127.0.0.1:3737/api/worlds/cultivation/simulation/ticks \\\n  -H "content-type: application/json" \\\n  -d \'{"ticks":2,"seed":"fixture-seed","maxActivations":1}\'\ncurl -s http://127.0.0.1:3737/api/worlds/cultivation/simulation/export',
       },
       {
         id: "governance",

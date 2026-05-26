@@ -57,6 +57,7 @@ import {
   WorkflowService,
 } from "./workflow-service.ts";
 import { WorldEventService } from "./world-event-service.ts";
+import { WorldSimulationService } from "./world-simulation-service.ts";
 import {
   type AdminStatePatchInput,
   type GodRoleActionInput,
@@ -136,6 +137,7 @@ export class RealmApplicationService {
   private readonly worldStateService: WorldStateService;
   private readonly workflowService: WorkflowService;
   readonly worldEvents: WorldEventService;
+  readonly worldSimulation: WorldSimulationService;
   private readonly fakeVerticalSliceService: FakeVerticalSliceService | undefined;
 
   constructor(private readonly options: RealmApplicationServiceOptions) {
@@ -209,6 +211,16 @@ export class RealmApplicationService {
       assertAllowed: (capability) => this.policyGate.assertAllowed(capability),
       appendAudit: (input) => this.policyGate.appendAudit(input),
     });
+    this.worldSimulation = new WorldSimulationService({
+      root: options.root,
+      clock: this.clock,
+      assertAllowed: (capability) => this.policyGate.assertAllowed(capability),
+      appendAudit: (input) => this.policyGate.appendAudit(input),
+      worldEvents: this.worldEvents,
+      worldState: this.worldStateService,
+      listWorldRoleIds: async (worldId) =>
+        (await this.listWorlds()).find((world) => world.id === worldId)?.roleIds ?? [],
+    });
     this.fakeVerticalSliceService = options.fakeVerticalSlice
       ? new FakeVerticalSliceService({
           eventStore: this.eventStore,
@@ -229,11 +241,9 @@ export class RealmApplicationService {
   getSettings(): Promise<SettingsSnapshot> {
     return this.settingsService.getSettings();
   }
-
   exportSettings(): Promise<SettingsExportSnapshot> {
     return this.settingsService.exportSettings(this.clock);
   }
-
   async importSettings(input: unknown): Promise<SettingsSnapshot> {
     const snapshot = await this.settingsService.importSettings(input);
     this.policyGate.appendAudit({
@@ -244,7 +254,6 @@ export class RealmApplicationService {
     });
     return snapshot;
   }
-
   async updateUserSettings(input: UserConfig): Promise<SettingsSnapshot> {
     const snapshot = await this.settingsService.updateUserSettings(input);
     this.policyGate.appendAudit({
@@ -255,7 +264,6 @@ export class RealmApplicationService {
     });
     return snapshot;
   }
-
   async updateProjectSettings(input: ProjectConfig): Promise<SettingsSnapshot> {
     const snapshot = await this.settingsService.updateProjectSettings(input);
     this.policyGate.appendAudit({
@@ -266,11 +274,9 @@ export class RealmApplicationService {
     });
     return snapshot;
   }
-
   async getConfigStatus(): Promise<{ ok: boolean; errors: string[] }> {
     return this.configQueryService.getConfigStatus();
   }
-
   async getEffectiveConfig(): Promise<{
     project: Awaited<ReturnType<RealmApplicationService["getProject"]>>;
     worlds: Awaited<ReturnType<ConfigQueryService["listWorlds"]>>;
@@ -282,11 +288,9 @@ export class RealmApplicationService {
   async getEffectivePolicy(): Promise<EffectivePolicyMatrix> {
     return this.configQueryService.getEffectivePolicy();
   }
-
   async listWorlds() {
     return this.configQueryService.listWorlds();
   }
-
   async listRooms(worldId: string): Promise<Room[]> {
     return this.messageService.listRooms(worldId);
   }
