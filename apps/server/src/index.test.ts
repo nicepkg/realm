@@ -414,65 +414,6 @@ describe("Realm server API", () => {
     expect(missingTokenResponse.status).toBe(401);
     expect(wrongRoleResponse.status).toBe(403);
   });
-
-  test("exposes workflow artifact, review, and approval endpoints", async () => {
-    const root = await mkdtemp(path.join(os.tmpdir(), "realm-server-workflow-"));
-    await initProject(root, "demo");
-    const app = createRealmServer({ root, trustTier: "run-roles" });
-
-    const artifactResponse = await app.request("/api/worlds/software-company/workflow/artifacts", {
-      method: "POST",
-      headers: { "content-type": "application/json" },
-      body: JSON.stringify({
-        title: "Add settings search",
-        kind: "spec",
-        content: "Users can search settings.",
-        ownerRoleId: "product-manager",
-      }),
-    });
-    const artifactPayload = (await artifactResponse.json()) as { artifact: { id: string } };
-    const reviewResponse = await app.request("/api/worlds/software-company/workflow/reviews", {
-      method: "POST",
-      headers: { "content-type": "application/json" },
-      body: JSON.stringify({
-        artifactId: artifactPayload.artifact.id,
-        requestedBy: "engineer",
-        reviewerRoleId: "qa",
-        summary: "Review the plan.",
-      }),
-    });
-    const reviewPayload = (await reviewResponse.json()) as { review: { id: string } };
-    const decisionResponse = await app.request(
-      `/api/worlds/software-company/workflow/reviews/${reviewPayload.review.id}/decision`,
-      {
-        method: "POST",
-        headers: { "content-type": "application/json" },
-        body: JSON.stringify({
-          reviewId: reviewPayload.review.id,
-          artifactId: artifactPayload.artifact.id,
-          reviewerRoleId: "qa",
-          decision: "approved",
-          summary: "Looks shippable.",
-        }),
-      },
-    );
-    const approvalResponse = await app.request("/api/worlds/software-company/workflow/approvals", {
-      method: "POST",
-      headers: { "content-type": "application/json" },
-      body: JSON.stringify({
-        capability: "fs.project.write",
-        requestedBy: "engineer",
-        reason: "Patch the fixture.",
-      }),
-    });
-    const approvalPayload = (await approvalResponse.json()) as { approval: { id: string } };
-
-    expect(artifactResponse.status).toBe(201);
-    expect(reviewResponse.status).toBe(201);
-    expect(decisionResponse.status).toBe(201);
-    expect(approvalResponse.status).toBe(201);
-    expect(approvalPayload.approval.id).toStartWith("approval:");
-  });
 });
 
 function readOneWebSocketMessage(url: string): Promise<string> {

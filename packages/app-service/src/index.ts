@@ -4,26 +4,17 @@ import {
   type CreateRolePatchInput,
   type CreateWorldPatchInput,
   FileConfigPatchStore,
-  loadProjectConfig,
-  loadRoleConfigs,
-  loadWorldConfigs,
   type ProjectConfig,
   projectLayout,
   type UserConfig,
 } from "@realm/config";
-import type {
-  ConfigPatchProposal,
-  Message,
-  RealmEvent,
-  RoleSummary,
-  Room,
-  WorldSummary,
-} from "@realm/core";
+import type { ConfigPatchProposal, Message, RealmEvent, Room } from "@realm/core";
 import { PackagePiBridge, type PiBridge } from "@realm/pi-bridge";
 import type { TrustTier } from "@realm/policy";
 import { PiRoleTurnRunner } from "@realm/runtime";
 import { type EventStore, InMemoryEventStore } from "@realm/storage";
 import { ConfigPatchService } from "./config-patch-service.ts";
+import { ConfigQueryService } from "./config-query-service.ts";
 import {
   type ExtensionAccessDecision,
   type ExtensionAccessInput,
@@ -35,6 +26,11 @@ import { type CreateRoomInput, MessageService, type SendMessageInput } from "./m
 import { resolveRoleModelSettings } from "./model-resolution-service.ts";
 import { ServicePolicyGate } from "./policy-gate.ts";
 import {
+  type ApplyProjectPatchInput,
+  ProjectPatchService,
+  type ProposeProjectPatchInput,
+} from "./project-patch-service.ts";
+import {
   type RoleMemoryInput,
   RoleMemoryService,
   type RoleMemoryWriteInput,
@@ -45,7 +41,7 @@ import {
   toPiAllowedSkills,
 } from "./role-turn-context.ts";
 import { SettingsService, type SettingsSnapshot } from "./settings-service.ts";
-import { assertSafePathSegment, humanizeId, resolvePiExtensionPaths } from "./support.ts";
+import { assertSafePathSegment, resolvePiExtensionPaths } from "./support.ts";
 import { type TurnCancelResult, TurnControlService } from "./turn-control-service.ts";
 import {
   type CreateWorkflowArtifactInput,
@@ -72,6 +68,7 @@ export type {
   ExtensionSessionScope,
 } from "./extension-access-service.ts";
 export type { CreateRoomInput, SendMessageInput } from "./message-service.ts";
+export type { ApplyProjectPatchInput, ProposeProjectPatchInput } from "./project-patch-service.ts";
 export type { RoleMemoryInput, RoleMemoryWriteInput } from "./role-memory-service.ts";
 export type {
   CreateWorkflowArtifactInput,
@@ -124,8 +121,10 @@ export class RealmApplicationService {
   private readonly policyGate: ServicePolicyGate;
   private readonly piBridge: PiBridge;
   private readonly configPatchService: ConfigPatchService;
+  private readonly configQueryService: ConfigQueryService;
   private readonly extensionAccessService: ExtensionAccessService;
   private readonly messageService: MessageService;
+  private readonly projectPatchService: ProjectPatchService;
   private readonly roleMemoryService: RoleMemoryService;
   private readonly settingsService: SettingsService;
   private readonly turnControlService = new TurnControlService();
@@ -143,6 +142,7 @@ export class RealmApplicationService {
       clock: this.clock,
     });
     this.piBridge = options.piBridge ?? new PackagePiBridge();
+    this.configQueryService = new ConfigQueryService(options.root);
     this.configPatchService = new ConfigPatchService({
       eventStore: this.eventStore,
       clock: this.clock,
@@ -163,6 +163,12 @@ export class RealmApplicationService {
       clock: this.clock,
       assertAllowed: (capability) => this.policyGate.assertAllowed(capability),
       appendAudit: (input) => this.policyGate.appendAudit(input),
+    });
+    this.projectPatchService = new ProjectPatchService({
+      root: options.root,
+      eventStore: this.eventStore,
+      clock: this.clock,
+      assertAllowed: (capability) => this.policyGate.assertAllowed(capability),
     });
     this.roleMemoryService = new RoleMemoryService({
       root: options.root,
@@ -197,12 +203,7 @@ export class RealmApplicationService {
   }
 
   async getProject(): Promise<{ root: string; name: string; defaultWorldId: string }> {
-    const config = await loadProjectConfig(this.options.root);
-    return {
-      root: this.options.root,
-      name: config.project.name,
-      defaultWorldId: config.defaults.world,
-    };
+    return this.configQueryService.getProject();
   }
 
   getSettings(): Promise<SettingsSnapshot> {
@@ -232,77 +233,27 @@ export class RealmApplicationService {
   }
 
   async getConfigStatus(): Promise<{ ok: boolean; errors: string[] }> {
-    try {
-      await loadProjectConfig(this.options.root);
-      await loadWorldConfigs(this.options.root);
-      await loadRoleConfigs(this.options.root);
-      return { ok: true, errors: [] };
-    } catch (error) {
-      return { ok: false, errors: [error instanceof Error ? error.message : String(error)] };
-    }
+    return this.configQueryService.getConfigStatus();
   }
 
   async getEffectiveConfig(): Promise<{
     project: Awaited<ReturnType<RealmApplicationService["getProject"]>>;
-    worlds: WorldSummary[];
-    roles: RoleSummary[];
+    worlds: Awaited<ReturnType<ConfigQueryService["listWorlds"]>>;
+    roles: Awaited<ReturnType<ConfigQueryService["listRoles"]>>;
   }> {
-    return {
-      project: await this.getProject(),
-      worlds: await this.listWorlds(),
-      roles: await this.listRoles(),
-    };
+    return this.configQueryService.getEffectiveConfig();
   }
 
-  async listWorlds(): Promise<WorldSummary[]> {
-    const worlds = await loadWorldConfigs(this.options.root);
-    return worlds.map((world) => {
-      const defaultRoomId =
-        Object.entries(world.rooms).find(([, room]) => room.type === "world-main")?.[0] ??
-        Object.keys(world.rooms)[0] ??
-        "main";
-      return {
-        id: world.id,
-        name: world.name,
-        mode: world.mode,
-        defaultRoomId,
-        roleIds: world.roles.map((role) => role.id),
-      };
-    });
+  async listWorlds() {
+    return this.configQueryService.listWorlds();
   }
 
   async listRooms(worldId: string): Promise<Room[]> {
     return this.messageService.listRooms(worldId);
   }
 
-  async listRoles(): Promise<RoleSummary[]> {
-    const roleConfigs = await loadRoleConfigs(this.options.root);
-    const explicitRoles = new Map<string, RoleSummary>(
-      roleConfigs.map((role) => [
-        role.id,
-        {
-          id: role.id,
-          displayName: role.displayName,
-          model: role.model,
-          source: "config" as const,
-        },
-      ]),
-    );
-
-    for (const world of await loadWorldConfigs(this.options.root)) {
-      for (const role of world.roles) {
-        if (!explicitRoles.has(role.id)) {
-          explicitRoles.set(role.id, {
-            id: role.id,
-            displayName: humanizeId(role.id),
-            model: role.model,
-            source: "world",
-          });
-        }
-      }
-    }
-
-    return [...explicitRoles.values()].sort((left, right) => left.id.localeCompare(right.id));
+  async listRoles() {
+    return this.configQueryService.listRoles();
   }
 
   listEvents(options: { afterSeq?: number; limit?: number } = {}): readonly RealmEvent[] {
@@ -494,5 +445,13 @@ export class RealmApplicationService {
 
   decideWorkflowApproval(input: DecideWorkflowApprovalInput) {
     return this.workflowService.decideApproval(input);
+  }
+
+  proposeProjectPatch(input: ProposeProjectPatchInput) {
+    return this.projectPatchService.proposePatch(input);
+  }
+
+  applyProjectPatch(input: ApplyProjectPatchInput) {
+    return this.projectPatchService.applyPatch(input);
   }
 }

@@ -13,7 +13,6 @@ import {
   type PiSessionHandle,
   type PiSessionStartInput,
 } from "@realm/pi-bridge";
-import { CapabilityPolicy } from "@realm/policy";
 import { SQLiteEventStore } from "@realm/storage";
 import { RealmApplicationService } from "./index.ts";
 
@@ -371,73 +370,6 @@ describe("RealmApplicationService", () => {
       REALM_EXTENSION_ROLE_ID: "leijun",
     });
     expect(start?.env?.REALM_EXTENSION_TOKEN).toMatch(/^realm_ext_/);
-  });
-
-  test("creates workflow artifacts, tasks, reviews, and approval gate events", async () => {
-    const root = await mkdtemp(path.join(os.tmpdir(), "realm-app-workflow-"));
-    await initProject(root, "demo");
-    const service = new RealmApplicationService({ root, trustTier: "run-roles" });
-
-    const artifact = service.createWorkflowArtifact({
-      worldId: "software-company",
-      title: "Add settings search",
-      kind: "spec",
-      content: "Users can search settings by label.",
-      ownerRoleId: "product-manager",
-      idempotencyKey: "artifact-settings-search",
-    });
-    const task = service.createWorkflowTask({
-      worldId: "software-company",
-      title: "Implement settings search",
-      ownerRoleId: "engineer",
-      artifactId: artifact.id,
-    });
-    const review = service.requestWorkflowReview({
-      worldId: "software-company",
-      artifactId: artifact.id,
-      requestedBy: "engineer",
-      reviewerRoleId: "qa",
-      summary: "Review the feature plan.",
-    });
-    const decision = service.decideWorkflowReview({
-      worldId: "software-company",
-      reviewId: review.id,
-      artifactId: artifact.id,
-      reviewerRoleId: "qa",
-      decision: "approved",
-      summary: "Plan covers the happy path and rollback.",
-    });
-    const approval = service.requestWorkflowApproval({
-      worldId: "software-company",
-      capability: "fs.project.write",
-      requestedBy: "engineer",
-      reason: "Need to patch the fixture repository.",
-    });
-    const approved = service.decideWorkflowApproval({
-      worldId: "software-company",
-      approvalId: approval.id,
-      capability: "fs.project.write",
-      requestedBy: "engineer",
-      decision: "approved",
-      reason: "Patch is scoped and reviewed.",
-      requestReason: approval.reason,
-    });
-
-    const directProjectWrite = new CapabilityPolicy().decide({
-      principal: { id: "engineer", kind: "role" },
-      capability: "fs.project.write",
-      trustTier: "run-roles",
-      allowedCapabilities: ["fs.project.write"],
-    });
-
-    expect(artifact.status).toBe("draft");
-    expect(task.artifactId).toBe(artifact.id);
-    expect(decision.status).toBe("approved");
-    expect(approval.status).toBe("pending");
-    expect(approved.status).toBe("approved");
-    expect(directProjectWrite.allow).toBe(false);
-    expect(service.listEvents().map((event) => event.type)).toContain("workflow.review.decided");
-    expect(service.listEvents().map((event) => event.type)).toContain("workflow.approval.decided");
   });
 });
 

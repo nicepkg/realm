@@ -12,6 +12,7 @@ import {
   statePatchSchema,
   workflowApprovalSchema,
   workflowArtifactSchema,
+  workflowProjectPatchSchema,
   workflowReviewSchema,
   workflowTaskSchema,
   worldSummarySchema,
@@ -33,6 +34,7 @@ export type {
   TurnSummary,
   WorkflowApproval,
   WorkflowArtifact,
+  WorkflowProjectPatch,
   WorkflowReview,
   WorkflowTask,
   WorldSummary,
@@ -339,5 +341,32 @@ export const decideWorkflowApprovalRequestSchema = z.object({
   decidedBy: z.string().min(1).optional(),
   reason: z.string().min(1),
   requestReason: z.string().min(1),
+  idempotencyKey: z.string().min(1).optional(),
+});
+
+export const proposeProjectPatchRequestSchema = z.object({
+  title: z.string().min(1),
+  summary: z.string().default(""),
+  requestedBy: z.string().min(1),
+  approvalId: z.string().min(1).optional(),
+  files: z
+    .array(
+      z.object({
+        path: z.string().min(1),
+        action: z.enum(["create", "update", "delete"]),
+        nextContent: z.string().nullable().optional(),
+      }),
+    )
+    .min(1),
+  idempotencyKey: z.string().min(1).optional(),
+});
+
+export const projectPatchResponseSchema = z.object({
+  projectPatch: workflowProjectPatchSchema,
+});
+
+export const applyProjectPatchRequestSchema = z.object({
+  approvalId: z.string().min(1),
+  appliedBy: z.string().min(1).optional(),
   idempotencyKey: z.string().min(1).optional(),
 });

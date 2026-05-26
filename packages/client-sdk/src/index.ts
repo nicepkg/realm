@@ -1,6 +1,7 @@
 import {
   adminStatePatchRequestSchema,
   adminStatePatchResponseSchema,
+  applyProjectPatchRequestSchema,
   cancelTurnResponseSchema,
   configPatchApplyResponseSchema,
   configPatchProposalResponseSchema,
@@ -32,7 +33,9 @@ import {
   listWorldsResponseSchema,
   naturalWorldEventRequestSchema,
   naturalWorldEventResponseSchema,
+  projectPatchResponseSchema,
   projectResponseSchema,
+  proposeProjectPatchRequestSchema,
   randomNaturalWorldEventRequestSchema,
   requestWorkflowApprovalRequestSchema,
   requestWorkflowReviewRequestSchema,
@@ -280,6 +283,29 @@ export class RealmHttpClient {
       `/api/worlds/${encodeURIComponent(worldId)}/workflow/approvals/${encodeURIComponent(approvalId)}/decision`,
       decideWorkflowApprovalRequestSchema.parse(input),
       workflowApprovalResponseSchema,
+    );
+  }
+
+  async proposeProjectPatch(
+    worldId: string,
+    input: z.input<typeof proposeProjectPatchRequestSchema>,
+  ): Promise<z.infer<typeof projectPatchResponseSchema>> {
+    return this.post(
+      `/api/worlds/${encodeURIComponent(worldId)}/workflow/project-patches`,
+      proposeProjectPatchRequestSchema.parse(input),
+      projectPatchResponseSchema,
+    );
+  }
+
+  async applyProjectPatch(
+    worldId: string,
+    patchId: string,
+    input: z.input<typeof applyProjectPatchRequestSchema>,
+  ): Promise<z.infer<typeof projectPatchResponseSchema>> {
+    return this.post(
+      `/api/worlds/${encodeURIComponent(worldId)}/workflow/project-patches/${encodeURIComponent(patchId)}/apply`,
+      applyProjectPatchRequestSchema.parse(input),
+      projectPatchResponseSchema,
     );
   }
 

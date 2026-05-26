@@ -131,7 +131,7 @@ export const pages: Record<Locale, DocPage> = {
         title: "Development workflow",
         body: [
           "The codebase is a Bun + TypeScript monorepo with UI-agnostic runtime packages and separate app clients.",
-          "Important logic is covered by unit and integration tests. Workflow artifacts, tasks, reviews, and approval gates are evented API contracts, not Web-only state. UI flows are designed for browser automation and manual smoke testing.",
+          "Important logic is covered by unit and integration tests. Workflow artifacts, tasks, reviews, approval gates, and approved project patches are evented API contracts, not Web-only state. UI flows are designed for browser automation and manual smoke testing.",
         ],
         code: "bun run lint\nbun run typecheck\nbun test\nbun run build\nbun run build:binary\nbun run smoke:binary\nbun run smoke:pi-rpc",
       },
@@ -246,7 +246,7 @@ export const pages: Record<Locale, DocPage> = {
         title: "开发工作流",
         body: [
           "代码库是 Bun + TypeScript monorepo。运行时包与 UI 解耦，Web/TUI/自动化客户端都应该通过 API 合同访问。",
-          "重要逻辑需要单元测试和集成测试。工作流 artifact、task、review 和 approval gate 是事件化 API 合同，不是 Web-only 状态。UI 流程要能被浏览器自动化和手动冒烟验证。",
+          "重要逻辑需要单元测试和集成测试。工作流 artifact、task、review、approval gate 和审批后的项目 patch 是事件化 API 合同，不是 Web-only 状态。UI 流程要能被浏览器自动化和手动冒烟验证。",
         ],
         code: "bun run lint\nbun run typecheck\nbun test\nbun run build\nbun run build:binary\nbun run smoke:binary\nbun run smoke:pi-rpc",
       },

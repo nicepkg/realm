@@ -20,7 +20,7 @@ Realm is under active development, but the current vertical slice is usable:
 - desktop-WeChat-style local Web UI;
 - user and project settings UI;
 - roles, rooms, messages, DMs, groups, and all-hands rooms;
-- software company workflow events for artifacts, tasks, reviews, and approval gates;
+- software company workflow events for artifacts, tasks, reviews, approval gates, and approved project patches;
 - role prompt skills and callable skill discovery;
 - Pi package bridge for role turns;
 - role memory and private world state access;

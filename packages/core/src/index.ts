@@ -311,6 +311,32 @@ export const workflowApprovalSchema = z.object({
 
 export type WorkflowApproval = z.infer<typeof workflowApprovalSchema>;
 
+export const workflowProjectPatchFileSchema = z.object({
+  path: z.string().min(1),
+  action: z.enum(["create", "update", "delete"]),
+  previousHash: z.string().nullable(),
+  nextHash: z.string().nullable(),
+  nextContent: z.string().nullable(),
+});
+
+export type WorkflowProjectPatchFile = z.infer<typeof workflowProjectPatchFileSchema>;
+
+export const workflowProjectPatchSchema = z.object({
+  id: idSchema,
+  worldId: idSchema,
+  title: z.string().min(1),
+  summary: z.string().default(""),
+  requestedBy: idSchema,
+  approvalId: idSchema.optional(),
+  status: z.enum(["proposed", "applied"]),
+  files: z.array(workflowProjectPatchFileSchema).min(1),
+  createdAt: isoDateSchema,
+  appliedAt: isoDateSchema.optional(),
+  appliedBy: idSchema.optional(),
+});
+
+export type WorkflowProjectPatch = z.infer<typeof workflowProjectPatchSchema>;
+
 export const realmEventSchema = z.discriminatedUnion("type", [
   eventEnvelopeSchema.extend({
     type: z.literal("message.created"),
@@ -394,6 +420,14 @@ export const realmEventSchema = z.discriminatedUnion("type", [
   eventEnvelopeSchema.extend({
     type: z.literal("workflow.approval.decided"),
     approval: workflowApprovalSchema,
+  }),
+  eventEnvelopeSchema.extend({
+    type: z.literal("workflow.project_patch.proposed"),
+    projectPatch: workflowProjectPatchSchema,
+  }),
+  eventEnvelopeSchema.extend({
+    type: z.literal("workflow.project_patch.applied"),
+    projectPatch: workflowProjectPatchSchema,
   }),
 ]);
 

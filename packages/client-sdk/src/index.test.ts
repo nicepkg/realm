@@ -245,6 +245,58 @@ describe("RealmHttpClient", () => {
             { status: 201 },
           );
         }
+        if (path.endsWith("/workflow/project-patches")) {
+          return Response.json(
+            {
+              projectPatch: {
+                id: "project-patch:1",
+                worldId: "software-company",
+                title: body.title,
+                summary: body.summary ?? "",
+                requestedBy: body.requestedBy,
+                status: "proposed",
+                files: [
+                  {
+                    path: "src/feature.txt",
+                    action: "update",
+                    previousHash: "old",
+                    nextHash: "new",
+                    nextContent: "after",
+                  },
+                ],
+                createdAt: "2026-05-27T00:00:00.000Z",
+              },
+            },
+            { status: 201 },
+          );
+        }
+        if (path.endsWith("/workflow/project-patches/project-patch%3A1/apply")) {
+          return Response.json(
+            {
+              projectPatch: {
+                id: "project-patch:1",
+                worldId: "software-company",
+                title: "Patch fixture",
+                summary: "",
+                requestedBy: "engineer",
+                approvalId: body.approvalId,
+                status: "applied",
+                files: [
+                  {
+                    path: "src/feature.txt",
+                    action: "update",
+                    previousHash: "old",
+                    nextHash: "new",
+                    nextContent: "after",
+                  },
+                ],
+                createdAt: "2026-05-27T00:00:00.000Z",
+                appliedAt: "2026-05-27T00:01:00.000Z",
+              },
+            },
+            { status: 201 },
+          );
+        }
         return Response.json(
           {
             approval: {
@@ -272,12 +324,28 @@ describe("RealmHttpClient", () => {
       requestedBy: "engineer",
       reason: "Patch the fixture.",
     });
+    const projectPatch = await client.proposeProjectPatch("software-company", {
+      title: "Patch fixture",
+      requestedBy: "engineer",
+      files: [{ path: "src/feature.txt", action: "update", nextContent: "after" }],
+    });
+    const applied = await client.applyProjectPatch(
+      "software-company",
+      projectPatch.projectPatch.id,
+      {
+        approvalId: "approval:1",
+      },
+    );
 
     expect(requestPaths).toEqual([
       "/api/worlds/software-company/workflow/artifacts",
       "/api/worlds/software-company/workflow/approvals",
+      "/api/worlds/software-company/workflow/project-patches",
+      "/api/worlds/software-company/workflow/project-patches/project-patch%3A1/apply",
     ]);
     expect(artifact.artifact.status).toBe("draft");
     expect(approval.approval.status).toBe("pending");
+    expect(projectPatch.projectPatch.status).toBe("proposed");
+    expect(applied.projectPatch.status).toBe("applied");
   });
 });

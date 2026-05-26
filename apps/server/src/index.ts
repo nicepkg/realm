@@ -2,6 +2,7 @@ import { readFile } from "node:fs/promises";
 import path from "node:path";
 import {
   adminStatePatchRequestSchema,
+  applyProjectPatchRequestSchema,
   assistantConfigRequestSchema,
   createRoleRequestSchema,
   createRoomRequestSchema,
@@ -15,6 +16,7 @@ import {
   extensionStateQueryRequestSchema,
   godRoleActionRequestSchema,
   naturalWorldEventRequestSchema,
+  proposeProjectPatchRequestSchema,
   randomNaturalWorldEventRequestSchema,
   requestWorkflowApprovalRequestSchema,
   requestWorkflowReviewRequestSchema,
@@ -283,6 +285,25 @@ export function createRealmServer(options: RealmServerOptions): Hono {
       approvalId: context.req.param("approvalId"),
     });
     return context.json({ approval }, 201);
+  });
+
+  app.post("/api/worlds/:worldId/workflow/project-patches", async (context) => {
+    const request = proposeProjectPatchRequestSchema.parse(await context.req.json());
+    const projectPatch = await service.proposeProjectPatch({
+      ...request,
+      worldId: context.req.param("worldId"),
+    });
+    return context.json({ projectPatch }, 201);
+  });
+
+  app.post("/api/worlds/:worldId/workflow/project-patches/:patchId/apply", async (context) => {
+    const request = applyProjectPatchRequestSchema.parse(await context.req.json());
+    const projectPatch = await service.applyProjectPatch({
+      ...request,
+      worldId: context.req.param("worldId"),
+      patchId: context.req.param("patchId"),
+    });
+    return context.json({ projectPatch }, 201);
   });
 
   if (webDistDir) {

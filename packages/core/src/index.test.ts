@@ -145,4 +145,38 @@ describe("core contracts", () => {
       approval: { capability: "fs.project.write" },
     });
   });
+
+  test("accepts workflow project patch events", () => {
+    const event = realmEventSchema.parse({
+      eventId: "event:workflow:project-patch:1",
+      seq: 1,
+      schemaVersion: 1,
+      aggregateId: "world:software-company",
+      createdAt: "2026-05-27T00:00:00.000Z",
+      type: "workflow.project_patch.proposed",
+      projectPatch: {
+        id: "project-patch:1",
+        worldId: "software-company",
+        title: "Patch fixture",
+        summary: "Update one file.",
+        requestedBy: "engineer",
+        status: "proposed",
+        files: [
+          {
+            path: "src/feature.txt",
+            action: "update",
+            previousHash: "old",
+            nextHash: "new",
+            nextContent: "next",
+          },
+        ],
+        createdAt: "2026-05-27T00:00:00.000Z",
+      },
+    });
+
+    expect(event).toMatchObject({
+      type: "workflow.project_patch.proposed",
+      projectPatch: { files: [{ path: "src/feature.txt" }] },
+    });
+  });
 });
