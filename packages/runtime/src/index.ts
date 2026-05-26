@@ -8,7 +8,7 @@ import {
   type TurnSummary,
 } from "@realm/core";
 import { createInitialState, StateReducer } from "@realm/kernel";
-import type { PiBridge, PiBridgeEvent } from "@realm/pi-bridge";
+import type { PiAllowedSkill, PiBridge, PiBridgeEvent } from "@realm/pi-bridge";
 import type { PolicyDecision } from "@realm/policy";
 import { CapabilityPolicy, type TrustTier } from "@realm/policy";
 import { type EventStore, InMemoryEventStore } from "@realm/storage";
@@ -254,6 +254,7 @@ export type PiRoleTurnInput = {
   systemPrompt: string;
   provider?: string;
   model?: string;
+  allowedSkills?: PiAllowedSkill[];
   allowedSkillPaths?: string[];
   extensionPaths?: string[];
   env?: Record<string, string>;
@@ -305,6 +306,7 @@ export class PiRoleTurnRunner {
       provider: input.provider,
       model: input.model,
       systemPrompt: input.systemPrompt,
+      allowedSkills: input.allowedSkills,
       allowedSkillPaths: input.allowedSkillPaths ?? [],
       extensionPaths: input.extensionPaths ?? [],
       env: input.env,

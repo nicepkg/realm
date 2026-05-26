@@ -355,6 +355,14 @@ describe("RealmApplicationService", () => {
     expect(start?.systemPrompt).toContain("Role DNA");
     expect(start?.systemPrompt).toContain("role-private:note-taker");
     expect(start?.allowedSkillPaths).toEqual([callableSkillDir]);
+    expect(start?.allowedSkills).toEqual([
+      expect.objectContaining({
+        id: "role-private:note-taker",
+        name: "note-taker",
+        scope: "role-private",
+        path: callableSkillDir,
+      }),
+    ]);
     expect(start?.extensionPaths).toEqual(["/extensions/realm.ts"]);
     expect(start?.env).toMatchObject({
       REALM_EXTENSION_BASE_URL: "http://127.0.0.1:3999",

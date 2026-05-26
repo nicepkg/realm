@@ -12,9 +12,18 @@ export type PiSessionStartInput = {
   provider?: string;
   model?: string;
   systemPrompt: string;
+  allowedSkills?: PiAllowedSkill[];
   allowedSkillPaths: string[];
   extensionPaths: string[];
   env?: Record<string, string>;
+};
+
+export type PiAllowedSkill = {
+  id: string;
+  name: string;
+  scope: string;
+  path: string;
+  contentHash?: string;
 };
 
 export type PiPromptInput = {

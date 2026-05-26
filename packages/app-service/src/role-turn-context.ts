@@ -57,6 +57,16 @@ export async function loadRoleTurnContext(input: {
   };
 }
 
+export function toPiAllowedSkills(skills: LoadedSkill[]) {
+  return skills.map((skill) => ({
+    id: `${skill.scope}:${skill.name}`,
+    name: skill.name,
+    scope: skill.scope,
+    path: skill.path,
+    contentHash: skill.contentHash,
+  }));
+}
+
 export function compileRoleSystemPrompt(
   context: RoleTurnPromptContext,
   policy: ContextBudgetPolicy = defaultContextBudgetPolicy,
@@ -116,6 +126,7 @@ export function compileRoleSystemPrompt(
       title: "Callable Skills",
       text: context.callableSkills
         .map((skill) => `- ${skill.scope}:${skill.name} (${skill.contentHash})`)
+        .concat(["Use `realm_skill_read` with the scoped skill id shown above when needed."])
         .join("\n"),
       priority: 60,
     });

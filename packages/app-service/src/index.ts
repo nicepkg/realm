@@ -41,7 +41,11 @@ import {
   RoleMemoryService,
   type RoleMemoryWriteInput,
 } from "./role-memory-service.ts";
-import { compileRoleSystemPrompt, loadRoleTurnContext } from "./role-turn-context.ts";
+import {
+  compileRoleSystemPrompt,
+  loadRoleTurnContext,
+  toPiAllowedSkills,
+} from "./role-turn-context.ts";
 import { SettingsService, type SettingsSnapshot } from "./settings-service.ts";
 import {
   assertSafePathSegment,
@@ -348,6 +352,7 @@ export class RealmApplicationService {
         systemPrompt: compileRoleSystemPrompt(roleContext),
         provider: modelSettings.provider,
         model: modelSettings.model,
+        allowedSkills: toPiAllowedSkills(roleContext.callableSkills),
         allowedSkillPaths: roleContext.callableSkills.map((skill) => skill.path),
         extensionPaths: await resolvePiExtensionPaths(
           this.options.piExtensionPath ?? process.env.REALM_PI_EXTENSION_PATH,

@@ -1,6 +1,8 @@
+import { readFile } from "node:fs/promises";
+import path from "node:path";
 import type { AgentTool } from "@earendil-works/pi-agent-core";
 import { Type } from "typebox";
-import type { PiSessionStartInput } from "./types.ts";
+import type { PiAllowedSkill, PiSessionStartInput } from "./types.ts";
 
 export function buildRealmAgentTools(input: PiSessionStartInput): AgentTool[] {
   const baseUrl = input.env?.REALM_EXTENSION_BASE_URL ?? "http://127.0.0.1:3737";
@@ -8,7 +10,7 @@ export function buildRealmAgentTools(input: PiSessionStartInput): AgentTool[] {
   const worldId = input.env?.REALM_EXTENSION_WORLD_ID ?? input.worldId;
   const roleId = input.env?.REALM_EXTENSION_ROLE_ID ?? input.roleId;
 
-  return [
+  const tools: AgentTool[] = [
     {
       name: "realm_state_query",
       label: "Realm State Query",
@@ -74,6 +76,96 @@ export function buildRealmAgentTools(input: PiSessionStartInput): AgentTool[] {
       },
     },
   ];
+
+  const allowedSkills = input.allowedSkills ?? skillsFromPaths(input.allowedSkillPaths);
+  if (allowedSkills.length > 0) {
+    tools.push(buildSkillReadTool(allowedSkills));
+  }
+
+  return tools;
+}
+
+function buildSkillReadTool(allowedSkills: PiAllowedSkill[]): AgentTool {
+  const index = indexAllowedSkills(allowedSkills);
+  return {
+    name: "realm_skill_read",
+    label: "Realm Skill Read",
+    description: "Read one callable Realm skill that is explicitly available to this role.",
+    parameters: Type.Object({
+      name: Type.String({ description: "Callable skill id (`scope:name`) or unique skill name." }),
+    }),
+    async execute(_toolCallId, params, signal) {
+      const args = params as { name?: unknown };
+      const requestedSkill = requireString(args.name, "name");
+      const skill = resolveAllowedSkill(index, requestedSkill);
+      if (!skill) {
+        throw new Error(`Skill is not available to this role: ${requestedSkill}`);
+      }
+      if (signal?.aborted) {
+        throw new Error("Skill read aborted");
+      }
+      const content = await readFile(path.join(skill.path, "SKILL.md"), "utf8");
+      return textResult([`# Callable skill: ${skill.id}`, "", content.trim()].join("\n"), {
+        id: skill.id,
+        name: skill.name,
+        scope: skill.scope,
+        ...(skill.contentHash ? { contentHash: skill.contentHash } : {}),
+      });
+    },
+  };
+}
+
+type SkillIndex = {
+  byId: Map<string, PiAllowedSkill>;
+  byName: Map<string, PiAllowedSkill | "ambiguous">;
+};
+
+function skillsFromPaths(allowedSkillPaths: string[]): PiAllowedSkill[] {
+  const skills: PiAllowedSkill[] = [];
+  for (const skillPath of allowedSkillPaths) {
+    const resolvedPath = path.resolve(skillPath);
+    const skillName = path.basename(resolvedPath);
+    skills.push({
+      id: skillName,
+      name: skillName,
+      scope: "path",
+      path: resolvedPath,
+    });
+  }
+  return skills;
+}
+
+function indexAllowedSkills(allowedSkills: PiAllowedSkill[]): SkillIndex {
+  const byId = new Map<string, PiAllowedSkill>();
+  const byName = new Map<string, PiAllowedSkill | "ambiguous">();
+  for (const skill of allowedSkills) {
+    const resolvedSkill = { ...skill, path: path.resolve(skill.path) };
+    if (!byId.has(resolvedSkill.id)) {
+      byId.set(resolvedSkill.id, resolvedSkill);
+    }
+    const existing = byName.get(resolvedSkill.name);
+    if (!existing) {
+      byName.set(resolvedSkill.name, resolvedSkill);
+    } else if (existing !== "ambiguous" && existing.id !== resolvedSkill.id) {
+      byName.set(resolvedSkill.name, "ambiguous");
+    }
+  }
+  return { byId, byName };
+}
+
+function resolveAllowedSkill(
+  index: SkillIndex,
+  requestedSkill: string,
+): PiAllowedSkill | undefined {
+  const byId = index.byId.get(requestedSkill);
+  if (byId) {
+    return byId;
+  }
+  const byName = index.byName.get(requestedSkill);
+  if (byName === "ambiguous") {
+    throw new Error(`Skill name is ambiguous; use a scoped skill id: ${requestedSkill}`);
+  }
+  return byName;
 }
 
 async function postJson(
