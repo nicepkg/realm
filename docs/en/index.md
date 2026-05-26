@@ -76,6 +76,18 @@ bun run smoke:binary
 bun run smoke:pi-rpc
 ```
 
+## Terminal UI
+
+`realm tui` is a terminal client for an already running Realm server. It uses the same API/client SDK contracts as the Web UI, so it does not duplicate runtime business logic.
+
+```bash
+realm tui --base-url http://127.0.0.1:3737 --once
+realm tui --base-url http://127.0.0.1:3737 --send "hello from tui" --once
+realm tui --base-url http://127.0.0.1:3737 --settings --once
+```
+
+Interactive commands include `:send`, `:id`, `:room`, `:settings`, `:model`, `:assistant`, `:refresh`, and `:q`.
+
 ## Documentation Website
 
 The documentation website lives in `apps/docs` and is deployed to Cloudflare Pages.

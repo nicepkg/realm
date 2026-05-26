@@ -2,6 +2,7 @@ import {
   adminStatePatchRequestSchema,
   adminStatePatchResponseSchema,
   applyProjectPatchRequestSchema,
+  assistantConfigRequestSchema,
   cancelTurnResponseSchema,
   configPatchApplyResponseSchema,
   configPatchProposalResponseSchema,
@@ -62,43 +63,28 @@ import {
   worldTickTriggerResponseSchema,
 } from "@realm/api-contract";
 import type { z } from "zod";
+import { RealmHttpTransport } from "./http.ts";
 
-export type RealmClientOptions = {
-  baseUrl?: string;
-  fetchImpl?: typeof fetch;
-};
+export type { RealmClientOptions } from "./http.ts";
 
-export class RealmHttpClient {
-  private readonly baseUrl: string;
-  private readonly fetchImpl: typeof fetch;
-
-  constructor(options: RealmClientOptions = {}) {
-    this.baseUrl = options.baseUrl ?? "";
-    this.fetchImpl = options.fetchImpl ?? globalThis.fetch.bind(globalThis);
-  }
-
+export class RealmHttpClient extends RealmHttpTransport {
   async getProject(): Promise<z.infer<typeof projectResponseSchema>> {
     return this.get("/api/project", projectResponseSchema);
   }
-
   async getConfigStatus(): Promise<z.infer<typeof configStatusResponseSchema>> {
     return this.get("/api/config/status", configStatusResponseSchema);
   }
-
   async getSettings(): Promise<z.infer<typeof settingsResponseSchema>> {
     return this.get("/api/settings", settingsResponseSchema);
   }
-
   async exportSettings(): Promise<z.infer<typeof settingsExportResponseSchema>> {
     return this.get("/api/settings/export", settingsExportResponseSchema);
   }
-
   async importSettings(
     input: z.input<typeof settingsImportRequestSchema>,
   ): Promise<z.infer<typeof settingsResponseSchema>> {
     return this.post("/api/settings/import", input, settingsResponseSchema);
   }
-
   async updateUserSettings(
     input: z.input<typeof updateUserSettingsRequestSchema>,
   ): Promise<z.infer<typeof settingsResponseSchema>> {
@@ -108,7 +94,6 @@ export class RealmHttpClient {
       settingsResponseSchema,
     );
   }
-
   async updateProjectSettings(
     input: z.input<typeof updateProjectSettingsRequestSchema>,
   ): Promise<z.infer<typeof settingsResponseSchema>> {
@@ -118,35 +103,27 @@ export class RealmHttpClient {
       settingsResponseSchema,
     );
   }
-
   async getEffectiveConfig(): Promise<z.infer<typeof effectiveConfigResponseSchema>> {
     return this.get("/api/config/effective", effectiveConfigResponseSchema);
   }
-
   async getEffectivePolicy(): Promise<z.infer<typeof effectivePolicyResponseSchema>> {
     return this.get("/api/policy/effective", effectivePolicyResponseSchema);
   }
-
   async listEvents(afterSeq = 0): Promise<z.infer<typeof listEventsResponseSchema>> {
     return this.get(`/api/events?afterSeq=${afterSeq}`, listEventsResponseSchema);
   }
-
   async listWorlds(): Promise<z.infer<typeof listWorldsResponseSchema>> {
     return this.get("/api/worlds", listWorldsResponseSchema);
   }
-
   async listRooms(worldId: string): Promise<z.infer<typeof listRoomsResponseSchema>> {
     return this.get(`/api/worlds/${encodeURIComponent(worldId)}/rooms`, listRoomsResponseSchema);
   }
-
   async getWorldState(worldId: string): Promise<z.infer<typeof worldStateResponseSchema>> {
     return this.get(`/api/worlds/${encodeURIComponent(worldId)}/state`, worldStateResponseSchema);
   }
-
   async listRoles(): Promise<z.infer<typeof listRolesResponseSchema>> {
     return this.get("/api/roles", listRolesResponseSchema);
   }
-
   async listMessages(roomId: string): Promise<z.infer<typeof listMessagesResponseSchema>> {
     return this.get(
       `/api/rooms/${encodeURIComponent(roomId)}/messages`,
@@ -222,6 +199,16 @@ export class RealmHttpClient {
     return this.post(
       "/api/config/patches/world",
       createWorldRequestSchema.parse(input),
+      configPatchProposalResponseSchema,
+    );
+  }
+
+  async proposeAssistantConfig(
+    input: z.input<typeof assistantConfigRequestSchema>,
+  ): Promise<z.infer<typeof configPatchProposalResponseSchema>> {
+    return this.post(
+      "/api/assistant/config",
+      assistantConfigRequestSchema.parse(input),
       configPatchProposalResponseSchema,
     );
   }
@@ -469,30 +456,6 @@ export class RealmHttpClient {
       extensionMemoryWriteRequestSchema.parse(input),
       extensionMemoryWriteResponseSchema,
     );
-  }
-
-  private async get<T>(path: string, schema: z.ZodType<T>): Promise<T> {
-    const response = await this.fetchImpl(`${this.baseUrl}${path}`);
-    return this.parseResponse(response, schema);
-  }
-
-  private async post<T>(path: string, body: unknown, schema: z.ZodType<T>): Promise<T> {
-    const response = await this.fetchImpl(`${this.baseUrl}${path}`, {
-      method: "POST",
-      headers: { "content-type": "application/json" },
-      body: JSON.stringify(body),
-    });
-    return this.parseResponse(response, schema);
-  }
-
-  private async parseResponse<T>(response: Response, schema: z.ZodType<T>): Promise<T> {
-    const payload = await response.json();
-    if (!response.ok) {
-      const message =
-        typeof payload?.error?.message === "string" ? payload.error.message : response.statusText;
-      throw new Error(message);
-    }
-    return schema.parse(payload);
   }
 }
 

@@ -27,6 +27,7 @@ Pi CLI/RPC 子进程路径只作为显式诊断和兼容性冒烟，不是正常
 - 不导出原始 provider 密钥的设置导入/导出；
 - Pi package bridge 运行角色回合；
 - 角色记忆和私有状态访问；
+- 使用同一套 API/client SDK 的终端 UI 客户端；
 - 上帝状态 patch、击杀/禁言/复活、自然事件、确定性随机自然事件；
 - 事件存储，支持 SSE 和 WebSocket；
 - 配置 patch 提案、应用、回滚、迁移和保留注释的 YAML 写入；
@@ -47,6 +48,14 @@ bun run apps/cli/src/index.ts open
 bun run apps/cli/src/index.ts init --template software-company
 bun run apps/cli/src/index.ts trust --tier run-roles
 bun run apps/cli/src/index.ts open
+```
+
+连接正在运行的本地服务，使用终端客户端：
+
+```bash
+bun run apps/cli/src/index.ts tui --base-url http://127.0.0.1:3737 --once
+bun run apps/cli/src/index.ts tui --base-url http://127.0.0.1:3737 --send "hello from tui" --once
+bun run apps/cli/src/index.ts tui --base-url http://127.0.0.1:3737 --settings --once
 ```
 
 npm 发布后的目标安装方式：

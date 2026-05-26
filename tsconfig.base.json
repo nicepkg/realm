@@ -17,6 +17,7 @@
     "noUncheckedIndexedAccess": true,
     "paths": {
       "@realm/server": ["apps/server/src/index.ts"],
+      "@realm/tui": ["apps/tui/src/index.ts"],
       "@realm/assistant": ["packages/assistant/src/index.ts"],
       "@realm/core": ["packages/core/src/index.ts"],
       "@realm/config": ["packages/config/src/index.ts"],

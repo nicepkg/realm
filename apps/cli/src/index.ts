@@ -16,9 +16,10 @@ import {
 import { FakeVerticalSliceRuntime } from "@realm/runtime";
 import { createRealmServer, createRealmWebSocketHandlers, realmWebSocketData } from "@realm/server";
 import { SQLiteEventStore } from "@realm/storage";
+import { runTui } from "@realm/tui";
 import { writeTemplate } from "./project-templates.ts";
 
-type Command = "init" | "doctor" | "fake-run" | "open" | "trust" | "help" | "version";
+type Command = "init" | "doctor" | "fake-run" | "open" | "trust" | "tui" | "help" | "version";
 
 async function main(argv: string[]): Promise<void> {
   const command = parseCommand(argv);
@@ -38,6 +39,9 @@ async function main(argv: string[]): Promise<void> {
       return;
     case "trust":
       await trust(argv);
+      return;
+    case "tui":
+      await runTui(argv);
       return;
     case "version":
       console.log("0.1.0");
@@ -59,7 +63,13 @@ function parseCommand(argv: string[]): Command {
   if (command === "--version" || command === "-v" || command === "version") {
     return "version";
   }
-  if (command === "init" || command === "doctor" || command === "fake-run" || command === "trust") {
+  if (
+    command === "init" ||
+    command === "doctor" ||
+    command === "fake-run" ||
+    command === "trust" ||
+    command === "tui"
+  ) {
     return command;
   }
   return "help";
@@ -206,6 +216,7 @@ Usage:
   realm init --template cultivation
   realm init --template software-company
   realm trust --tier run-roles
+  realm tui --base-url http://127.0.0.1:3737 --once
   realm doctor
   realm fake-run
   realm server start --port 3737
@@ -214,6 +225,7 @@ Commands:
   open       Start the local Realm server and Web UI.
   init       Initialize .agents in the current project.
   trust      Trust the current project for role runtime capabilities.
+  tui        Connect to a local Realm server with a terminal UI.
   doctor     Validate the current project Realm setup.
   fake-run   Run the deterministic P1 fake vertical slice.
 `);

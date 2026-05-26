@@ -42,6 +42,7 @@ export const pages: Record<Locale, DocPage> = {
       "State",
       "Governance",
       "Development",
+      "TUI",
       "Deployment",
     ],
     sections: [
@@ -138,6 +139,15 @@ export const pages: Record<Locale, DocPage> = {
         code: "bun run lint\nbun run typecheck\nbun test\nbun run build\nbun run build:binary\nbun run smoke:binary\nbun run smoke:pi-rpc",
       },
       {
+        id: "tui",
+        title: "Terminal UI",
+        body: [
+          "The TUI connects to an existing Realm server and uses the same client SDK contracts as the Web UI. It is intentionally thin: rooms, chat, identity switching, settings, and config-assistant requests all go through API calls.",
+          "This keeps the runtime reusable for Web, terminal, automation, and future clients without copying domain logic into presentation code.",
+        ],
+        code: 'realm tui --base-url http://127.0.0.1:3737 --once\nrealm tui --base-url http://127.0.0.1:3737 --send "hello from tui" --once\nrealm tui --base-url http://127.0.0.1:3737 --settings --once\n\n# Interactive commands\n:send hello\n:id god\n:room main\n:model openai gpt-5\n:assistant create a QA role',
+      },
+      {
         id: "deployment",
         title: "Docs deployment",
         body: [
@@ -160,7 +170,7 @@ export const pages: Record<Locale, DocPage> = {
     primaryAction: "快速开始",
     secondaryAction: "架构说明",
     badges: ["Bun + TypeScript", "PI 包优先", "本地优先", "支持二进制"],
-    nav: ["开始", "概念", "安装", "配置", "世界", "状态", "治理", "开发", "部署"],
+    nav: ["开始", "概念", "安装", "配置", "世界", "状态", "治理", "开发", "终端 UI", "部署"],
     sections: [
       {
         id: "start",
@@ -253,6 +263,15 @@ export const pages: Record<Locale, DocPage> = {
           "重要逻辑需要单元测试和集成测试。工作流 artifact、task、review、approval gate 和审批后的项目 patch 是事件化 API 合同，不是 Web-only 状态。software-company fixture 证明了从讨论到 patch、测试、review 的闭环。UI 流程要能被浏览器自动化和手动冒烟验证。",
         ],
         code: "bun run lint\nbun run typecheck\nbun test\nbun run build\nbun run build:binary\nbun run smoke:binary\nbun run smoke:pi-rpc",
+      },
+      {
+        id: "tui",
+        title: "终端 UI",
+        body: [
+          "TUI 连接一个已启动的 Realm 本地服务，并使用和 Web UI 相同的 client SDK 合同。它保持轻量：房间、聊天、身份切换、设置和配置助手请求都走 API。",
+          "这样 Web、终端、自动化和未来客户端都能复用同一个运行时，不把领域逻辑复制到展示层。",
+        ],
+        code: 'realm tui --base-url http://127.0.0.1:3737 --once\nrealm tui --base-url http://127.0.0.1:3737 --send "hello from tui" --once\nrealm tui --base-url http://127.0.0.1:3737 --settings --once\n\n# 交互命令\n:send hello\n:id god\n:room main\n:model openai gpt-5\n:assistant create a QA role',
       },
       {
         id: "deployment",

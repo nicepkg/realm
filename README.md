@@ -27,6 +27,7 @@ Realm is under active development, but the current vertical slice is usable:
 - settings import/export without raw provider secrets;
 - Pi package bridge for role turns;
 - role memory and private world state access;
+- terminal UI client that uses the same API/client SDK as the Web UI;
 - God state patches, kill/mute/revive actions, natural events, and deterministic random natural events;
 - event store with SSE and WebSocket streaming;
 - config patch proposals, apply, rollback, migration, and comment-preserving YAML writes;
@@ -53,6 +54,14 @@ For a deterministic no-key demo, use the fake vertical slice runtime:
 
 ```bash
 bun run apps/cli/src/index.ts open --runtime fake
+```
+
+Use the terminal client against a running local server:
+
+```bash
+bun run apps/cli/src/index.ts tui --base-url http://127.0.0.1:3737 --once
+bun run apps/cli/src/index.ts tui --base-url http://127.0.0.1:3737 --send "hello from tui" --once
+bun run apps/cli/src/index.ts tui --base-url http://127.0.0.1:3737 --settings --once
 ```
 
 After npm publishing, the intended install path is:

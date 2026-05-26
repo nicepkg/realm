@@ -76,6 +76,18 @@ bun run smoke:binary
 bun run smoke:pi-rpc
 ```
 
+## 终端 UI
+
+`realm tui` 是连接已有 Realm 本地服务的终端客户端。它使用和 Web UI 相同的 API/client SDK 合同，不复制运行时业务逻辑。
+
+```bash
+realm tui --base-url http://127.0.0.1:3737 --once
+realm tui --base-url http://127.0.0.1:3737 --send "hello from tui" --once
+realm tui --base-url http://127.0.0.1:3737 --settings --once
+```
+
+交互命令包括 `:send`、`:id`、`:room`、`:settings`、`:model`、`:assistant`、`:refresh` 和 `:q`。
+
 ## 文档站
 
 文档站位于 `apps/docs`，部署到 Cloudflare Pages。
