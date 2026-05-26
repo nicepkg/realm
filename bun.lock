@@ -49,6 +49,10 @@
       "name": "@realm/server",
       "version": "0.1.0",
     },
+    "apps/tui": {
+      "name": "@realm/tui",
+      "version": "0.1.0",
+    },
     "apps/web": {
       "name": "@realm/web",
       "version": "0.1.0",
@@ -308,6 +312,8 @@
     "@realm/server": ["@realm/server@workspace:apps/server"],
 
     "@realm/storage": ["@realm/storage@workspace:packages/storage"],
+
+    "@realm/tui": ["@realm/tui@workspace:apps/tui"],
 
     "@realm/web": ["@realm/web@workspace:apps/web"],
 
