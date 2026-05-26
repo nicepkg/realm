@@ -15,7 +15,7 @@ import { createInitialState, StateReducer, type WorldState } from "@realm/kernel
 import { buildRandomNaturalEvent } from "@realm/scheduler";
 import type { EventStore } from "@realm/storage";
 import YAML from "yaml";
-import { assertSafePathSegment, OWNER_ID } from "./support.ts";
+import { assertSafePathSegment, OWNER_ID, readJsonPointer } from "./support.ts";
 
 export type StateQueryInput = {
   worldId: string;
@@ -373,26 +373,6 @@ function readNestedObject(
   return typeof current === "object" && current !== null
     ? (current as Record<string, unknown>)
     : undefined;
-}
-
-function readJsonPointer(target: unknown, pointer: string): unknown {
-  if (pointer === "") {
-    return target;
-  }
-  if (!pointer.startsWith("/")) {
-    throw new Error(`Invalid JSON Pointer: ${pointer}`);
-  }
-  let current = target;
-  for (const part of pointer
-    .slice(1)
-    .split("/")
-    .map((value) => value.replace(/~1/g, "/").replace(/~0/g, "~"))) {
-    if (typeof current !== "object" || current === null) {
-      return undefined;
-    }
-    current = (current as Record<string, unknown>)[part];
-  }
-  return current;
 }
 
 async function writeJsonAtomic(filePath: string, value: unknown): Promise<void> {

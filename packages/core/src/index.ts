@@ -235,6 +235,51 @@ export const godRoleActionTypeSchema = z.enum(["kill", "mute", "revive"]);
 
 export type GodRoleActionType = z.infer<typeof godRoleActionTypeSchema>;
 
+export const worldEventSeveritySchema = z.enum(["minor", "major", "critical"]);
+
+export type WorldEventSeverity = z.infer<typeof worldEventSeveritySchema>;
+
+export const worldEventConditionSchema = z.object({
+  path: jsonPointerSchema,
+  equals: z.unknown().optional(),
+  exists: z.boolean().optional(),
+});
+
+export type WorldEventCondition = z.infer<typeof worldEventConditionSchema>;
+
+export const worldEventRecordSchema = z.object({
+  id: idSchema,
+  worldId: idSchema,
+  kind: z.enum(["manual", "random", "condition", "god-adjudicated"]),
+  title: z.string().min(1),
+  description: z.string().min(1),
+  severity: worldEventSeveritySchema,
+  targetRoleIds: z.array(idSchema),
+  seed: z.union([z.string(), z.number()]).optional(),
+  condition: worldEventConditionSchema.optional(),
+  patchId: idSchema.optional(),
+  messageId: idSchema.optional(),
+  stateVersion: z.number().int().nonnegative().optional(),
+  status: z.enum(["committed", "duplicate", "rejected", "skipped"]),
+  reason: z.string().optional(),
+  createdAt: isoDateSchema,
+});
+
+export type WorldEventRecord = z.infer<typeof worldEventRecordSchema>;
+
+export const worldTickRecordSchema = z.object({
+  id: idSchema,
+  worldId: idSchema,
+  tick: z.number().int().nonnegative(),
+  seed: z.union([z.string(), z.number()]),
+  eventId: idSchema.optional(),
+  stateVersion: z.number().int().nonnegative().optional(),
+  status: z.enum(["triggered", "duplicate", "skipped"]),
+  createdAt: isoDateSchema,
+});
+
+export type WorldTickRecord = z.infer<typeof worldTickRecordSchema>;
+
 export const configPatchFileOperationSchema = z.object({
   path: z.string().min(1),
   action: z.enum(["create", "update", "delete"]),
@@ -380,6 +425,14 @@ export const realmEventSchema = z.discriminatedUnion("type", [
     type: z.literal("state.patch.committed"),
     patch: statePatchSchema,
     version: z.number().int().nonnegative(),
+  }),
+  eventEnvelopeSchema.extend({
+    type: z.literal("world.event.triggered"),
+    event: worldEventRecordSchema,
+  }),
+  eventEnvelopeSchema.extend({
+    type: z.literal("world.tick.triggered"),
+    tick: worldTickRecordSchema,
   }),
   eventEnvelopeSchema.extend({
     type: z.literal("audit.created"),

@@ -180,4 +180,55 @@ describe("core contracts", () => {
       projectPatch: { files: [{ path: "src/feature.txt" }] },
     });
   });
+
+  test("accepts world event and tick events", () => {
+    const worldEvent = realmEventSchema.parse({
+      eventId: "event:world-event:1",
+      seq: 1,
+      schemaVersion: 1,
+      aggregateId: "world:cultivation",
+      createdAt: "2026-05-27T00:00:00.000Z",
+      type: "world.event.triggered",
+      event: {
+        id: "world-event:1",
+        worldId: "cultivation",
+        kind: "god-adjudicated",
+        title: "Duel Result",
+        description: "God adjudicates the duel.",
+        severity: "major",
+        targetRoleIds: ["leijun"],
+        patchId: "state-patch:1",
+        stateVersion: 1,
+        status: "committed",
+        createdAt: "2026-05-27T00:00:00.000Z",
+      },
+    });
+    const tickEvent = realmEventSchema.parse({
+      eventId: "event:world-tick:1",
+      seq: 2,
+      schemaVersion: 1,
+      aggregateId: "world:cultivation",
+      createdAt: "2026-05-27T00:01:00.000Z",
+      type: "world.tick.triggered",
+      tick: {
+        id: "world-tick:1",
+        worldId: "cultivation",
+        tick: 1,
+        seed: "day-1",
+        eventId: "world-event:1",
+        stateVersion: 1,
+        status: "triggered",
+        createdAt: "2026-05-27T00:01:00.000Z",
+      },
+    });
+
+    expect(worldEvent).toMatchObject({
+      type: "world.event.triggered",
+      event: { kind: "god-adjudicated", status: "committed" },
+    });
+    expect(tickEvent).toMatchObject({
+      type: "world.tick.triggered",
+      tick: { tick: 1, eventId: "world-event:1" },
+    });
+  });
 });

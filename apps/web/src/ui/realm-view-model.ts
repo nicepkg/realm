@@ -27,7 +27,9 @@ export type TraceEvent = Extract<
       | "turn.failed"
       | "turn.cancelled"
       | "tool.called"
-      | "audit.created";
+      | "audit.created"
+      | "world.event.triggered"
+      | "world.tick.triggered";
   }
 >;
 
@@ -115,7 +117,9 @@ export function isTraceEvent(event: RealmEvent): event is TraceEvent {
     event.type === "turn.failed" ||
     event.type === "turn.cancelled" ||
     event.type === "tool.called" ||
-    event.type === "audit.created"
+    event.type === "audit.created" ||
+    event.type === "world.event.triggered" ||
+    event.type === "world.tick.triggered"
   );
 }
 
@@ -168,6 +172,18 @@ export function describeTraceEvent(event: TraceEvent): { title: string; body: st
     return {
       title: `Audit: ${event.audit.action}`,
       body: `${event.audit.target}: ${event.audit.reason}`,
+    };
+  }
+  if (event.type === "world.event.triggered") {
+    return {
+      title: `World event: ${event.event.title}`,
+      body: `${event.event.kind} · ${event.event.status}`,
+    };
+  }
+  if (event.type === "world.tick.triggered") {
+    return {
+      title: `Tick ${event.tick.tick}`,
+      body: event.tick.eventId ? `Triggered ${event.tick.eventId}` : event.tick.status,
     };
   }
   return {

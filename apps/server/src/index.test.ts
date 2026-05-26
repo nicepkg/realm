@@ -414,6 +414,52 @@ describe("Realm server API", () => {
     expect(missingTokenResponse.status).toBe(401);
     expect(wrongRoleResponse.status).toBe(403);
   });
+
+  test("exposes world event engine endpoints", async () => {
+    const root = await mkdtemp(path.join(os.tmpdir(), "realm-server-world-events-"));
+    await initProject(root, "demo");
+    const app = createRealmServer({ root, trustTier: "run-roles" });
+
+    const manualResponse = await app.request("/api/worlds/cultivation/events/manual", {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({
+        title: "Manual Storm",
+        description: "God manually changes weather.",
+        roomId: "main",
+        operations: [{ op: "set", path: "/publicState/weather", value: "storm" }],
+      }),
+    });
+    const tickResponse = await app.request("/api/worlds/cultivation/events/tick", {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({ tick: 1, seed: "day-1", targetRoleIds: ["leijun"] }),
+    });
+    const godEventResponse = await app.request("/api/worlds/cultivation/events/god-adjudicated", {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({
+        title: "Duel Result",
+        description: "God adjudicates a duel outcome.",
+        operations: [{ op: "set", path: "/publicState/duel", value: "settled" }],
+      }),
+    });
+    const replayResponse = await app.request("/api/worlds/cultivation/events/replay");
+    const manualPayload = (await manualResponse.json()) as { event: { kind: string } };
+    const tickPayload = (await tickResponse.json()) as { tick: { tick: number } };
+    const replayPayload = (await replayResponse.json()) as {
+      replayHash: string;
+      events: Array<{ type: string }>;
+    };
+
+    expect(manualResponse.status).toBe(201);
+    expect(tickResponse.status).toBe(201);
+    expect(godEventResponse.status).toBe(201);
+    expect(manualPayload.event.kind).toBe("manual");
+    expect(tickPayload.tick.tick).toBe(1);
+    expect(replayPayload.replayHash).toHaveLength(64);
+    expect(replayPayload.events.map((event) => event.type)).toContain("world.event.triggered");
+  });
 });
 
 function readOneWebSocketMessage(url: string): Promise<string> {

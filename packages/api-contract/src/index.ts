@@ -20,7 +20,10 @@ import {
   workflowProjectPatchSchema,
   workflowReviewSchema,
   workflowTaskSchema,
+  worldEventConditionSchema,
+  worldEventRecordSchema,
   worldSummarySchema,
+  worldTickRecordSchema,
 } from "@realm/core";
 import { z } from "zod";
 
@@ -42,7 +45,10 @@ export type {
   WorkflowProjectPatch,
   WorkflowReview,
   WorkflowTask,
+  WorldEventCondition,
+  WorldEventRecord,
   WorldSummary,
+  WorldTickRecord,
 } from "@realm/core";
 export {
   realmEventSchema,
@@ -279,6 +285,52 @@ export const randomNaturalWorldEventRequestSchema = z.object({
   seed: z.union([z.string().min(1), z.number()]).optional(),
   targetRoleIds: z.array(z.string().min(1)).optional(),
   idempotencyKey: z.string().min(1).optional(),
+});
+
+export const worldEventTriggerRequestSchema = z.object({
+  title: z.string().min(1),
+  description: z.string().min(1),
+  severity: z.enum(["minor", "major", "critical"]).optional(),
+  targetRoleIds: z.array(z.string().min(1)).optional(),
+  operations: z.array(statePatchOperationSchema).min(1),
+  expectedVersion: z.number().int().nonnegative().optional(),
+  roomId: z.string().min(1).optional(),
+  message: z.string().min(1).optional(),
+  idempotencyKey: z.string().min(1).optional(),
+});
+
+export const worldEventConditionRequestSchema = worldEventTriggerRequestSchema.extend({
+  condition: worldEventConditionSchema,
+});
+
+export const randomWorldEventRequestSchema = z.object({
+  seed: z.union([z.string().min(1), z.number()]).optional(),
+  targetRoleIds: z.array(z.string().min(1)).optional(),
+  roomId: z.string().min(1).optional(),
+  idempotencyKey: z.string().min(1).optional(),
+});
+
+export const tickWorldEventRequestSchema = randomWorldEventRequestSchema.extend({
+  tick: z.number().int().nonnegative().optional(),
+});
+
+export const worldEventTriggerResponseSchema = z.object({
+  event: worldEventRecordSchema,
+  patch: statePatchSchema.optional(),
+  result: statePatchResultSchema.optional(),
+  message: messageSchema.optional(),
+});
+
+export const worldTickTriggerResponseSchema = worldEventTriggerResponseSchema.extend({
+  tick: worldTickRecordSchema,
+});
+
+export const worldEventReplayResponseSchema = z.object({
+  worldId: z.string().min(1),
+  fromSeq: z.number().int().nonnegative(),
+  toSeq: z.number().int().nonnegative(),
+  replayHash: z.string().min(1),
+  events: z.array(realmEventSchema),
 });
 
 export const extensionMemoryReadRequestSchema = z.object({

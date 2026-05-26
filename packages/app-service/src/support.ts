@@ -48,6 +48,26 @@ export function humanizeId(id: string): string {
     .join(" ");
 }
 
+export function readJsonPointer(target: unknown, pointer: string): unknown {
+  if (pointer === "") {
+    return target;
+  }
+  if (!pointer.startsWith("/")) {
+    throw new Error(`Invalid JSON Pointer: ${pointer}`);
+  }
+  let current = target;
+  for (const part of pointer
+    .slice(1)
+    .split("/")
+    .map((value) => value.replace(/~1/g, "/").replace(/~0/g, "~"))) {
+    if (typeof current !== "object" || current === null) {
+      return undefined;
+    }
+    current = (current as Record<string, unknown>)[part];
+  }
+  return current;
+}
+
 export async function resolvePiExtensionPaths(configuredPath?: string): Promise<string[]> {
   if (configuredPath) {
     return [configuredPath];

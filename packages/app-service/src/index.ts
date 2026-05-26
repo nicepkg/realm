@@ -56,6 +56,7 @@ import {
   type RequestWorkflowReviewInput,
   WorkflowService,
 } from "./workflow-service.ts";
+import { WorldEventService } from "./world-event-service.ts";
 import {
   type AdminStatePatchInput,
   type GodRoleActionInput,
@@ -134,6 +135,7 @@ export class RealmApplicationService {
   private readonly turnControlService = new TurnControlService();
   private readonly worldStateService: WorldStateService;
   private readonly workflowService: WorkflowService;
+  readonly worldEvents: WorldEventService;
   private readonly fakeVerticalSliceService: FakeVerticalSliceService | undefined;
 
   constructor(private readonly options: RealmApplicationServiceOptions) {
@@ -189,6 +191,17 @@ export class RealmApplicationService {
       clock: this.clock,
       assertAllowed: (capability) => this.policyGate.assertAllowed(capability),
       appendAudit: (input) => this.policyGate.appendAudit(input),
+    });
+    this.worldEvents = new WorldEventService({
+      eventStore: this.eventStore,
+      clock: this.clock,
+      assertAllowed: (capability) => this.policyGate.assertAllowed(capability),
+      appendAudit: (input) => this.policyGate.appendAudit(input),
+      commitStatePatch: (input) => this.worldStateService.adminPatchState(input),
+      getWorldState: (worldId) => this.worldStateService.getWorldState(worldId),
+      listWorldRoleIds: async (worldId) =>
+        (await this.listWorlds()).find((world) => world.id === worldId)?.roleIds ?? [],
+      sendMessage: (input) => this.messageService.sendMessage(input),
     });
     this.workflowService = new WorkflowService({
       eventStore: this.eventStore,

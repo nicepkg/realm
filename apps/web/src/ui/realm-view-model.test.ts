@@ -103,6 +103,55 @@ describe("realm web view model", () => {
     });
   });
 
+  test("surfaces world events and ticks in the trace inspector feed", () => {
+    const event: RealmEvent = {
+      type: "world.event.triggered",
+      eventId: "event-world-event",
+      seq: 1,
+      schemaVersion: 1,
+      aggregateId: "world-cultivation",
+      createdAt: "2026-05-26T01:00:00.000Z",
+      event: {
+        id: "world-event-1",
+        worldId: "cultivation",
+        kind: "manual",
+        title: "Sudden Storm",
+        description: "Weather changes.",
+        severity: "minor",
+        targetRoleIds: [],
+        status: "committed",
+        createdAt: "2026-05-26T01:00:00.000Z",
+      },
+    };
+    const tick: RealmEvent = {
+      type: "world.tick.triggered",
+      eventId: "event-world-tick",
+      seq: 2,
+      schemaVersion: 1,
+      aggregateId: "world-cultivation",
+      createdAt: "2026-05-26T01:01:00.000Z",
+      tick: {
+        id: "world-tick-1",
+        worldId: "cultivation",
+        tick: 1,
+        seed: "day-1",
+        eventId: "world-event-1",
+        status: "triggered",
+        createdAt: "2026-05-26T01:01:00.000Z",
+      },
+    };
+
+    expect(isTraceEvent(event)).toBe(true);
+    expect(describeTraceEvent(event)).toEqual({
+      title: "World event: Sudden Storm",
+      body: "manual · committed",
+    });
+    expect(describeTraceEvent(tick)).toEqual({
+      title: "Tick 1",
+      body: "Triggered world-event-1",
+    });
+  });
+
   test("describes turn model usage for trace inspectors", () => {
     const event: RealmEvent = {
       type: "turn.completed",

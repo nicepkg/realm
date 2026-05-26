@@ -38,6 +38,7 @@ import {
   projectResponseSchema,
   proposeProjectPatchRequestSchema,
   randomNaturalWorldEventRequestSchema,
+  randomWorldEventRequestSchema,
   requestWorkflowApprovalRequestSchema,
   requestWorkflowReviewRequestSchema,
   runRoleTurnRequestSchema,
@@ -48,11 +49,17 @@ import {
   type settingsImportRequestSchema,
   settingsResponseSchema,
   startRoleTurnResponseSchema,
+  tickWorldEventRequestSchema,
   updateProjectSettingsRequestSchema,
   updateUserSettingsRequestSchema,
   workflowApprovalResponseSchema,
   workflowReviewResponseSchema,
+  worldEventConditionRequestSchema,
+  worldEventReplayResponseSchema,
+  worldEventTriggerRequestSchema,
+  worldEventTriggerResponseSchema,
   worldStateResponseSchema,
+  worldTickTriggerResponseSchema,
 } from "@realm/api-contract";
 import type { z } from "zod";
 
@@ -366,6 +373,71 @@ export class RealmHttpClient {
       `/api/god/${encodeURIComponent(worldId)}/natural-events/random`,
       randomNaturalWorldEventRequestSchema.parse(input),
       naturalWorldEventResponseSchema,
+    );
+  }
+
+  async triggerManualWorldEvent(
+    worldId: string,
+    input: z.input<typeof worldEventTriggerRequestSchema>,
+  ): Promise<z.infer<typeof worldEventTriggerResponseSchema>> {
+    return this.post(
+      `/api/worlds/${encodeURIComponent(worldId)}/events/manual`,
+      worldEventTriggerRequestSchema.parse(input),
+      worldEventTriggerResponseSchema,
+    );
+  }
+
+  async triggerGodAdjudicatedWorldEvent(
+    worldId: string,
+    input: z.input<typeof worldEventTriggerRequestSchema>,
+  ): Promise<z.infer<typeof worldEventTriggerResponseSchema>> {
+    return this.post(
+      `/api/worlds/${encodeURIComponent(worldId)}/events/god-adjudicated`,
+      worldEventTriggerRequestSchema.parse(input),
+      worldEventTriggerResponseSchema,
+    );
+  }
+
+  async triggerRandomWorldEvent(
+    worldId: string,
+    input: z.input<typeof randomWorldEventRequestSchema>,
+  ): Promise<z.infer<typeof worldEventTriggerResponseSchema>> {
+    return this.post(
+      `/api/worlds/${encodeURIComponent(worldId)}/events/random`,
+      randomWorldEventRequestSchema.parse(input),
+      worldEventTriggerResponseSchema,
+    );
+  }
+
+  async triggerWorldTick(
+    worldId: string,
+    input: z.input<typeof tickWorldEventRequestSchema>,
+  ): Promise<z.infer<typeof worldTickTriggerResponseSchema>> {
+    return this.post(
+      `/api/worlds/${encodeURIComponent(worldId)}/events/tick`,
+      tickWorldEventRequestSchema.parse(input),
+      worldTickTriggerResponseSchema,
+    );
+  }
+
+  async triggerConditionWorldEvent(
+    worldId: string,
+    input: z.input<typeof worldEventConditionRequestSchema>,
+  ): Promise<z.infer<typeof worldEventTriggerResponseSchema>> {
+    return this.post(
+      `/api/worlds/${encodeURIComponent(worldId)}/events/condition`,
+      worldEventConditionRequestSchema.parse(input),
+      worldEventTriggerResponseSchema,
+    );
+  }
+
+  async getWorldEventReplay(
+    worldId: string,
+    afterSeq = 0,
+  ): Promise<z.infer<typeof worldEventReplayResponseSchema>> {
+    return this.get(
+      `/api/worlds/${encodeURIComponent(worldId)}/events/replay?afterSeq=${afterSeq}`,
+      worldEventReplayResponseSchema,
     );
   }
 

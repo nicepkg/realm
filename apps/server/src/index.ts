@@ -27,6 +27,7 @@ import {
 } from "@realm/api-contract";
 import { RealmApplicationService, type RealmApplicationServiceOptions } from "@realm/app-service";
 import { Hono } from "hono";
+import { registerWorldEventRoutes } from "./world-event-routes.ts";
 
 export type RealmServerOptions = RealmApplicationServiceOptions & {
   webDistDir?: string;
@@ -106,6 +107,7 @@ export function createRealmServer(options: RealmServerOptions): Hono {
   app.get("/api/worlds/:worldId/state", async (context) =>
     context.json(await service.getWorldState(context.req.param("worldId"))),
   );
+  registerWorldEventRoutes(app, service);
   app.get("/api/worlds/:worldId/rooms", async (context) =>
     context.json({ rooms: await service.listRooms(context.req.param("worldId")) }),
   );

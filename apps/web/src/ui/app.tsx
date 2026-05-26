@@ -9,6 +9,7 @@ import {
   RoleRunPanel,
   TracePanel,
 } from "./realm-context.tsx";
+import { WorldEventPanel } from "./realm-events.tsx";
 import { AppRail, ConversationHeader, ConversationList, WorldSwitcher } from "./realm-panels.tsx";
 import { SettingsPanel } from "./realm-settings.tsx";
 import { ProjectPatchPanel } from "./realm-workflow.tsx";
@@ -126,6 +127,25 @@ export function App() {
                 onRoleChange={app.setGodActionRoleId}
                 onReasonChange={app.setGodActionReason}
                 onApply={app.applyGodAction}
+              />
+              <WorldEventPanel
+                disabled={!app.selectedWorld}
+                title={app.worldEventTitle}
+                description={app.worldEventDescription}
+                path={app.worldEventPath}
+                value={app.worldEventValue}
+                conditionPath={app.worldEventConditionPath}
+                result={app.worldEventResult}
+                onTitleChange={app.setWorldEventTitle}
+                onDescriptionChange={app.setWorldEventDescription}
+                onPathChange={app.setWorldEventPath}
+                onValueChange={app.setWorldEventValue}
+                onConditionPathChange={app.setWorldEventConditionPath}
+                onTriggerManual={app.triggerManualWorldEvent}
+                onRandom={app.triggerRandomWorldEvent}
+                onTick={app.triggerWorldTick}
+                onTriggerCondition={app.triggerConditionWorldEvent}
+                onReplay={app.loadWorldEventReplay}
               />
               <ProjectPatchPanel
                 disabled={!app.selectedWorld}
