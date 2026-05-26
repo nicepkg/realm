@@ -21,6 +21,7 @@ Realm is under active development, but the current vertical slice is usable:
 - user and project settings UI;
 - roles, rooms, messages, DMs, groups, and all-hands rooms;
 - software company workflow events for artifacts, tasks, reviews, approval gates, and approved project patches;
+- a tested software-company fixture flow from discussion to patch, verification, and review;
 - role prompt skills and callable skill discovery;
 - Pi package bridge for role turns;
 - role memory and private world state access;
