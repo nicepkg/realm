@@ -1,0 +1,119 @@
+# Realm CLI
+
+Realm 是一个本地优先、运行在项目目录里的 AI 角色运行时。
+
+在项目里执行 `realm`，它会启动一个类似桌面版微信的本地 Web UI：世界、全员群、临时群、私聊、角色、上帝裁判、状态、记忆、trace 和设置都放在一个熟悉的聊天界面里。
+
+Realm 底层直接使用 Pi 的 npm 包，而不是要求用户全局安装 Pi CLI：
+
+- `@earendil-works/pi-agent-core`
+- `@earendil-works/pi-ai`
+- `@earendil-works/pi-coding-agent`
+
+Pi CLI/RPC 子进程路径只作为显式诊断和兼容性冒烟，不是正常运行路径。
+
+## 当前状态
+
+当前垂直切片已经可运行：
+
+- 初始化项目 `.agents/`；
+- 桌面微信式本地 Web UI；
+- 用户级和项目级设置界面；
+- 角色、房间、消息、私聊、临时群、全员群；
+- 角色 prompt skill 与可调用 skill 发现；
+- Pi package bridge 运行角色回合；
+- 角色记忆和私有状态访问；
+- 上帝状态 patch、击杀/禁言/复活、自然事件、确定性随机自然事件；
+- 事件存储，支持 SSE 和 WebSocket；
+- 配置 patch 提案、应用、回滚、迁移和保留注释的 YAML 写入；
+- Bun 编译 CLI 二进制。
+
+## 快速开始
+
+```bash
+bun install
+bun run apps/cli/src/index.ts init --template cultivation
+bun run apps/cli/src/index.ts open
+```
+
+npm 发布后的目标安装方式：
+
+```bash
+bun add -g @nicepkg/realm
+realm init --template cultivation
+realm
+```
+
+二进制版本通过 Bun compile 构建，并作为 GitHub Release artifact 发布。
+
+常用开发命令：
+
+```bash
+bun run typecheck
+bun run lint
+bun test
+bun run build:binary
+bun run smoke:binary
+bun run smoke:pi-rpc
+```
+
+## 项目结构
+
+Realm 读取和写入项目里的：
+
+```txt
+<project>/.agents/
+  config.yaml
+  roles/<role-id>/role.yaml
+  roles/<role-id>/skills/<skill-name>/SKILL.md
+  skills/
+  worlds/<world-id>/world.yaml
+  worlds/<world-id>/initial-state.yaml
+  state/
+  logs/
+```
+
+用户级设置位于 `REALM_HOME` 或 `~/.realm/`。
+
+## 工程原则
+
+- 本地优先，项目自包含。
+- Pi package-first，不依赖全局 Pi CLI。
+- Web UI 先行，但架构预留 TUI。
+- 先给用户熟悉的聊天心智模型，再逐步露出高级能力。
+- 遵循 DRY、SOLID、高内聚、低耦合。
+- 跨平台、跨机器。
+- 重要逻辑必须有单元测试和集成测试。
+
+## 文档
+
+- 在线文档站：<https://realm-docs.pages.dev>
+- 英文文档：[docs/en](docs/en/index.md)
+- 中文文档：[docs/zh](docs/zh/index.md)
+- 文档站源码：[apps/docs](apps/docs)
+- 默认 Cloudflare Pages 项目名：`realm-docs`
+
+本地构建文档站：
+
+```bash
+bun run build:docs
+```
+
+通过 Wrangler 部署：
+
+```bash
+bun run deploy:docs
+```
+
+## 发布
+
+仓库已包含：
+
+- Linux、macOS、Windows 跨平台 CI；
+- 文档构建和 Cloudflare Pages workflow；
+- Bun 编译二进制的 GitHub Release workflow；
+- `@nicepkg/realm` npm 包元数据和 `realm` binary 入口。
+
+## License
+
+MIT

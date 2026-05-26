@@ -1,0 +1,23 @@
+version: 1
+id: cultivation
+name: Cultivation Demo
+mode:
+  type: game
+  time:
+    kind: manual
+rooms:
+  main:
+    type: world-main
+    name: All Hands
+roles:
+  - id: leijun
+    model: default
+  - id: guchenfeng
+    model: default
+god:
+  id: god
+  model: default
+  permissions:
+    canPatchAnyState: true
+    canKillRole: true
+    canCreateEvents: true

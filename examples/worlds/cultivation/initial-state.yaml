@@ -1,0 +1,19 @@
+publicState:
+  roles:
+    leijun:
+      name: Lei Jun
+      realm: Qi Refining 7
+    guchenfeng:
+      name: Gu Chenfeng
+      realm: Qi Refining 5
+privateState: {}
+hiddenState: {}
+derivedState: {}
+metaState:
+  roles:
+    leijun:
+      alive: true
+      muted: false
+    guchenfeng:
+      alive: true
+      muted: false

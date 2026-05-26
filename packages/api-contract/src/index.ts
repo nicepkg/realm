@@ -1,0 +1,267 @@
+import { projectConfigSchema, userConfigSchema } from "@realm/config/schemas";
+import {
+  configPatchProposalSchema,
+  godRoleActionTypeSchema,
+  messageSchema,
+  realmEventSchema,
+  roleSummarySchema,
+  roomSchema,
+  statePatchOperationSchema,
+  statePatchResultSchema,
+  statePatchSchema,
+  worldSummarySchema,
+} from "@realm/core";
+import { z } from "zod";
+
+export type { ProjectConfig, UserConfig } from "@realm/config/schemas";
+export type {
+  ConfigPatchProposal,
+  GodRoleActionType,
+  Message,
+  ModelUsage,
+  RealmEvent,
+  RoleSummary,
+  Room,
+  StatePatch,
+  StatePatchOperation,
+  StatePatchResult,
+  TurnSummary,
+  WorldSummary,
+} from "@realm/core";
+export {
+  realmEventSchema,
+  statePatchOperationSchema,
+  statePatchResultSchema,
+  statePatchSchema,
+} from "@realm/core";
+
+export const apiErrorSchema = z.object({
+  ok: z.literal(false),
+  error: z.object({
+    code: z.string().min(1),
+    message: z.string().min(1),
+    remediation: z.string().optional(),
+  }),
+});
+
+export const projectResponseSchema = z.object({
+  root: z.string().min(1),
+  name: z.string().min(1),
+  defaultWorldId: z.string().min(1),
+});
+
+export const configStatusResponseSchema = z.object({
+  ok: z.boolean(),
+  errors: z.array(z.string()),
+});
+
+export const settingsResponseSchema = z.object({
+  user: userConfigSchema,
+  project: projectConfigSchema,
+  paths: z.object({
+    userConfigPath: z.string().min(1),
+    projectConfigPath: z.string().min(1),
+    projectLocalConfigPath: z.string().min(1),
+  }),
+});
+
+export const updateUserSettingsRequestSchema = userConfigSchema;
+
+export const updateProjectSettingsRequestSchema = projectConfigSchema;
+
+export const effectiveConfigResponseSchema = z.object({
+  project: projectResponseSchema,
+  worlds: z.array(worldSummarySchema),
+  roles: z.array(roleSummarySchema),
+});
+
+export const listEventsResponseSchema = z.object({
+  events: z.array(realmEventSchema),
+  lastSeq: z.number().int().nonnegative(),
+});
+
+export const listWorldsResponseSchema = z.object({
+  worlds: z.array(worldSummarySchema),
+});
+
+export const listRoomsResponseSchema = z.object({
+  rooms: z.array(roomSchema),
+});
+
+export const listRolesResponseSchema = z.object({
+  roles: z.array(roleSummarySchema),
+});
+
+export const listMessagesResponseSchema = z.object({
+  messages: z.array(messageSchema),
+});
+
+export const sendMessageRequestSchema = z.object({
+  worldId: z.string().min(1),
+  displayedAuthorId: z.string().min(1).optional(),
+  operatorId: z.string().min(1).optional(),
+  content: z.string().min(1),
+  idempotencyKey: z.string().min(1).optional(),
+});
+
+export const sendMessageResponseSchema = z.object({
+  message: messageSchema,
+});
+
+export const createRoomRequestSchema = z.object({
+  type: z.enum(["group", "dm", "god-channel", "system"]).default("group"),
+  name: z.string().min(1),
+  memberIds: z.array(z.string().min(1)).default([]),
+  idempotencyKey: z.string().min(1).optional(),
+});
+
+export const createRoomResponseSchema = z.object({
+  room: roomSchema,
+});
+
+export const runRoleTurnRequestSchema = z.object({
+  worldId: z.string().min(1),
+  roleId: z.string().min(1),
+  prompt: z.string().min(1).optional(),
+  timeoutMs: z.number().int().positive().optional(),
+});
+
+export const runRoleTurnResponseSchema = z.object({
+  turnId: z.string().min(1),
+  message: messageSchema,
+});
+
+export const startRoleTurnResponseSchema = z.object({
+  turnId: z.string().min(1),
+});
+
+export const cancelTurnResponseSchema = z.object({
+  turnId: z.string().min(1),
+  cancelled: z.boolean(),
+});
+
+export const extensionStateQueryRequestSchema = z.object({
+  worldId: z.string().min(1),
+  roleId: z.string().min(1),
+  toolCallId: z.string().min(1).optional(),
+  path: z.string().optional(),
+});
+
+export const extensionStateQueryResponseSchema = z.object({
+  state: z.unknown(),
+});
+
+export const worldStateResponseSchema = z.object({
+  worldId: z.string().min(1),
+  version: z.number().int().nonnegative(),
+  state: z.record(z.string(), z.unknown()),
+});
+
+export const adminStatePatchRequestSchema = z.object({
+  worldId: z.string().min(1),
+  actorId: z.string().min(1).default("god"),
+  expectedVersion: z.number().int().nonnegative().optional(),
+  operations: z.array(statePatchOperationSchema).min(1),
+  reason: z.string().min(1),
+  idempotencyKey: z.string().min(1).optional(),
+});
+
+export const adminStatePatchResponseSchema = z.object({
+  patch: statePatchSchema,
+  result: statePatchResultSchema,
+});
+
+export const godRoleActionRequestSchema = z.object({
+  action: godRoleActionTypeSchema,
+  targetRoleId: z.string().min(1),
+  expectedVersion: z.number().int().nonnegative().optional(),
+  reason: z.string().min(1),
+  idempotencyKey: z.string().min(1).optional(),
+});
+
+export const godRoleActionResponseSchema = z.object({
+  action: godRoleActionRequestSchema.extend({
+    worldId: z.string().min(1),
+  }),
+  patch: statePatchSchema,
+  result: statePatchResultSchema,
+});
+
+export const naturalWorldEventRequestSchema = z.object({
+  title: z.string().min(1),
+  description: z.string().min(1),
+  severity: z.enum(["minor", "major", "critical"]).optional(),
+  targetRoleIds: z.array(z.string().min(1)).optional(),
+  expectedVersion: z.number().int().nonnegative().optional(),
+  operations: z.array(statePatchOperationSchema).min(1),
+  idempotencyKey: z.string().min(1).optional(),
+});
+
+export const naturalWorldEventResponseSchema = z.object({
+  event: naturalWorldEventRequestSchema.extend({
+    worldId: z.string().min(1),
+  }),
+  patch: statePatchSchema,
+  result: statePatchResultSchema,
+});
+
+export const randomNaturalWorldEventRequestSchema = z.object({
+  seed: z.union([z.string().min(1), z.number()]).optional(),
+  targetRoleIds: z.array(z.string().min(1)).optional(),
+  idempotencyKey: z.string().min(1).optional(),
+});
+
+export const extensionMemoryReadRequestSchema = z.object({
+  roleId: z.string().min(1),
+  worldId: z.string().min(1).optional(),
+  toolCallId: z.string().min(1).optional(),
+});
+
+export const extensionMemoryReadResponseSchema = z.object({
+  content: z.string(),
+});
+
+export const extensionMemoryWriteRequestSchema = z.object({
+  roleId: z.string().min(1),
+  worldId: z.string().min(1).optional(),
+  toolCallId: z.string().min(1).optional(),
+  content: z.string(),
+});
+
+export const extensionMemoryWriteResponseSchema = z.object({
+  bytes: z.number().int().nonnegative(),
+});
+
+export const createRoleRequestSchema = z.object({
+  id: z.string().min(1),
+  displayName: z.string().min(1),
+  model: z.string().min(1).default("default"),
+  summary: z.string().default(""),
+});
+
+export const createWorldRequestSchema = z.object({
+  id: z.string().min(1),
+  name: z.string().min(1),
+  mode: z.enum(["debate", "workflow", "game", "simulation", "sandbox"]).default("sandbox"),
+  roomName: z.string().min(1).default("All Hands"),
+  roleIds: z.array(z.string().min(1)).default([]),
+});
+
+export const assistantConfigRequestSchema = z.object({
+  goal: z.string().min(1),
+});
+
+export const configPatchProposalResponseSchema = z.object({
+  patch: configPatchProposalSchema,
+});
+
+export const configPatchApplyResponseSchema = z.object({
+  patchId: z.string().min(1),
+  historyId: z.string().min(1),
+  changedPaths: z.array(z.string()),
+});
+
+export const configRollbackResponseSchema = z.object({
+  historyId: z.string().min(1),
+  restoredPaths: z.array(z.string()),
+});

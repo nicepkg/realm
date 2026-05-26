@@ -1,0 +1,18 @@
+version: 1
+id: investment-council
+name: Investment Council
+mode:
+  type: debate
+  time:
+    kind: manual
+rooms:
+  main:
+    type: world-main
+    name: Council Room
+roles:
+  - id: buffett
+    model: default
+  - id: munger
+    model: default
+  - id: analyst
+    model: default

@@ -1,0 +1,78 @@
+{
+  "name": "@nicepkg/realm",
+  "version": "0.1.0",
+  "description": "Project-scoped AI role runtime with worlds, roles, state, and a local Web UI.",
+  "type": "module",
+  "license": "MIT",
+  "homepage": "https://realm-docs.pages.dev",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/nicepkg/realm.git"
+  },
+  "bugs": {
+    "url": "https://github.com/nicepkg/realm/issues"
+  },
+  "bin": {
+    "realm": "./dist/index.js"
+  },
+  "files": [
+    "apps",
+    "packages",
+    "examples",
+    "docs",
+    "dist",
+    "README.md",
+    "LICENSE"
+  ],
+  "scripts": {
+    "build": "bun run scripts/build.ts",
+    "build:binary": "bun run build && bun run scripts/build-binary.ts",
+    "build:docs": "bun run --cwd apps/docs build",
+    "check": "bun run typecheck && bun test",
+    "deploy:docs": "bun run build:docs && wrangler pages deploy apps/docs/dist --project-name realm-docs",
+    "dev": "bun run apps/cli/src/index.ts",
+    "format": "bunx biome format --write .",
+    "lint": "bunx biome check .",
+    "smoke:pi-rpc": "bun run scripts/smoke-pi-rpc.ts",
+    "smoke:binary": "bun run scripts/smoke-binary.ts",
+    "test": "bun test",
+    "typecheck": "tsc -p tsconfig.json --noEmit"
+  },
+  "workspaces": [
+    "apps/*",
+    "packages/*"
+  ],
+  "dependencies": {
+    "@earendil-works/pi-agent-core": "0.75.5",
+    "@earendil-works/pi-ai": "0.75.5",
+    "@earendil-works/pi-coding-agent": "0.75.5",
+    "@hono/node-server": "^1.19.7",
+    "@radix-ui/react-slot": "1.2.4",
+    "class-variance-authority": "0.7.1",
+    "clsx": "2.1.1",
+    "hono": "^4.10.7",
+    "lucide-react": "1.16.0",
+    "react": "19.2.6",
+    "react-dom": "19.2.6",
+    "tailwind-merge": "3.6.0",
+    "typebox": "1.1.38",
+    "yaml": "^2.8.2",
+    "zod": "^4.1.13"
+  },
+  "devDependencies": {
+    "@biomejs/biome": "^2.3.8",
+    "@tailwindcss/vite": "4.3.0",
+    "@types/bun": "^1.3.4",
+    "@types/react": "19.2.15",
+    "@types/react-dom": "19.2.3",
+    "@vitejs/plugin-react": "6.0.2",
+    "tailwindcss": "4.3.0",
+    "typescript": "^5.9.3",
+    "vite": "8.0.14"
+  },
+  "engines": {
+    "bun": ">=1.3.0",
+    "node": ">=22.0.0"
+  },
+  "packageManager": "bun@1.3.11"
+}

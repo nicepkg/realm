@@ -1,0 +1,18 @@
+version: 1
+id: software-company
+name: Software Company
+mode:
+  type: workflow
+  time:
+    kind: manual
+rooms:
+  main:
+    type: world-main
+    name: Product Room
+roles:
+  - id: product-manager
+    model: default
+  - id: architect
+    model: default
+  - id: qa
+    model: default

@@ -1,0 +1,13 @@
+node_modules/
+dist/
+**/dist/
+coverage/
+.realm-build/
+.DS_Store
+.env
+.env.*
+!.env.example
+.agents/config.local.yaml
+.agents/state/
+.agents/logs/
+*.log
