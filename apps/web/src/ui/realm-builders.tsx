@@ -85,6 +85,7 @@ function RoleBuilderCard({
       <div className="flex gap-2">
         <input
           className="min-w-0 flex-1 rounded-md border border-realm-border bg-white px-2 py-1 text-sm"
+          name="builder-role-name"
           value={roleName}
           onChange={(event) => onRoleNameChange(event.target.value)}
           aria-label="Role name"
@@ -124,6 +125,7 @@ function WorldBuilderCard({
       <div className="grid grid-cols-2 gap-2">
         <input
           className="min-w-0 rounded-md border border-realm-border bg-white px-2 py-1 text-sm"
+          name="builder-world-name"
           value={name}
           onChange={(event) => onNameChange(event.target.value)}
           aria-label="World name"
@@ -131,6 +133,7 @@ function WorldBuilderCard({
         />
         <select
           className="rounded-md border border-realm-border bg-white px-2 py-1 text-sm"
+          name="builder-world-mode"
           value={mode}
           onChange={(event) => onModeChange(event.target.value as WorldBuilderMode)}
           aria-label="World mode"
@@ -146,6 +149,7 @@ function WorldBuilderCard({
       <div className="mt-2 flex gap-2">
         <input
           className="min-w-0 flex-1 rounded-md border border-realm-border bg-white px-2 py-1 text-sm"
+          name="builder-world-roles"
           value={roles}
           onChange={(event) => onRolesChange(event.target.value)}
           aria-label="World roles"
@@ -181,6 +185,7 @@ function AssistantBuilderCard({
       </div>
       <textarea
         className="min-h-20 w-full resize-none rounded-md border border-realm-border bg-white px-2 py-1 text-sm"
+        name="assistant-goal"
         value={assistantGoal}
         onChange={(event) => onAssistantGoalChange(event.target.value)}
         aria-label="Assistant goal"

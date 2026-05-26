@@ -253,6 +253,7 @@ function ProviderRow({
         <label className="flex items-center gap-2 text-zinc-600">
           <input
             type="checkbox"
+            name={`provider-${fieldName(provider.id)}-enabled`}
             checked={provider.enabled}
             onChange={(event) => onChange({ ...provider, enabled: event.target.checked })}
           />
@@ -281,6 +282,7 @@ function SecurityToggles({
           <span>{label}</span>
           <input
             type="checkbox"
+            name={securityTestIds[key]}
             checked={Boolean(project.security[key])}
             onChange={(event) => onChange({ ...project.security, [key]: event.target.checked })}
             data-testid={securityTestIds[key]}
@@ -318,6 +320,7 @@ function SkillPolicyEditor({
       <div className="font-medium text-sm">{title}</div>
       <select
         className="w-full rounded-md border border-realm-border bg-white px-2 py-1.5 text-sm"
+        name={`${fieldName(title)}-mode`}
         value={current.mode}
         onChange={(event) =>
           onChange({ ...current, mode: event.target.value as SkillPolicy["mode"] })
@@ -356,6 +359,7 @@ function TextField({
       {label}
       <input
         className="mt-1 w-full rounded-md border border-realm-border bg-white px-2 py-1.5 text-sm text-zinc-900"
+        name={testId ?? fieldName(label)}
         value={value}
         onChange={(event) => onChange(event.target.value)}
         data-testid={testId}
@@ -394,6 +398,13 @@ function splitCsv(value: string): string[] {
     .split(",")
     .map((item) => item.trim())
     .filter(Boolean);
+}
+
+function fieldName(value: string): string {
+  return value
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, "-")
+    .replace(/^-|-$/g, "");
 }
 
 function withOptional<K extends "apiKeyEnv" | "baseUrl" | "defaultModel">(

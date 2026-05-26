@@ -93,6 +93,7 @@ export function ConversationHeader({ projectName }: { projectName: string }) {
         <span className="sr-only">Search conversations</span>
         <input
           className="min-w-0 flex-1 bg-transparent outline-none placeholder:text-zinc-400"
+          name="conversation-search"
           placeholder="Search"
           data-testid="conversation-search"
         />

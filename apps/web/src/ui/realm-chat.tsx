@@ -108,6 +108,7 @@ export function MessageComposer({
             <span className="shrink-0">Speaking as</span>
             <select
               className="h-7 rounded-md border border-realm-border bg-white px-2 text-zinc-800"
+              name="identity"
               value={identity}
               onChange={(event) => onIdentityChange(event.target.value)}
               data-testid="identity-select"
@@ -124,6 +125,7 @@ export function MessageComposer({
         <div className="flex gap-2">
           <input
             className="min-w-0 flex-1 rounded-md border border-realm-border bg-[#fafafa] px-3 py-2 text-sm"
+            name="message"
             placeholder="@all 今天谁先行动？"
             aria-label="Message"
             data-testid="message-input"

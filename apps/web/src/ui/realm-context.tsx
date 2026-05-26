@@ -55,6 +55,7 @@ export function RoleRunPanel({
         <div className="flex gap-2">
           <select
             className="min-w-0 flex-1 rounded-md border border-realm-border bg-white px-2 py-1 text-sm"
+            name="run-role"
             value={selectedRoleId}
             onChange={(event) => onRoleChange(event.target.value)}
             aria-label="Run role"
@@ -148,6 +149,7 @@ export function CreateRoomPanel({
             Type
             <select
               className="mt-1 w-full rounded-md border border-realm-border bg-white px-2 py-1.5 text-sm text-zinc-900"
+              name="create-room-type"
               value={type}
               onChange={(event) => onTypeChange(event.target.value as CreateRoomKind)}
               data-testid="create-room-type"
@@ -162,6 +164,7 @@ export function CreateRoomPanel({
             Name
             <input
               className="mt-1 w-full rounded-md border border-realm-border bg-white px-2 py-1.5 text-sm text-zinc-900"
+              name="create-room-name"
               value={name}
               onChange={(event) => onNameChange(event.target.value)}
               data-testid="create-room-name"
@@ -172,6 +175,7 @@ export function CreateRoomPanel({
           Members
           <input
             className="mt-1 w-full rounded-md border border-realm-border bg-white px-2 py-1.5 text-sm text-zinc-900"
+            name="create-room-members"
             value={memberText}
             onChange={(event) => onMemberTextChange(event.target.value)}
             list="realm-role-members"
@@ -227,6 +231,7 @@ export function AdminStatePatchPanel({
           JSON Pointer
           <input
             className="mt-1 w-full rounded-md border border-realm-border bg-white px-2 py-1.5 text-sm text-zinc-900"
+            name="admin-state-path"
             value={path}
             onChange={(event) => onPathChange(event.target.value)}
             data-testid="admin-state-path"
@@ -236,6 +241,7 @@ export function AdminStatePatchPanel({
           Value
           <textarea
             className="mt-1 min-h-16 w-full resize-none rounded-md border border-realm-border bg-white px-2 py-1.5 text-sm text-zinc-900"
+            name="admin-state-value"
             value={value}
             onChange={(event) => onValueChange(event.target.value)}
             data-testid="admin-state-value"
@@ -245,6 +251,7 @@ export function AdminStatePatchPanel({
           Reason
           <input
             className="mt-1 w-full rounded-md border border-realm-border bg-white px-2 py-1.5 text-sm text-zinc-900"
+            name="admin-state-reason"
             value={reason}
             onChange={(event) => onReasonChange(event.target.value)}
             data-testid="admin-state-reason"
@@ -307,6 +314,7 @@ export function GodActionPanel({
             Action
             <select
               className="mt-1 w-full rounded-md border border-realm-border bg-white px-2 py-1.5 text-sm text-zinc-900"
+              name="god-action-type"
               value={action}
               onChange={(event) => onActionChange(event.target.value as GodRoleAction)}
               data-testid="god-action-type"
@@ -320,6 +328,7 @@ export function GodActionPanel({
             Role
             <select
               className="mt-1 w-full rounded-md border border-realm-border bg-white px-2 py-1.5 text-sm text-zinc-900"
+              name="god-action-role"
               value={targetRoleId}
               onChange={(event) => onRoleChange(event.target.value)}
               data-testid="god-action-role"
@@ -336,6 +345,7 @@ export function GodActionPanel({
           Reason
           <input
             className="mt-1 w-full rounded-md border border-realm-border bg-white px-2 py-1.5 text-sm text-zinc-900"
+            name="god-action-reason"
             value={reason}
             onChange={(event) => onReasonChange(event.target.value)}
             data-testid="god-action-reason"
