@@ -84,6 +84,30 @@ describe("PiRoleTurnRunner", () => {
     expect(result.turn.model).toBe("gpt-5.5");
     expect(result.turn.usage).toMatchObject({ input: 10, output: 5, totalTokens: 15 });
   });
+
+  test("emits turn.failed as a distinct event type", async () => {
+    const eventStore = new InMemoryEventStore();
+    const runner = new PiRoleTurnRunner(
+      new ErrorPiBridge(),
+      eventStore,
+      fakeClock(new Date("2026-05-26T00:00:00.000Z")),
+    );
+
+    await expect(
+      runner.run({
+        worldId: "cultivation",
+        roomId: "main",
+        roleId: "leijun",
+        prompt: "Hello",
+        cwd: "/tmp/project",
+        sessionDir: "/tmp/project/.agents/state/pi-sessions/cultivation/main/leijun",
+        systemPrompt: "You are Lei Jun.",
+        timeoutMs: 500,
+      }),
+    ).rejects.toThrow("model failed");
+
+    expect(eventStore.list().map((event) => event.type)).toContain("turn.failed");
+  });
 });
 
 class UsagePiBridge implements PiBridge {
@@ -100,6 +124,27 @@ class UsagePiBridge implements PiBridge {
   async abort(_sessionId: string): Promise<void> {}
 
   async dispose(_sessionId: string): Promise<void> {}
+}
+
+class ErrorPiBridge implements PiBridge {
+  async startSession(input: PiSessionStartInput): Promise<PiSessionHandle> {
+    return {
+      id: "session-error",
+      sessionDir: input.sessionDir,
+      events: errorEvents(input.sessionDir),
+    };
+  }
+
+  async sendPrompt(_sessionId: string, _input: PiPromptInput): Promise<void> {}
+
+  async abort(_sessionId: string): Promise<void> {}
+
+  async dispose(_sessionId: string): Promise<void> {}
+}
+
+async function* errorEvents(sessionDir: string): AsyncIterable<PiBridgeEvent> {
+  yield { type: "session.started", sessionId: "session-error", sessionDir };
+  yield { type: "session.error", sessionId: "session-error", message: "model failed" };
 }
 
 async function* usageEvents(sessionDir: string): AsyncIterable<PiBridgeEvent> {

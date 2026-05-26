@@ -12,7 +12,15 @@ export type ConversationRow = {
 
 export type TraceEvent = Extract<
   RealmEvent,
-  { type: "turn.started" | "turn.delta" | "turn.completed" | "tool.called" }
+  {
+    type:
+      | "turn.started"
+      | "turn.delta"
+      | "turn.completed"
+      | "turn.failed"
+      | "turn.cancelled"
+      | "tool.called";
+  }
 >;
 
 export function buildConversationRows(
@@ -96,6 +104,8 @@ export function isTraceEvent(event: RealmEvent): event is TraceEvent {
     event.type === "turn.started" ||
     event.type === "turn.delta" ||
     event.type === "turn.completed" ||
+    event.type === "turn.failed" ||
+    event.type === "turn.cancelled" ||
     event.type === "tool.called"
   );
 }

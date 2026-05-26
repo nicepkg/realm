@@ -81,6 +81,18 @@ export async function initProject(
     await writeYamlFile(layout.configPath, defaultProjectConfig(name));
   }
 
+  if (!(await exists(layout.localConfigPath))) {
+    await writeFile(
+      layout.localConfigPath,
+      [
+        "# Machine-local Realm overrides. This file is intentionally gitignored.",
+        "version: 1",
+        "",
+      ].join("\n"),
+      "utf8",
+    );
+  }
+
   await ensureGitignore(root);
   return layout;
 }

@@ -33,6 +33,7 @@ import {
   ExtensionAccessService,
   type ExtensionSessionScope,
 } from "./extension-access-service.ts";
+import { FakeVerticalSliceService } from "./fake-vertical-slice-service.ts";
 import { type CreateRoomInput, MessageService, type SendMessageInput } from "./message-service.ts";
 import {
   type RoleMemoryInput,
@@ -98,6 +99,7 @@ export type RealmApplicationServiceOptions = {
   piBridge?: PiBridge;
   extensionBaseUrl?: string;
   piExtensionPath?: string;
+  fakeVerticalSlice?: boolean;
   env?: NodeJS.ProcessEnv;
   extensionStaticTokens?: Array<ExtensionSessionScope & { token: string }>;
 };
@@ -115,10 +117,11 @@ export class RealmApplicationService {
   private readonly settingsService: SettingsService;
   private readonly turnControlService = new TurnControlService();
   private readonly worldStateService: WorldStateService;
+  private readonly fakeVerticalSliceService: FakeVerticalSliceService | undefined;
 
   constructor(private readonly options: RealmApplicationServiceOptions) {
     this.eventStore = options.eventStore ?? new InMemoryEventStore();
-    this.trustTier = options.trustTier ?? "run-roles";
+    this.trustTier = options.trustTier ?? "read-only";
     this.clock = options.clock ?? (() => new Date());
     this.piBridge = options.piBridge ?? new PackagePiBridge();
     this.configPatchService = new ConfigPatchService({
@@ -155,6 +158,14 @@ export class RealmApplicationService {
       assertAllowed: (capability) => this.assertAllowed(capability),
       appendAudit: (input) => this.appendAudit(input),
     });
+    this.fakeVerticalSliceService = options.fakeVerticalSlice
+      ? new FakeVerticalSliceService({
+          eventStore: this.eventStore,
+          clock: this.clock,
+          commitGodPatch: (input) => this.adminPatchState(input),
+          appendAudit: (input) => this.appendAudit(input),
+        })
+      : undefined;
     for (const tokenScope of options.extensionStaticTokens ?? []) {
       this.extensionAccessService.registerStaticToken(tokenScope);
     }
@@ -282,7 +293,11 @@ export class RealmApplicationService {
   }
 
   sendMessage(input: SendMessageInput): Message {
-    return this.messageService.sendMessage(input);
+    const message = this.messageService.sendMessage(input);
+    if (this.fakeVerticalSliceService?.shouldTrigger(message)) {
+      this.fakeVerticalSliceService.run(message);
+    }
+    return message;
   }
 
   async runRoleTurn(input: RunRoleTurnInput): Promise<{ turnId: string; message: Message }> {
@@ -457,6 +472,12 @@ export class RealmApplicationService {
     });
 
     if (!decision.allow) {
+      this.appendAudit({
+        actorId: OWNER_ID,
+        action: "policy.denied",
+        target: capability,
+        reason: decision.reason,
+      });
       throw new Error(
         decision.remediation ? `${decision.reason}. ${decision.remediation}` : decision.reason,
       );

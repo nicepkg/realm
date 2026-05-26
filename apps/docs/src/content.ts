@@ -52,7 +52,7 @@ export const pages: Record<Locale, DocPage> = {
           "Realm is installed as a CLI and opened inside an existing project. The active project owns its .agents directory, while user secrets and provider settings stay in REALM_HOME or ~/.realm.",
           "The first UI is intentionally familiar: a narrow app rail, a conversation list, a central chat pane, and a contextual inspector. Advanced world, state, trace, and God controls extend the messenger model instead of replacing it.",
         ],
-        code: "cd /path/to/project\nrealm init --template cultivation\nrealm",
+        code: "cd /path/to/project\nrealm init --template cultivation\nrealm trust --tier run-roles\nrealm",
       },
       {
         id: "concepts",
@@ -75,7 +75,7 @@ export const pages: Record<Locale, DocPage> = {
           "During development, run Realm with Bun directly. For distribution, the same CLI can be published as an npm package or compiled into a Bun binary.",
           "Realm uses Pi through package dependencies. The Pi CLI/RPC path is explicit diagnostics only and is never required for normal role turns.",
         ],
-        code: "bun install\nbun run apps/cli/src/index.ts init --template cultivation\nbun run apps/cli/src/index.ts open\nbun run build:binary\n./dist/bin/realm doctor",
+        code: "bun install\nbun run apps/cli/src/index.ts init --template cultivation\nbun run apps/cli/src/index.ts trust --tier run-roles\nbun run apps/cli/src/index.ts open\nbun run apps/cli/src/index.ts open --runtime fake\nbun run build:binary\n./dist/bin/realm doctor",
       },
       {
         id: "configuration",
@@ -84,7 +84,7 @@ export const pages: Record<Locale, DocPage> = {
           "Project configuration is portable and committed. Machine-local state, logs, provider keys, and runtime snapshots are kept out of git by default.",
           "Config changes can be produced visually or by the AI configuration assistant, but file writes pass through validation, conflict detection, history, and rollback.",
         ],
-        code: ".agents/\n  config.yaml\n  roles/<role>/role.yaml\n  roles/<role>/skills/<skill>/SKILL.md\n  worlds/<world>/world.yaml\n  worlds/<world>/initial-state.yaml\n  state/          # gitignored\n  logs/           # gitignored",
+        code: ".agents/\n  config.yaml\n  config.local.yaml # gitignored\n  roles/<role>/role.yaml\n  roles/<role>/skills/<skill>/SKILL.md\n  worlds/<world>/world.yaml\n  worlds/<world>/initial-state.yaml\n  worlds/<world>/state.schema.yaml\n  worlds/<world>/visibility.yaml\n  state/          # gitignored\n  logs/           # gitignored",
       },
       {
         id: "worlds",
@@ -118,7 +118,7 @@ export const pages: Record<Locale, DocPage> = {
         title: "Tools, skills, and governance",
         body: [
           "Skills can be global, project-level, world-level, role-private, or role-prompt skills. Policies compile allowlists and blacklists into effective capabilities.",
-          "High-risk tools such as shell, project file writes, and network access are denied unless explicitly granted by trusted configuration.",
+          "High-risk tools such as shell, project file writes, and network access are denied unless explicitly granted by trusted configuration. Project trust decisions are machine-local in ~/.realm/trust.json.",
         ],
         bullets: [
           "Policy decisions are enforced by runtime services, not by UI hints.",
@@ -167,7 +167,7 @@ export const pages: Record<Locale, DocPage> = {
           "Realm 是一个在项目目录内打开的 CLI。当前项目拥有自己的 .agents 目录；用户级密钥、模型 provider 和偏好配置保存在 REALM_HOME 或 ~/.realm。",
           "第一屏刻意保持熟悉：窄侧栏、会话列表、中间聊天区、右侧上下文面板。世界状态、上帝裁判、轨迹和设置都从这个聊天模型逐步展开。",
         ],
-        code: "cd /path/to/project\nrealm init --template cultivation\nrealm",
+        code: "cd /path/to/project\nrealm init --template cultivation\nrealm trust --tier run-roles\nrealm",
       },
       {
         id: "concepts",
@@ -190,7 +190,7 @@ export const pages: Record<Locale, DocPage> = {
           "开发时可以直接用 Bun 运行。发布时同一套 CLI 既可以作为 npm 包安装，也可以编译成 Bun 二进制。",
           "Realm 通过 npm 包集成 PI。PI CLI/RPC 只用于显式诊断和兼容性冒烟，不是普通角色 turn 的依赖。",
         ],
-        code: "bun install\nbun run apps/cli/src/index.ts init --template cultivation\nbun run apps/cli/src/index.ts open\nbun run build:binary\n./dist/bin/realm doctor",
+        code: "bun install\nbun run apps/cli/src/index.ts init --template cultivation\nbun run apps/cli/src/index.ts trust --tier run-roles\nbun run apps/cli/src/index.ts open\nbun run apps/cli/src/index.ts open --runtime fake\nbun run build:binary\n./dist/bin/realm doctor",
       },
       {
         id: "configuration",
@@ -199,7 +199,7 @@ export const pages: Record<Locale, DocPage> = {
           "项目配置应该可跨机器迁移并提交到 git。机器本地状态、日志、provider key 和运行时快照默认不进仓库。",
           "配置可以通过可视化表单或 AI 配置助手生成，但落盘前必须经过校验、冲突检测、历史记录和回滚能力。",
         ],
-        code: ".agents/\n  config.yaml\n  roles/<role>/role.yaml\n  roles/<role>/skills/<skill>/SKILL.md\n  worlds/<world>/world.yaml\n  worlds/<world>/initial-state.yaml\n  state/          # gitignored\n  logs/           # gitignored",
+        code: ".agents/\n  config.yaml\n  config.local.yaml # gitignored\n  roles/<role>/role.yaml\n  roles/<role>/skills/<skill>/SKILL.md\n  worlds/<world>/world.yaml\n  worlds/<world>/initial-state.yaml\n  worlds/<world>/state.schema.yaml\n  worlds/<world>/visibility.yaml\n  state/          # gitignored\n  logs/           # gitignored",
       },
       {
         id: "worlds",
@@ -233,7 +233,7 @@ export const pages: Record<Locale, DocPage> = {
         title: "工具、Skill 和治理",
         body: [
           "Skill 可以是全局、项目级、世界级、角色私有或角色 system prompt skill。策略会把 allowlist/blacklist 编译成最终能力。",
-          "Shell、项目文件写入、联网等高风险工具默认拒绝，除非受信配置显式授权。",
+          "Shell、项目文件写入、联网等高风险工具默认拒绝，除非受信配置显式授权。项目 trust 决策保存在本机 ~/.realm/trust.json。",
         ],
         bullets: [
           "策略由运行时服务强制执行，不靠 UI 提示。",

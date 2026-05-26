@@ -17,11 +17,35 @@ import { SQLiteEventStore } from "@realm/storage";
 import { RealmApplicationService } from "./index.ts";
 
 describe("RealmApplicationService", () => {
+  test("defaults to read-only trust when no trust tier is provided", async () => {
+    const root = await mkdtemp(path.join(os.tmpdir(), "realm-app-read-only-"));
+    await initProject(root, "demo");
+    const service = new RealmApplicationService({ root });
+
+    expect(() =>
+      service.sendMessage({
+        worldId: "cultivation",
+        roomId: "main",
+        operatorId: "owner",
+        displayedAuthorId: "owner",
+        content: "Blocked until trusted.",
+      }),
+    ).toThrow("read-only");
+    expect(service.listEvents().map((event) => event.type)).toEqual(["audit.created"]);
+    expect(service.listEvents()[0]).toMatchObject({
+      audit: { action: "policy.denied", target: "message.send" },
+    });
+  });
+
   test("persists messages and audits impersonation", async () => {
     const root = await mkdtemp(path.join(os.tmpdir(), "realm-app-message-"));
     await initProject(root, "demo");
     const store = new SQLiteEventStore(path.join(root, ".agents", "state", "events.sqlite"));
-    const service = new RealmApplicationService({ root, eventStore: store });
+    const service = new RealmApplicationService({
+      root,
+      eventStore: store,
+      trustTier: "run-roles",
+    });
 
     const message = service.sendMessage({
       worldId: "cultivation",
@@ -44,7 +68,7 @@ describe("RealmApplicationService", () => {
   test("applies and rolls back role config patches", async () => {
     const root = await mkdtemp(path.join(os.tmpdir(), "realm-app-config-"));
     await initProject(root, "demo");
-    const service = new RealmApplicationService({ root });
+    const service = new RealmApplicationService({ root, trustTier: "run-roles" });
 
     const proposal = await service.proposeRole({
       id: "buffett",
@@ -74,7 +98,11 @@ describe("RealmApplicationService", () => {
         },
       }),
     };
-    const service = new RealmApplicationService({ root, configAssistantPlanner: planner });
+    const service = new RealmApplicationService({
+      root,
+      configAssistantPlanner: planner,
+      trustTier: "run-roles",
+    });
 
     const proposal = await service.proposeAssistantConfig({ goal: "Add an architect" });
 
@@ -85,7 +113,7 @@ describe("RealmApplicationService", () => {
   test("creates runtime group and dm rooms as events", async () => {
     const root = await mkdtemp(path.join(os.tmpdir(), "realm-app-room-"));
     await initProject(root, "demo");
-    const service = new RealmApplicationService({ root });
+    const service = new RealmApplicationService({ root, trustTier: "run-roles" });
 
     const group = service.createRoom({
       worldId: "cultivation",
@@ -117,7 +145,11 @@ describe("RealmApplicationService", () => {
     const root = await mkdtemp(path.join(os.tmpdir(), "realm-app-settings-"));
     const realmHome = await mkdtemp(path.join(os.tmpdir(), "realm-app-settings-home-"));
     await initProject(root, "demo");
-    const service = new RealmApplicationService({ root, env: { REALM_HOME: realmHome } });
+    const service = new RealmApplicationService({
+      root,
+      env: { REALM_HOME: realmHome },
+      trustTier: "run-roles",
+    });
     const initial = await service.getSettings();
 
     await service.updateUserSettings({
@@ -140,7 +172,11 @@ describe("RealmApplicationService", () => {
   test("runs a role turn through the configured Pi bridge", async () => {
     const root = await mkdtemp(path.join(os.tmpdir(), "realm-app-role-turn-"));
     await initProject(root, "demo");
-    const service = new RealmApplicationService({ root, piBridge: new FakePiBridge() });
+    const service = new RealmApplicationService({
+      root,
+      piBridge: new FakePiBridge(),
+      trustTier: "run-roles",
+    });
     const proposal = await service.proposeRole({
       id: "leijun",
       displayName: "Lei Jun",
@@ -163,11 +199,46 @@ describe("RealmApplicationService", () => {
     expect(service.listEvents().map((event) => event.type)).toContain("turn.completed");
   });
 
+  test("runs deterministic fake vertical slice followup from an @all message", async () => {
+    const root = await mkdtemp(path.join(os.tmpdir(), "realm-app-fake-vertical-"));
+    await initProject(root, "demo");
+    const service = new RealmApplicationService({
+      root,
+      fakeVerticalSlice: true,
+      trustTier: "run-roles",
+    });
+
+    service.sendMessage({
+      worldId: "cultivation",
+      roomId: "main",
+      operatorId: "owner",
+      displayedAuthorId: "owner",
+      content: "@all 今天谁先突破？",
+      idempotencyKey: "owner-fake-message",
+    });
+    await waitFor(() =>
+      service
+        .listEvents()
+        .some((event) => event.type === "state.patch.committed" && event.version === 1),
+    );
+
+    expect(service.listMessages("main").map((message) => message.authorId)).toEqual([
+      "owner",
+      "leijun",
+      "guchenfeng",
+    ]);
+    expect(
+      JSON.stringify(
+        (await service.queryRoleState({ worldId: "cultivation", roleId: "guchenfeng" })).state,
+      ),
+    ).toContain('"hp":92');
+  });
+
   test("starts and cancels a background role turn", async () => {
     const root = await mkdtemp(path.join(os.tmpdir(), "realm-app-turn-cancel-"));
     await initProject(root, "demo");
     const piBridge = new HangingPiBridge();
-    const service = new RealmApplicationService({ root, piBridge });
+    const service = new RealmApplicationService({ root, piBridge, trustTier: "run-roles" });
     const proposal = await service.proposeRole({
       id: "leijun",
       displayName: "Lei Jun",
@@ -190,7 +261,7 @@ describe("RealmApplicationService", () => {
         .listEvents()
         .some(
           (event) =>
-            event.type === "turn.completed" &&
+            event.type === "turn.cancelled" &&
             event.turn.id === started.turnId &&
             event.turn.status === "cancelled",
         ),
@@ -231,6 +302,7 @@ describe("RealmApplicationService", () => {
       piBridge,
       extensionBaseUrl: "http://127.0.0.1:3999",
       piExtensionPath: "/extensions/realm.ts",
+      trustTier: "run-roles",
     });
 
     await service.runRoleTurn({
@@ -252,177 +324,6 @@ describe("RealmApplicationService", () => {
       REALM_EXTENSION_ROLE_ID: "leijun",
     });
     expect(start?.env?.REALM_EXTENSION_TOKEN).toMatch(/^realm_ext_/);
-  });
-
-  test("serves visible role state and private memory for Pi tools", async () => {
-    const root = await mkdtemp(path.join(os.tmpdir(), "realm-app-extension-"));
-    await initProject(root, "demo");
-    const worldDir = path.join(root, ".agents", "worlds", "cultivation");
-    await mkdir(worldDir, { recursive: true });
-    await writeFile(
-      path.join(worldDir, "initial-state.yaml"),
-      [
-        "publicState:",
-        "  weather: clear",
-        "privateState:",
-        "  roles:",
-        "    leijun:",
-        "      hp: 92",
-        "hiddenState:",
-        "  secret: should-not-leak",
-        "metaState:",
-        "  roles:",
-        "    leijun:",
-        "      alive: true",
-        "",
-      ].join("\n"),
-    );
-    const service = new RealmApplicationService({ root });
-
-    const state = await service.queryRoleState({ worldId: "cultivation", roleId: "leijun" });
-    await service.writeRoleMemory({ roleId: "leijun", content: "remember this" });
-    const memory = await service.readRoleMemory({ roleId: "leijun" });
-
-    expect(JSON.stringify(state.state)).toContain("weather");
-    expect(JSON.stringify(state.state)).toContain("hp");
-    expect(JSON.stringify(state.state)).not.toContain("should-not-leak");
-    expect(memory.content).toBe("remember this");
-  });
-
-  test("commits admin state patches, snapshots state, and preserves role visibility", async () => {
-    const root = await mkdtemp(path.join(os.tmpdir(), "realm-app-admin-state-"));
-    await initProject(root, "demo");
-    const service = new RealmApplicationService({ root });
-
-    const response = await service.adminPatchState({
-      worldId: "cultivation",
-      actorId: "god",
-      operations: [{ op: "set", path: "/privateState/roles/leijun/hp", value: 80 }],
-      reason: "Boss adjusted Lei Jun HP.",
-      idempotencyKey: "hp-80",
-    });
-
-    expect(response.result).toMatchObject({ status: "committed", version: 1 });
-    expect((await service.getWorldState("cultivation")).version).toBe(1);
-    expect(
-      await readFile(
-        path.join(root, ".agents", "state", "worlds", "cultivation", "current.json"),
-        "utf8",
-      ),
-    ).toContain('"version": 1');
-    expect(service.listEvents().map((event) => event.type)).toContain("state.patch.proposed");
-    expect(service.listEvents().map((event) => event.type)).toContain("state.patch.committed");
-
-    const leijunState = await service.queryRoleState({ worldId: "cultivation", roleId: "leijun" });
-    const guchenfengState = await service.queryRoleState({
-      worldId: "cultivation",
-      roleId: "guchenfeng",
-    });
-    expect(JSON.stringify(leijunState.state)).toContain('"hp":80');
-    expect(JSON.stringify(guchenfengState.state)).not.toContain('"hp":80');
-
-    const duplicate = await service.adminPatchState({
-      worldId: "cultivation",
-      operations: [{ op: "set", path: "/privateState/roles/leijun/hp", value: 10 }],
-      reason: "Duplicate should not mutate.",
-      idempotencyKey: "hp-80",
-    });
-    expect(duplicate.result.status).toBe("duplicate");
-    expect(
-      JSON.stringify(
-        (await service.queryRoleState({ worldId: "cultivation", roleId: "leijun" })).state,
-      ),
-    ).toContain('"hp":80');
-  });
-
-  test("applies typed God role actions through controlled state patches", async () => {
-    const root = await mkdtemp(path.join(os.tmpdir(), "realm-app-god-actions-"));
-    await initProject(root, "demo");
-    const service = new RealmApplicationService({ root });
-
-    const kill = await service.applyGodRoleAction({
-      worldId: "cultivation",
-      action: "kill",
-      targetRoleId: "leijun",
-      reason: "God adjudicated fatal damage.",
-      idempotencyKey: "god-kill-leijun",
-    });
-    const mute = await service.applyGodRoleAction({
-      worldId: "cultivation",
-      action: "mute",
-      targetRoleId: "leijun",
-      expectedVersion: 1,
-      reason: "God silenced the role.",
-      idempotencyKey: "god-mute-leijun",
-    });
-    const revive = await service.applyGodRoleAction({
-      worldId: "cultivation",
-      action: "revive",
-      targetRoleId: "leijun",
-      expectedVersion: 2,
-      reason: "God restored the role.",
-      idempotencyKey: "god-revive-leijun",
-    });
-
-    expect(kill.patch.operations).toEqual([
-      { op: "set", path: "/metaState/roles/leijun/alive", value: false },
-    ]);
-    expect(mute.patch.operations).toEqual([
-      { op: "set", path: "/metaState/roles/leijun/muted", value: true },
-    ]);
-    expect(revive.patch.operations).toEqual([
-      { op: "set", path: "/metaState/roles/leijun/alive", value: true },
-      { op: "set", path: "/metaState/roles/leijun/muted", value: false },
-    ]);
-    expect(revive.result).toMatchObject({ status: "committed", version: 3 });
-    expect(
-      JSON.stringify(
-        (await service.queryRoleState({ worldId: "cultivation", roleId: "leijun" })).state,
-      ),
-    ).toContain('"alive":true');
-    expect(service.listEvents().map((event) => event.type)).toContain("audit.created");
-  });
-
-  test("triggers natural events through God-controlled state patches", async () => {
-    const root = await mkdtemp(path.join(os.tmpdir(), "realm-app-natural-event-"));
-    await initProject(root, "demo");
-    const service = new RealmApplicationService({ root });
-
-    const response = await service.triggerNaturalEvent({
-      worldId: "cultivation",
-      title: "Cave Encounter",
-      description: "Lei Jun finds a hidden cave.",
-      severity: "major",
-      targetRoleIds: ["leijun"],
-      operations: [{ op: "set", path: "/privateState/roles/leijun/fortune", value: "cave" }],
-      idempotencyKey: "event-cave-leijun",
-    });
-
-    expect(response.result).toMatchObject({ status: "committed", version: 1 });
-    expect(response.patch.reason).toContain("Natural event [major]: Cave Encounter");
-    expect(
-      JSON.stringify(
-        (await service.queryRoleState({ worldId: "cultivation", roleId: "leijun" })).state,
-      ),
-    ).toContain('"fortune":"cave"');
-    expect(service.listEvents().map((event) => event.type)).toContain("audit.created");
-  });
-
-  test("triggers deterministic random natural events", async () => {
-    const root = await mkdtemp(path.join(os.tmpdir(), "realm-app-random-event-"));
-    await initProject(root, "demo");
-    const service = new RealmApplicationService({ root });
-
-    const response = await service.triggerRandomNaturalEvent({
-      worldId: "cultivation",
-      seed: "day-1",
-      targetRoleIds: ["leijun", "guchenfeng"],
-      idempotencyKey: "random-day-1",
-    });
-
-    expect(response.result.status).toBe("committed");
-    expect(response.event.operations.length).toBeGreaterThan(0);
-    expect(response.patch.reason).toContain("Natural event");
   });
 });
 

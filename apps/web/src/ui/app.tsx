@@ -115,12 +115,23 @@ export function App() {
       return;
     }
     const completed = state.events.find(
-      (event) => event.type === "turn.completed" && event.turn.id === activeTurnId,
+      (event) =>
+        (event.type === "turn.completed" ||
+          event.type === "turn.failed" ||
+          event.type === "turn.cancelled") &&
+        event.turn.id === activeTurnId,
     );
-    if (!completed || completed.type !== "turn.completed") {
+    if (
+      !completed ||
+      !(
+        completed.type === "turn.completed" ||
+        completed.type === "turn.failed" ||
+        completed.type === "turn.cancelled"
+      )
+    ) {
       return;
     }
-    setTurnStatus(completed.turn.status === "failed" ? "error" : "idle");
+    setTurnStatus(completed.type === "turn.failed" ? "error" : "idle");
     setActiveTurnId(undefined);
   }, [activeTurnId, state.events]);
 

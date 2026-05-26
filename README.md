@@ -33,7 +33,14 @@ Realm is under active development, but the current vertical slice is usable:
 ```bash
 bun install
 bun run apps/cli/src/index.ts init --template cultivation
+bun run apps/cli/src/index.ts trust --tier run-roles
 bun run apps/cli/src/index.ts open
+```
+
+For a deterministic no-key demo, use the fake vertical slice runtime:
+
+```bash
+bun run apps/cli/src/index.ts open --runtime fake
 ```
 
 After npm publishing, the intended install path is:
@@ -41,6 +48,7 @@ After npm publishing, the intended install path is:
 ```bash
 bun add -g @nicepkg/realm
 realm init --template cultivation
+realm trust --tier run-roles
 realm
 ```
 
@@ -64,6 +72,7 @@ Realm reads and writes project configuration under:
 ```txt
 <project>/.agents/
   config.yaml
+  config.local.yaml        # gitignored machine-local overrides
   roles/<role-id>/role.yaml
   roles/<role-id>/skills/<skill-name>/SKILL.md
   skills/
@@ -74,6 +83,7 @@ Realm reads and writes project configuration under:
 ```
 
 User-level settings live under `REALM_HOME` or `~/.realm/`.
+Project trust decisions are machine-local and stored in `~/.realm/trust.json`.
 
 ## Design Principles
 

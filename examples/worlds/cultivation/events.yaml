@@ -1,0 +1,6 @@
+version: 1
+naturalEvents:
+  - id: minor-fortune
+    title: Minor Fortune
+    severity: minor
+    target: random-role

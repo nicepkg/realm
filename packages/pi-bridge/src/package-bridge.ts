@@ -3,6 +3,7 @@ import { Agent } from "@earendil-works/pi-agent-core";
 import { type Api, getModel, getModels, type Model } from "@earendil-works/pi-ai";
 import { AsyncEventQueue } from "./async-event-queue.ts";
 import { mapAgentEventToBridgeEvents } from "./event-mapper.ts";
+import { buildRealmAgentTools } from "./realm-agent-tools.ts";
 import type {
   PiBridge,
   PiBridgeEvent,
@@ -34,7 +35,7 @@ export class PackagePiBridge implements PiBridge {
         systemPrompt: input.systemPrompt,
         model: await this.resolveModel(input),
         thinkingLevel: "off",
-        tools: [],
+        tools: buildRealmAgentTools(input),
       },
       streamFn: this.options.streamFn,
       getApiKey: this.options.getApiKey ?? defaultApiKeyResolver(input.env),
@@ -109,8 +110,12 @@ export class PackagePiBridge implements PiBridge {
       input.model ??
       this.options.defaultModel ??
       process.env.REALM_PI_MODEL ??
-      firstModelIdForProvider(provider) ??
-      "gpt-5";
+      firstModelIdForProvider(provider);
+    if (!modelId) {
+      throw new Error(
+        `No Pi model configured for provider ${provider}. Set REALM_PI_MODEL or configure a model provider in Realm settings.`,
+      );
+    }
     const model = getModel(provider as never, modelId as never) as Model<Api> | undefined;
     if (!model) {
       throw new Error(`Unknown Pi model: ${provider}/${modelId}`);

@@ -61,6 +61,7 @@ describe("event stores", () => {
     const duplicate = store.append({ ...firstEvent, eventId: "event:duplicate" });
 
     expect(duplicate.eventId).toBe(first.eventId);
+    expect(store.findByIdempotencyKey("config-reload-1")?.eventId).toBe(first.eventId);
     expect(store.list()).toHaveLength(1);
     store.close();
   });

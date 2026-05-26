@@ -12,6 +12,7 @@ export type EventListOptions = {
 export interface EventStore {
   append(event: EventAppendInput): RealmEvent;
   list(options?: EventListOptions): readonly RealmEvent[];
+  findByIdempotencyKey(idempotencyKey: string): RealmEvent | undefined;
   lastSeq(): number;
 }
 
@@ -38,6 +39,10 @@ export class InMemoryEventStore implements EventStore {
     const afterSeq = options.afterSeq ?? 0;
     const filtered = this.events.filter((event) => event.seq > afterSeq);
     return typeof options.limit === "number" ? filtered.slice(0, options.limit) : filtered;
+  }
+
+  findByIdempotencyKey(idempotencyKey: string): RealmEvent | undefined {
+    return this.events.find((event) => event.idempotencyKey === idempotencyKey);
   }
 
   lastSeq(): number {
@@ -125,7 +130,7 @@ export class SQLiteEventStore implements EventStore {
     this.database.close();
   }
 
-  private findByIdempotencyKey(idempotencyKey: string): RealmEvent | undefined {
+  findByIdempotencyKey(idempotencyKey: string): RealmEvent | undefined {
     const row = this.database
       .query<{ payload: string }, [string]>(
         "select payload from events where idempotency_key = ? limit 1",

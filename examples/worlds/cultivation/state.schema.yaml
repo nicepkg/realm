@@ -1,0 +1,12 @@
+version: 1
+schema:
+  publicState:
+    type: object
+  privateState:
+    type: object
+  hiddenState:
+    type: object
+  derivedState:
+    type: object
+  metaState:
+    type: object

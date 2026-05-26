@@ -11,8 +11,10 @@ import {
   loadUserConfig,
   parseUserConfig,
   projectLayout,
+  readProjectTrust,
   resolveProjectRoot,
   stringifyYamlPreservingComments,
+  trustProject,
   UnsupportedConfigVersionError,
   userConfigDir,
   writeProjectConfig,
@@ -148,7 +150,30 @@ describe("config project layout", () => {
     const gitignore = await readFile(path.join(root, ".gitignore"), "utf8");
 
     expect(config.project.name).toBe("demo");
+    await expect(
+      readFile(path.join(root, ".agents", "config.local.yaml"), "utf8"),
+    ).resolves.toContain("Machine-local Realm overrides");
     expect(gitignore).toContain(".agents/state/");
+  });
+
+  test("stores project trust in user-local Realm home", async () => {
+    const root = await mkdtemp(path.join(os.tmpdir(), "realm-trust-project-"));
+    const realmHome = await mkdtemp(path.join(os.tmpdir(), "realm-trust-home-"));
+    const env = { REALM_HOME: realmHome };
+
+    expect(await readProjectTrust(root, env)).toBeUndefined();
+    const record = await trustProject(
+      root,
+      "run-roles",
+      env,
+      () => new Date("2026-05-26T00:00:00.000Z"),
+    );
+
+    expect(record.tier).toBe("run-roles");
+    await expect(readProjectTrust(root, env)).resolves.toMatchObject({
+      tier: "run-roles",
+      trustedAt: "2026-05-26T00:00:00.000Z",
+    });
   });
 
   test("resolves project root from nested directory", async () => {

@@ -4,4 +4,5 @@ export * from "./patch-store.ts";
 export * from "./schemas.ts";
 export * from "./settings.ts";
 export * from "./skills.ts";
+export * from "./trust.ts";
 export * from "./yaml-write.ts";

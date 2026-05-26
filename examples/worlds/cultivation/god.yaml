@@ -1,0 +1,3 @@
+version: 1
+id: god
+role: World arbiter responsible for state patches, natural events, and rule enforcement.

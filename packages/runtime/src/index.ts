@@ -373,7 +373,7 @@ export class PiRoleTurnRunner {
         aggregateId: makeId("turn", turnId),
         correlationId,
         createdAt: nowIso(this.clock()),
-        type: "turn.completed",
+        type: error instanceof TurnCancelledError ? "turn.cancelled" : "turn.failed",
         turn: failedTurn,
       });
       throw error;

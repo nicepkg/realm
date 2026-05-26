@@ -277,8 +277,15 @@ export class WorldStateService {
   private findCommittedStatePatchByIdempotencyKey(
     idempotencyKey: string,
   ): Extract<RealmEvent, { type: "state.patch.committed" }> | undefined {
+    const committed = this.options.eventStore.findByIdempotencyKey(
+      `state-patch-admin:${idempotencyKey}:committed`,
+    );
+    if (committed?.type === "state.patch.committed") {
+      return committed;
+    }
+
     return this.options.eventStore
-      .list()
+      .list({ limit: Number.MAX_SAFE_INTEGER })
       .find(
         (event): event is Extract<RealmEvent, { type: "state.patch.committed" }> =>
           event.type === "state.patch.committed" && event.patch.idempotencyKey === idempotencyKey,

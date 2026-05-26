@@ -1,6 +1,6 @@
 #!/usr/bin/env bun
 import { constants } from "node:fs";
-import { access, mkdir, stat, writeFile } from "node:fs/promises";
+import { access, mkdir, stat } from "node:fs/promises";
 import os from "node:os";
 import path from "node:path";
 import { RealmApplicationService } from "@realm/app-service";
@@ -8,14 +8,17 @@ import {
   initProject,
   loadProjectConfig,
   projectLayout,
+  projectTrustTierSchema,
+  readProjectTrust,
   resolveProjectRoot,
-  writeYamlFile,
+  trustProject,
 } from "@realm/config";
 import { FakeVerticalSliceRuntime } from "@realm/runtime";
 import { createRealmServer, createRealmWebSocketHandlers, realmWebSocketData } from "@realm/server";
 import { SQLiteEventStore } from "@realm/storage";
+import { writeTemplate } from "./cultivation-template.ts";
 
-type Command = "init" | "doctor" | "fake-run" | "open" | "help" | "version";
+type Command = "init" | "doctor" | "fake-run" | "open" | "trust" | "help" | "version";
 
 async function main(argv: string[]): Promise<void> {
   const command = parseCommand(argv);
@@ -25,13 +28,16 @@ async function main(argv: string[]): Promise<void> {
       await init(argv);
       return;
     case "doctor":
-      await doctor();
+      await doctor(argv);
       return;
     case "fake-run":
       await fakeRun();
       return;
     case "open":
       await open(argv);
+      return;
+    case "trust":
+      await trust(argv);
       return;
     case "version":
       console.log("0.1.0");
@@ -53,7 +59,7 @@ function parseCommand(argv: string[]): Command {
   if (command === "--version" || command === "-v" || command === "version") {
     return "version";
   }
-  if (command === "init" || command === "doctor" || command === "fake-run") {
+  if (command === "init" || command === "doctor" || command === "fake-run" || command === "trust") {
     return command;
   }
   return "help";
@@ -72,34 +78,56 @@ async function init(argv: string[]): Promise<void> {
   console.log(`Template: ${template}`);
 }
 
-async function doctor(): Promise<void> {
+async function doctor(argv: string[]): Promise<void> {
   const root = await resolveProjectRoot(process.cwd());
   const layout = projectLayout(root);
   const config = await loadProjectConfig(root).catch(() => undefined);
+  const trust = await readProjectTrust(root);
+  const piPackageStatus = await checkPiPackageImports();
 
   console.log(`Project root: ${root}`);
   console.log(`Agents dir: ${layout.agentsDir}`);
   console.log(`Config: ${config ? "ok" : "missing or invalid"}`);
+  console.log(`Local config: ${(await pathExists(layout.localConfigPath)) ? "ok" : "missing"}`);
   console.log(`Default world: ${config?.defaults.world ?? "unknown"}`);
-  console.log("Pi package bridge: installed");
+  console.log(`Project trust: ${trust?.tier ?? "untrusted/read-only"}`);
   console.log(
-    `Pi CLI fallback: ${(await commandExists("pi")) ? "available" : "unavailable (optional)"}`,
+    `State gitignored: ${(await gitignoreContains(root, ".agents/state/")) ? "ok" : "missing"}`,
   );
+  console.log(`Pi packages: ${piPackageStatus}`);
+  if (argv.includes("--fallback")) {
+    console.log(
+      `Pi CLI fallback: ${(await commandExists("pi")) ? "available" : "unavailable (optional)"}`,
+    );
+  }
 }
 
 async function open(argv: string[]): Promise<void> {
   const root = await resolveProjectRoot(process.cwd());
   const layout = projectLayout(root);
   const config = await loadProjectConfig(root);
+  const trust = await readProjectTrust(root);
+  const trustTier = config.security.requireTrust ? (trust?.tier ?? "read-only") : "run-roles";
   await mkdir(layout.stateDir, { recursive: true });
 
   const requestedPort = Number.parseInt(readFlag(argv, "--port") ?? "3737", 10);
+  const runtimeMode = readFlag(argv, "--runtime") ?? "package";
+  if (runtimeMode !== "package" && runtimeMode !== "fake") {
+    throw new Error(`Unknown runtime mode: ${runtimeMode}`);
+  }
   const port = await findAvailablePort(Number.isNaN(requestedPort) ? 3737 : requestedPort);
   const host = "127.0.0.1";
   const url = `http://${host}:${port}`;
   const eventStore = new SQLiteEventStore(path.join(layout.stateDir, "events.sqlite"));
   const webDistDir = await resolveWebDistDir();
-  const service = new RealmApplicationService({ root, eventStore, extensionBaseUrl: url });
+  const effectiveTrustTier = runtimeMode === "fake" ? "run-roles" : trustTier;
+  const service = new RealmApplicationService({
+    root,
+    eventStore,
+    extensionBaseUrl: url,
+    trustTier: effectiveTrustTier,
+    fakeVerticalSlice: runtimeMode === "fake",
+  });
   const app = createRealmServer({ root, eventStore, webDistDir, extensionBaseUrl: url, service });
   const server = Bun.serve({
     hostname: host,
@@ -120,6 +148,13 @@ async function open(argv: string[]): Promise<void> {
   const runtimeUrl = `http://${host}:${server.port}`;
 
   console.log(`Realm project: ${config.project.name}`);
+  console.log(`Runtime mode: ${runtimeMode}`);
+  console.log(
+    `Project trust: ${runtimeMode === "fake" ? "run-roles (fake runtime)" : (trust?.tier ?? "untrusted/read-only")}`,
+  );
+  if (runtimeMode !== "fake" && config.security.requireTrust && !trust) {
+    console.log("Run `realm trust --tier run-roles` to enable role turns and state actions.");
+  }
   console.log(`Realm server: ${runtimeUrl}`);
 
   if (!argv.includes("--no-open")) {
@@ -152,13 +187,24 @@ async function fakeRun(): Promise<void> {
   );
 }
 
+async function trust(argv: string[]): Promise<void> {
+  const root = await resolveProjectRoot(process.cwd());
+  const tier = projectTrustTierSchema.parse(readFlag(argv, "--tier") ?? "run-roles");
+  const record = await trustProject(root, tier);
+
+  console.log(`Trusted project: ${record.root}`);
+  console.log(`Trust tier: ${record.tier}`);
+}
+
 function printHelp(): void {
   console.log(`Realm CLI
 
 Usage:
   realm
   realm open
+  realm open --runtime fake
   realm init --template cultivation
+  realm trust --tier run-roles
   realm doctor
   realm fake-run
   realm server start --port 3737
@@ -166,6 +212,7 @@ Usage:
 Commands:
   open       Start the local Realm server and Web UI.
   init       Initialize .agents in the current project.
+  trust      Trust the current project for role runtime capabilities.
   doctor     Validate the current project Realm setup.
   fake-run   Run the deterministic P1 fake vertical slice.
 `);
@@ -177,96 +224,6 @@ function readFlag(argv: string[], flag: string): string | undefined {
     return undefined;
   }
   return argv[index + 1];
-}
-
-async function writeTemplate(
-  layout: ReturnType<typeof projectLayout>,
-  template: string,
-): Promise<void> {
-  if (template !== "cultivation") {
-    throw new Error(`Unknown template: ${template}`);
-  }
-
-  const worldDir = path.join(layout.worldsDir, "cultivation");
-  await mkdir(worldDir, { recursive: true });
-
-  await writeYamlFile(path.join(worldDir, "world.yaml"), {
-    version: 1,
-    id: "cultivation",
-    name: "Cultivation Demo",
-    mode: { type: "game", time: { kind: "manual" } },
-    rooms: {
-      main: { type: "world-main", name: "All Hands" },
-    },
-    roles: [
-      { id: "leijun", model: "default" },
-      { id: "guchenfeng", model: "default" },
-    ],
-    god: {
-      id: "god",
-      model: "default",
-      permissions: {
-        canPatchAnyState: true,
-        canKillRole: true,
-        canCreateEvents: true,
-      },
-    },
-  });
-
-  await writeYamlFile(path.join(worldDir, "initial-state.yaml"), {
-    publicState: {
-      roles: {
-        leijun: { name: "Lei Jun", realm: "Qi Refining 7" },
-        guchenfeng: { name: "Gu Chenfeng", realm: "Qi Refining 5" },
-      },
-    },
-    privateState: {},
-    hiddenState: {},
-    derivedState: {},
-    metaState: {
-      roles: {
-        leijun: { alive: true, muted: false },
-        guchenfeng: { alive: true, muted: false },
-      },
-    },
-  });
-
-  await writeCultivationRole(layout, {
-    id: "leijun",
-    displayName: "Lei Jun",
-    summary: "Founder mindset with product, operations, marketing, and engineering instincts.",
-    prompt:
-      "Think like Lei Jun: practical product judgment, long-term patience, operational discipline, and user-first communication. Avoid empty slogans; ground advice in tradeoffs and execution.",
-  });
-  await writeCultivationRole(layout, {
-    id: "guchenfeng",
-    displayName: "Gu Chenfeng",
-    summary: "A resilient cultivation-world protagonist who learns through pressure and risk.",
-    prompt:
-      "Think like Gu Chenfeng: resilient, observant, willing to take calculated risks, and honest about fear. Treat setbacks as material for growth, not as excuses.",
-  });
-}
-
-async function writeCultivationRole(
-  layout: ReturnType<typeof projectLayout>,
-  input: { id: string; displayName: string; summary: string; prompt: string },
-): Promise<void> {
-  const roleDir = path.join(layout.rolesDir, input.id);
-  const skillDir = path.join(roleDir, "skills", input.id);
-  await mkdir(skillDir, { recursive: true });
-  await writeYamlFile(path.join(roleDir, "role.yaml"), {
-    version: 1,
-    id: input.id,
-    displayName: input.displayName,
-    model: "default",
-    profile: { summary: input.summary },
-    rolePrompt: { skill: input.id, source: "role-private" },
-  });
-  await writeFile(
-    path.join(skillDir, "SKILL.md"),
-    [`# ${input.displayName}`, "", input.prompt, ""].join("\n"),
-    "utf8",
-  );
 }
 
 async function resolveWebDistDir(): Promise<string> {
@@ -307,6 +264,28 @@ async function commandExists(command: string): Promise<boolean> {
     }
   }
   return false;
+}
+
+async function checkPiPackageImports(): Promise<string> {
+  try {
+    await Promise.all([
+      import("@earendil-works/pi-agent-core"),
+      import("@earendil-works/pi-ai"),
+      import("@earendil-works/pi-coding-agent"),
+    ]);
+    return "ok";
+  } catch (error) {
+    return `failed (${error instanceof Error ? error.message : String(error)})`;
+  }
+}
+
+async function gitignoreContains(root: string, entry: string): Promise<boolean> {
+  try {
+    const content = await Bun.file(path.join(root, ".gitignore")).text();
+    return content.split(/\r?\n/).includes(entry);
+  } catch {
+    return false;
+  }
 }
 
 async function isExecutableFile(filePath: string): Promise<boolean> {

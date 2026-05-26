@@ -1,0 +1,7 @@
+version: 1
+actions:
+  allowGodRoleActions:
+    - kill
+    - mute
+    - revive
+  requireExpectedVersionForStatePatches: true

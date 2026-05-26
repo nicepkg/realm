@@ -4,6 +4,7 @@ import { PassThrough } from "node:stream";
 import { fauxAssistantMessage, registerFauxProvider } from "@earendil-works/pi-ai";
 import {
   buildPiRpcArgs,
+  buildRealmAgentTools,
   FakePiBridge,
   JsonlDecoder,
   mapAgentEventToBridgeEvents,
@@ -44,6 +45,55 @@ describe("FakePiBridge", () => {
 });
 
 describe("PackagePiBridge", () => {
+  test("builds package-first Realm tools from injected extension scope", async () => {
+    const requests: Array<{ url: string; body: Record<string, unknown> }> = [];
+    const originalFetch = globalThis.fetch;
+    globalThis.fetch = (async (url, init) => {
+      requests.push({
+        url: String(url),
+        body: JSON.parse(String(init?.body ?? "{}")) as Record<string, unknown>,
+      });
+      return Response.json({ state: { hp: 92 } });
+    }) as typeof fetch;
+    try {
+      const tools = buildRealmAgentTools({
+        worldId: "cultivation",
+        roomId: "main",
+        roleId: "leijun",
+        cwd: "/tmp/project",
+        sessionDir: "/tmp/session",
+        systemPrompt: "You are Lei Jun.",
+        allowedSkillPaths: [],
+        extensionPaths: [],
+        env: {
+          REALM_EXTENSION_BASE_URL: "http://127.0.0.1:3999",
+          REALM_EXTENSION_TOKEN: "token",
+          REALM_EXTENSION_WORLD_ID: "cultivation",
+          REALM_EXTENSION_ROLE_ID: "leijun",
+        },
+      });
+
+      expect(tools.map((tool) => tool.name)).toEqual([
+        "realm_state_query",
+        "realm_memory_read",
+        "realm_memory_write",
+      ]);
+      await tools[0]?.execute("tool-1", { path: "/privateState" });
+
+      expect(requests[0]).toMatchObject({
+        url: "http://127.0.0.1:3999/api/extension/state-query",
+        body: {
+          toolCallId: "tool-1",
+          worldId: "cultivation",
+          roleId: "leijun",
+          path: "/privateState",
+        },
+      });
+    } finally {
+      globalThis.fetch = originalFetch;
+    }
+  });
+
   test("runs through Pi's package runtime without spawning the CLI", async () => {
     const faux = registerFauxProvider({ tokensPerSecond: 0 });
     faux.setResponses([fauxAssistantMessage("package reply")]);

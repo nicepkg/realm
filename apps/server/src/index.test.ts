@@ -11,7 +11,7 @@ describe("Realm server API", () => {
   test("accepts a message and returns it from the room query", async () => {
     const root = await mkdtemp(path.join(os.tmpdir(), "realm-server-message-"));
     await initProject(root, "demo");
-    const app = createRealmServer({ root });
+    const app = createRealmServer({ root, trustTier: "run-roles" });
 
     const sendResponse = await app.request("/api/rooms/main/messages", {
       method: "POST",
@@ -32,7 +32,7 @@ describe("Realm server API", () => {
   test("proposes and applies role config through API", async () => {
     const root = await mkdtemp(path.join(os.tmpdir(), "realm-server-config-"));
     await initProject(root, "demo");
-    const app = createRealmServer({ root });
+    const app = createRealmServer({ root, trustTier: "run-roles" });
 
     const proposalResponse = await app.request("/api/config/patches/role", {
       method: "POST",
@@ -60,7 +60,7 @@ describe("Realm server API", () => {
   test("creates runtime rooms through API", async () => {
     const root = await mkdtemp(path.join(os.tmpdir(), "realm-server-room-"));
     await initProject(root, "demo");
-    const app = createRealmServer({ root });
+    const app = createRealmServer({ root, trustTier: "run-roles" });
 
     const createResponse = await app.request("/api/worlds/cultivation/rooms", {
       method: "POST",
@@ -84,7 +84,11 @@ describe("Realm server API", () => {
     const root = await mkdtemp(path.join(os.tmpdir(), "realm-server-settings-"));
     const realmHome = await mkdtemp(path.join(os.tmpdir(), "realm-server-settings-home-"));
     await initProject(root, "demo");
-    const app = createRealmServer({ root, env: { REALM_HOME: realmHome } });
+    const app = createRealmServer({
+      root,
+      env: { REALM_HOME: realmHome },
+      trustTier: "run-roles",
+    });
     const settingsResponse = await app.request("/api/settings");
     const settings = (await settingsResponse.json()) as {
       user: { defaultProvider: string; defaultModel: string };
@@ -114,7 +118,7 @@ describe("Realm server API", () => {
   test("streams events as server-sent events", async () => {
     const root = await mkdtemp(path.join(os.tmpdir(), "realm-server-stream-"));
     await initProject(root, "demo");
-    const app = createRealmServer({ root });
+    const app = createRealmServer({ root, trustTier: "run-roles" });
     await app.request("/api/rooms/main/messages", {
       method: "POST",
       headers: { "content-type": "application/json" },
@@ -137,7 +141,7 @@ describe("Realm server API", () => {
   test("streams events over WebSocket", async () => {
     const root = await mkdtemp(path.join(os.tmpdir(), "realm-server-ws-"));
     await initProject(root, "demo");
-    const service = new RealmApplicationService({ root });
+    const service = new RealmApplicationService({ root, trustTier: "run-roles" });
     const app = createRealmServer({ root, service });
     service.sendMessage({
       worldId: "cultivation",
@@ -176,7 +180,11 @@ describe("Realm server API", () => {
   test("runs role turns through the API", async () => {
     const root = await mkdtemp(path.join(os.tmpdir(), "realm-server-role-turn-"));
     await initProject(root, "demo");
-    const app = createRealmServer({ root, piBridge: new FakePiBridge() });
+    const app = createRealmServer({
+      root,
+      piBridge: new FakePiBridge(),
+      trustTier: "run-roles",
+    });
     const proposalResponse = await app.request("/api/config/patches/role", {
       method: "POST",
       headers: { "content-type": "application/json" },
@@ -209,7 +217,7 @@ describe("Realm server API", () => {
   test("commits admin state patches through the API", async () => {
     const root = await mkdtemp(path.join(os.tmpdir(), "realm-server-admin-state-"));
     await initProject(root, "demo");
-    const app = createRealmServer({ root });
+    const app = createRealmServer({ root, trustTier: "run-roles" });
 
     const patchResponse = await app.request("/api/admin/state-patch", {
       method: "POST",
@@ -233,7 +241,7 @@ describe("Realm server API", () => {
   test("applies typed God role actions through the API", async () => {
     const root = await mkdtemp(path.join(os.tmpdir(), "realm-server-god-action-"));
     await initProject(root, "demo");
-    const app = createRealmServer({ root });
+    const app = createRealmServer({ root, trustTier: "run-roles" });
 
     const response = await app.request("/api/god/cultivation/actions", {
       method: "POST",
@@ -265,7 +273,7 @@ describe("Realm server API", () => {
   test("triggers natural events through the API", async () => {
     const root = await mkdtemp(path.join(os.tmpdir(), "realm-server-natural-event-"));
     await initProject(root, "demo");
-    const app = createRealmServer({ root });
+    const app = createRealmServer({ root, trustTier: "run-roles" });
 
     const response = await app.request("/api/god/cultivation/natural-events", {
       method: "POST",
@@ -290,7 +298,7 @@ describe("Realm server API", () => {
   test("triggers random natural events through the API", async () => {
     const root = await mkdtemp(path.join(os.tmpdir(), "realm-server-random-event-"));
     await initProject(root, "demo");
-    const app = createRealmServer({ root });
+    const app = createRealmServer({ root, trustTier: "run-roles" });
 
     const response = await app.request("/api/god/cultivation/natural-events/random", {
       method: "POST",
@@ -334,6 +342,7 @@ describe("Realm server API", () => {
     );
     const app = createRealmServer({
       root,
+      trustTier: "run-roles",
       extensionStaticTokens: [{ token: "test-token", worldId: "cultivation", roleId: "leijun" }],
     });
 
@@ -379,6 +388,7 @@ describe("Realm server API", () => {
     await initProject(root, "demo");
     const app = createRealmServer({
       root,
+      trustTier: "run-roles",
       extensionStaticTokens: [{ token: "test-token", worldId: "cultivation", roleId: "leijun" }],
     });
 

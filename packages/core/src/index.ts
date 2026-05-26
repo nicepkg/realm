@@ -275,6 +275,14 @@ export const realmEventSchema = z.discriminatedUnion("type", [
     turn: turnSummarySchema,
   }),
   eventEnvelopeSchema.extend({
+    type: z.literal("turn.failed"),
+    turn: turnSummarySchema,
+  }),
+  eventEnvelopeSchema.extend({
+    type: z.literal("turn.cancelled"),
+    turn: turnSummarySchema,
+  }),
+  eventEnvelopeSchema.extend({
     type: z.literal("turn.delta"),
     delta: turnDeltaSchema,
   }),
