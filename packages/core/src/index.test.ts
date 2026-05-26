@@ -130,6 +130,7 @@ describe("core contracts", () => {
         worldId: "software-company",
         capability: "fs.project.write",
         requestedBy: "engineer",
+        targetId: "project-patch:1",
         reason: "Patch the fixture implementation.",
         status: "pending",
         createdAt: "2026-05-27T00:01:00.000Z",
@@ -142,7 +143,7 @@ describe("core contracts", () => {
     });
     expect(approvalEvent).toMatchObject({
       type: "workflow.approval.requested",
-      approval: { capability: "fs.project.write" },
+      approval: { capability: "fs.project.write", targetId: "project-patch:1" },
     });
   });
 

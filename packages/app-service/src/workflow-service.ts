@@ -52,6 +52,7 @@ export type RequestWorkflowApprovalInput = {
   worldId: string;
   capability: Capability;
   requestedBy: string;
+  targetId?: string;
   reason: string;
   idempotencyKey?: string;
 };
@@ -61,6 +62,7 @@ export type DecideWorkflowApprovalInput = {
   approvalId: string;
   capability: Capability;
   requestedBy: string;
+  targetId?: string;
   decision: "approved" | "rejected";
   decidedBy?: string;
   reason: string;
@@ -199,6 +201,9 @@ export class WorkflowService {
     this.input.assertAllowed("state.patch.propose");
     assertSafePathSegment(input.worldId, "worldId");
     assertSafePathSegment(input.requestedBy, "requestedBy");
+    if (input.targetId) {
+      assertSafePathSegment(input.targetId, "targetId");
+    }
     const approval = this.buildApproval({
       id: makeId("approval", randomUUID()),
       input,
@@ -230,6 +235,9 @@ export class WorkflowService {
     assertSafePathSegment(input.worldId, "worldId");
     assertSafePathSegment(input.approvalId, "approvalId");
     assertSafePathSegment(input.requestedBy, "requestedBy");
+    if (input.targetId) {
+      assertSafePathSegment(input.targetId, "targetId");
+    }
     if (input.decidedBy) {
       assertSafePathSegment(input.decidedBy, "decidedBy");
     }
@@ -240,6 +248,7 @@ export class WorkflowService {
         worldId: input.worldId,
         capability: input.capability,
         requestedBy: input.requestedBy,
+        targetId: input.targetId,
         reason: input.requestReason,
       },
       status: input.decision,
@@ -289,6 +298,7 @@ export class WorkflowService {
       worldId: input.input.worldId,
       capability: input.input.capability,
       requestedBy: input.input.requestedBy,
+      targetId: input.input.targetId,
       reason: input.input.reason,
       status: input.status,
       decidedBy: input.decidedBy,

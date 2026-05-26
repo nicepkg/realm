@@ -304,6 +304,7 @@ describe("RealmHttpClient", () => {
               worldId: "software-company",
               capability: body.capability,
               requestedBy: body.requestedBy,
+              targetId: body.targetId,
               reason: body.reason,
               status: "pending",
               createdAt: "2026-05-27T00:00:00.000Z",
@@ -322,6 +323,7 @@ describe("RealmHttpClient", () => {
     const approval = await client.requestWorkflowApproval("software-company", {
       capability: "fs.project.write",
       requestedBy: "engineer",
+      targetId: "project-patch:1",
       reason: "Patch the fixture.",
     });
     const projectPatch = await client.proposeProjectPatch("software-company", {

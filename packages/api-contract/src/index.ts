@@ -325,6 +325,7 @@ export const decideWorkflowReviewRequestSchema = z.object({
 export const requestWorkflowApprovalRequestSchema = z.object({
   capability: capabilitySchema,
   requestedBy: z.string().min(1),
+  targetId: z.string().min(1).optional(),
   reason: z.string().min(1),
   idempotencyKey: z.string().min(1).optional(),
 });
@@ -337,6 +338,7 @@ export const decideWorkflowApprovalRequestSchema = z.object({
   approvalId: z.string().min(1),
   capability: capabilitySchema,
   requestedBy: z.string().min(1),
+  targetId: z.string().min(1).optional(),
   decision: z.enum(["approved", "rejected"]),
   decidedBy: z.string().min(1).optional(),
   reason: z.string().min(1),

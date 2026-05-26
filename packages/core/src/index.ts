@@ -301,6 +301,7 @@ export const workflowApprovalSchema = z.object({
   worldId: idSchema,
   capability: capabilitySchema,
   requestedBy: idSchema,
+  targetId: idSchema.optional(),
   reason: z.string().min(1),
   status: z.enum(["pending", "approved", "rejected"]),
   decidedBy: idSchema.optional(),

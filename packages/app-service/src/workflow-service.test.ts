@@ -200,4 +200,64 @@ describe("RealmApplicationService workflow", () => {
       }),
     ).rejects.toThrow("machine-local Realm data");
   });
+
+  test("project patches respect exact approval bindings when present", async () => {
+    const root = await mkdtemp(path.join(os.tmpdir(), "realm-app-project-patch-binding-"));
+    await initProject(root, "demo");
+    await mkdir(path.join(root, "src"), { recursive: true });
+    await writeFile(path.join(root, "src", "feature-a.txt"), "before-a\n", "utf8");
+    await writeFile(path.join(root, "src", "feature-b.txt"), "before-b\n", "utf8");
+    const service = new RealmApplicationService({ root, trustTier: "run-roles" });
+    const patchA = await service.proposeProjectPatch({
+      worldId: "software-company",
+      title: "Patch A",
+      requestedBy: "engineer",
+      files: [{ path: "src/feature-a.txt", action: "update", nextContent: "after-a\n" }],
+    });
+    const patchB = await service.proposeProjectPatch({
+      worldId: "software-company",
+      title: "Patch B",
+      requestedBy: "engineer",
+      files: [{ path: "src/feature-b.txt", action: "update", nextContent: "after-b\n" }],
+    });
+    const approval = service.requestWorkflowApproval({
+      worldId: "software-company",
+      capability: "fs.project.write",
+      requestedBy: "engineer",
+      targetId: patchA.id,
+      reason: "Patch only feature A.",
+    });
+    service.decideWorkflowApproval({
+      worldId: "software-company",
+      approvalId: approval.id,
+      capability: "fs.project.write",
+      requestedBy: "engineer",
+      targetId: approval.targetId,
+      decision: "approved",
+      reason: "Approved only for patch A.",
+      requestReason: approval.reason,
+    });
+
+    await expect(
+      service.applyProjectPatch({
+        worldId: "software-company",
+        patchId: patchB.id,
+        approvalId: approval.id,
+      }),
+    ).rejects.toThrow("is bound to");
+
+    const applied = await service.applyProjectPatch({
+      worldId: "software-company",
+      patchId: patchA.id,
+      approvalId: approval.id,
+    });
+
+    expect(applied.status).toBe("applied");
+    await expect(readFile(path.join(root, "src", "feature-a.txt"), "utf8")).resolves.toBe(
+      "after-a\n",
+    );
+    await expect(readFile(path.join(root, "src", "feature-b.txt"), "utf8")).resolves.toBe(
+      "before-b\n",
+    );
+  });
 });

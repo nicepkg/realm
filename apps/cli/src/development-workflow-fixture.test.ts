@@ -96,6 +96,7 @@ describe("software company development workflow fixture", () => {
       worldId: "software-company",
       capability: "fs.project.write",
       requestedBy: "engineer",
+      targetId: projectPatch.id,
       reason: `Apply ${projectPatch.id} to src/title.ts for ${task.id}.`,
       idempotencyKey: "fixture-approval-title-normalization",
     });
@@ -104,6 +105,7 @@ describe("software company development workflow fixture", () => {
       approvalId: approval.id,
       capability: "fs.project.write",
       requestedBy: "engineer",
+      targetId: approval.targetId,
       decision: "approved",
       reason: "Patch is scoped to one source file and has a fixture test.",
       requestReason: approval.reason,

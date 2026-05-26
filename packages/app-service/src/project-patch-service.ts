@@ -100,7 +100,10 @@ export class ProjectPatchService {
     if (proposed.worldId !== input.worldId) {
       throw new Error(`Project patch ${input.patchId} does not belong to ${input.worldId}`);
     }
-    this.assertApproved(input.approvalId, input.worldId);
+    if (proposed.approvalId && proposed.approvalId !== input.approvalId) {
+      throw new Error(`Project patch ${input.patchId} is bound to approval ${proposed.approvalId}`);
+    }
+    this.assertApproved(input.approvalId, input.worldId, proposed.id);
 
     for (const file of proposed.files) {
       await this.applyFile(file);
@@ -201,7 +204,7 @@ export class ProjectPatchService {
     return expectEvent(event, "workflow.project_patch.applied").projectPatch;
   }
 
-  private assertApproved(approvalId: string, worldId: string): void {
+  private assertApproved(approvalId: string, worldId: string, patchId: string): void {
     const event = this.input.eventStore
       .list({ limit: 5000 })
       .find(
@@ -214,6 +217,13 @@ export class ProjectPatchService {
       );
     if (!event) {
       throw new Error(`Project patch requires approved fs.project.write approval: ${approvalId}`);
+    }
+    if (
+      event.type === "workflow.approval.decided" &&
+      event.approval.targetId &&
+      event.approval.targetId !== patchId
+    ) {
+      throw new Error(`Approval ${approvalId} is bound to ${event.approval.targetId}`);
     }
   }
 

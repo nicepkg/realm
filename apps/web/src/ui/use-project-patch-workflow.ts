@@ -51,6 +51,7 @@ export function useProjectPatchWorkflow(input: ProjectPatchWorkflowInput) {
     const response = await input.client.requestWorkflowApproval(input.selectedWorld.id, {
       capability: "fs.project.write",
       requestedBy,
+      targetId: projectPatchId || undefined,
       reason: workflowApprovalReason.trim(),
       idempotencyKey: `web-workflow-approval-${Date.now()}`,
     });
@@ -74,6 +75,7 @@ export function useProjectPatchWorkflow(input: ProjectPatchWorkflowInput) {
         approvalId: approval.id,
         capability: approval.capability,
         requestedBy: approval.requestedBy,
+        targetId: approval.targetId,
         decision: "approved",
         reason: "Approved from the Web UI project patch panel.",
         requestReason: approval.reason,
