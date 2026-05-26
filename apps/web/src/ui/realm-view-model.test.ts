@@ -90,7 +90,7 @@ describe("realm web view model", () => {
         roomId: "main",
         actorId: "leijun",
         status: "completed",
-        model: "gpt-5.5",
+        model: "gpt-5",
         usage: {
           input: 10,
           output: 5,
@@ -104,7 +104,7 @@ describe("realm web view model", () => {
 
     expect(describeTraceEvent(event)).toEqual({
       title: "Turn completed: leijun",
-      body: "Model: gpt-5.5 | Usage: 18 tokens (in 10, out 5, cache 2/1, $0.000033)",
+      body: "Model: gpt-5 | Usage: 18 tokens (in 10, out 5, cache 2/1, $0.000033)",
     });
   });
 });

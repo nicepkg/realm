@@ -137,7 +137,7 @@ describe("config project layout", () => {
 
     expect(user.version).toBe(1);
     expect(user.defaultProvider).toBe("google");
-    expect(user.defaultModel).toBe("gpt-5.5");
+    expect(user.defaultModel).toBe("gpt-5");
     expect(() => parseUserConfig({ version: 99 })).toThrow(UnsupportedConfigVersionError);
   });
 

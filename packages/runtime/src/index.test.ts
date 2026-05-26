@@ -81,7 +81,7 @@ describe("PiRoleTurnRunner", () => {
       timeoutMs: 500,
     });
 
-    expect(result.turn.model).toBe("gpt-5.5");
+    expect(result.turn.model).toBe("gpt-5");
     expect(result.turn.usage).toMatchObject({ input: 10, output: 5, totalTokens: 15 });
   });
 
@@ -152,7 +152,7 @@ async function* usageEvents(sessionDir: string): AsyncIterable<PiBridgeEvent> {
   yield {
     type: "usage.reported",
     sessionId: "session-usage",
-    model: "gpt-5.5",
+    model: "gpt-5",
     usage: {
       input: 10,
       output: 5,

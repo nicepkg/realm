@@ -84,7 +84,7 @@ describe("core contracts", () => {
         roomId: "main",
         actorId: "leijun",
         status: "completed",
-        model: "gpt-5.5",
+        model: "gpt-5",
         usage: {
           input: 10,
           output: 5,

@@ -199,6 +199,44 @@ describe("RealmApplicationService", () => {
     expect(service.listEvents().map((event) => event.type)).toContain("turn.completed");
   });
 
+  test("passes user provider settings into role turns", async () => {
+    const root = await mkdtemp(path.join(os.tmpdir(), "realm-app-role-model-"));
+    const realmHome = await mkdtemp(path.join(os.tmpdir(), "realm-app-role-model-home-"));
+    await initProject(root, "demo");
+    const piBridge = new CapturingPiBridge();
+    const service = new RealmApplicationService({
+      root,
+      env: { REALM_HOME: realmHome, GEMINI_API_KEY: "secret" },
+      piBridge,
+      trustTier: "run-roles",
+    });
+    const proposal = await service.proposeRole({
+      id: "analyst",
+      displayName: "Analyst",
+      model: "google",
+      summary: "Uses the configured Google model provider.",
+    });
+    await service.applyConfigPatch(proposal.id);
+
+    await service.runRoleTurn({
+      worldId: "cultivation",
+      roomId: "main",
+      roleId: "analyst",
+      prompt: "Hello",
+      timeoutMs: 500,
+    });
+
+    expect(piBridge.starts[0]).toMatchObject({
+      provider: "google",
+      model: "gemini-3.5-pro",
+    });
+    expect(piBridge.starts[0]?.env).toMatchObject({
+      GEMINI_API_KEY: "secret",
+      REALM_EXTENSION_WORLD_ID: "cultivation",
+      REALM_EXTENSION_ROLE_ID: "analyst",
+    });
+  });
+
   test("runs deterministic fake vertical slice followup from an @all message", async () => {
     const root = await mkdtemp(path.join(os.tmpdir(), "realm-app-fake-vertical-"));
     await initProject(root, "demo");

@@ -48,7 +48,7 @@ const defaultModelProviders: ModelProviderConfig[] = [
     id: "openai",
     displayName: "OpenAI",
     apiKeyEnv: "OPENAI_API_KEY",
-    defaultModel: "gpt-5.5",
+    defaultModel: "gpt-5",
     enabled: true,
   },
   {
@@ -70,7 +70,7 @@ const defaultModelProviders: ModelProviderConfig[] = [
 export const userConfigSchema = z.object({
   version: z.literal(1),
   defaultProvider: z.string().min(1).default("openai"),
-  defaultModel: z.string().min(1).default("gpt-5.5"),
+  defaultModel: z.string().min(1).default("gpt-5"),
   providers: z.array(modelProviderConfigSchema).default(defaultModelProviders),
   web: z
     .object({

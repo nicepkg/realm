@@ -35,6 +35,7 @@ import {
 } from "./extension-access-service.ts";
 import { FakeVerticalSliceService } from "./fake-vertical-slice-service.ts";
 import { type CreateRoomInput, MessageService, type SendMessageInput } from "./message-service.ts";
+import { resolveRoleModelSettings } from "./model-resolution-service.ts";
 import {
   type RoleMemoryInput,
   RoleMemoryService,
@@ -322,6 +323,11 @@ export class RealmApplicationService {
       roleId: input.roleId,
       expiresAt: new Date(this.clock().getTime() + timeoutMs + 30_000),
     });
+    const modelSettings = resolveRoleModelSettings({
+      settings: await this.getSettings(),
+      roleModel: roleContext.role.model,
+      env: this.options.env,
+    });
 
     try {
       const result = await runner.run({
@@ -340,12 +346,14 @@ export class RealmApplicationService {
           input.roleId,
         ),
         systemPrompt: compileRoleSystemPrompt(roleContext),
-        model: roleContext.role.model === "default" ? undefined : roleContext.role.model,
+        provider: modelSettings.provider,
+        model: modelSettings.model,
         allowedSkillPaths: roleContext.callableSkills.map((skill) => skill.path),
         extensionPaths: await resolvePiExtensionPaths(
           this.options.piExtensionPath ?? process.env.REALM_PI_EXTENSION_PATH,
         ),
         env: {
+          ...modelSettings.env,
           REALM_EXTENSION_BASE_URL: this.options.extensionBaseUrl ?? "http://127.0.0.1:3737",
           REALM_EXTENSION_TOKEN: extensionSession.token,
           REALM_EXTENSION_WORLD_ID: input.worldId,
