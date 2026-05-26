@@ -26,6 +26,17 @@ describe("CapabilityPolicy", () => {
     expect(decision.allow).toBe(true);
   });
 
+  test("allows project reads in run-roles trust tier when explicitly allowlisted", () => {
+    const decision = new CapabilityPolicy().decide({
+      principal: owner,
+      capability: "fs.project.read",
+      trustTier: "run-roles",
+      allowedCapabilities: ["fs.project.read"],
+    });
+
+    expect(decision.allow).toBe(true);
+  });
+
   test("explicit deny wins", () => {
     const decision = new CapabilityPolicy().decide({
       principal: owner,

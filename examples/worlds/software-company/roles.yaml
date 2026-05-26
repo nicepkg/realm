@@ -1,0 +1,18 @@
+version: 1
+roles:
+  - id: product-manager
+    model: default
+  - id: architect
+    model: default
+  - id: engineer
+    model: default
+  - id: qa
+    model: default
+  - id: test-expert
+    model: default
+  - id: security-reviewer
+    model: default
+  - id: doc-writer
+    model: default
+  - id: release-manager
+    model: default

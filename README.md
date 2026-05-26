@@ -37,6 +37,14 @@ bun run apps/cli/src/index.ts trust --tier run-roles
 bun run apps/cli/src/index.ts open
 ```
 
+For the development workflow template:
+
+```bash
+bun run apps/cli/src/index.ts init --template software-company
+bun run apps/cli/src/index.ts trust --tier run-roles
+bun run apps/cli/src/index.ts open
+```
+
 For a deterministic no-key demo, use the fake vertical slice runtime:
 
 ```bash
@@ -48,6 +56,7 @@ After npm publishing, the intended install path is:
 ```bash
 bun add -g @nicepkg/realm
 realm init --template cultivation
+realm init --template software-company
 realm trust --tier run-roles
 realm
 ```
@@ -78,6 +87,8 @@ Realm reads and writes project configuration under:
   skills/
   worlds/<world-id>/world.yaml
   worlds/<world-id>/initial-state.yaml
+  worlds/<world-id>/state.schema.yaml
+  worlds/<world-id>/visibility.yaml
   state/
   logs/
 ```

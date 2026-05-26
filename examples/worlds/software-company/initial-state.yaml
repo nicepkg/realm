@@ -1,0 +1,108 @@
+publicState:
+  project:
+    phase: planning
+    objective: Discuss, implement, review, verify, and document project changes.
+  artifacts: []
+  tasks: []
+  reviews: []
+  approvals: []
+  risks: []
+  roles:
+    product-manager:
+      name: Product Manager
+      status: available
+      currentTask: null
+    architect:
+      name: Architect
+      status: available
+      currentTask: null
+    engineer:
+      name: Engineer
+      status: available
+      currentTask: null
+    qa:
+      name: QA
+      status: available
+      currentTask: null
+    test-expert:
+      name: Test Expert
+      status: available
+      currentTask: null
+    security-reviewer:
+      name: Security Reviewer
+      status: available
+      currentTask: null
+    doc-writer:
+      name: Doc Writer
+      status: available
+      currentTask: null
+    release-manager:
+      name: Release Manager
+      status: available
+      currentTask: null
+privateState:
+  roles:
+    product-manager:
+      workingNotes: []
+      concerns: []
+    architect:
+      workingNotes: []
+      concerns: []
+    engineer:
+      workingNotes: []
+      concerns: []
+    qa:
+      workingNotes: []
+      concerns: []
+    test-expert:
+      workingNotes: []
+      concerns: []
+    security-reviewer:
+      workingNotes: []
+      concerns: []
+    doc-writer:
+      workingNotes: []
+      concerns: []
+    release-manager:
+      workingNotes: []
+      concerns: []
+hiddenState:
+  ownerNotes: []
+  suppressedRisks: []
+derivedState:
+  openTaskCount: 0
+  pendingReviewCount: 0
+  approvedArtifactCount: 0
+metaState:
+  workflow:
+    currentSprint: p7-development-workflow
+    approvalRequiredFor:
+      - fs.project.write
+      - shell.run
+      - network.fetch
+      - config.write
+  roles:
+    product-manager:
+      alive: true
+      muted: false
+    architect:
+      alive: true
+      muted: false
+    engineer:
+      alive: true
+      muted: false
+    qa:
+      alive: true
+      muted: false
+    test-expert:
+      alive: true
+      muted: false
+    security-reviewer:
+      alive: true
+      muted: false
+    doc-writer:
+      alive: true
+      muted: false
+    release-manager:
+      alive: true
+      muted: false

@@ -1,0 +1,42 @@
+version: 1
+workflow:
+  artifactLifecycle:
+    - draft
+    - review
+    - approved
+    - implemented
+    - verified
+  taskLifecycle:
+    - todo
+    - in-progress
+    - blocked
+    - done
+  reviewLifecycle:
+    - requested
+    - changes-requested
+    - approved
+  requireExpectedVersionForStatePatches: true
+tools:
+  include:
+    - message.send
+    - room.create
+    - turn.run
+    - state.query
+    - state.patch.propose
+    - memory.read
+    - memory.write
+    - trace.read
+    - config.read
+    - fs.private.read
+    - fs.private.write
+    - fs.private.list
+    - fs.project.read
+  requireApproval:
+    - fs.project.write
+    - shell.run
+    - network.fetch
+    - config.write
+  denyByDefault:
+    - fs.project.write
+    - shell.run
+    - network.fetch

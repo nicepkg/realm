@@ -28,6 +28,8 @@ project -> worlds -> rooms -> roles -> turns -> events -> state snapshots
 .agents/skills/
 .agents/worlds/<world-id>/world.yaml
 .agents/worlds/<world-id>/initial-state.yaml
+.agents/worlds/<world-id>/state.schema.yaml
+.agents/worlds/<world-id>/visibility.yaml
 ```
 
 用户级设置位于 `REALM_HOME` 或 `~/.realm/`，用于保存模型 provider 引用、默认模型和 Web UI 偏好。
@@ -41,6 +43,15 @@ Realm 通过 npm 包使用 Pi：
 - `@earendil-works/pi-coding-agent`
 
 Pi CLI/RPC 路径是可见的可选 fallback，只用于诊断和兼容性冒烟。
+
+## 模板
+
+```bash
+realm init --template cultivation
+realm init --template software-company
+```
+
+软件公司模板会创建 Product Manager、Architect、Engineer、QA、Test Expert、Security Reviewer、Doc Writer 和 Release Manager 角色，也会创建工作流状态、评审群、世界级 artifact/review skill，以及把项目写入、shell、联网和配置写入放到审批门后的规则。
 
 ## 状态和上帝
 

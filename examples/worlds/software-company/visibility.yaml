@@ -1,0 +1,20 @@
+version: 1
+roles:
+  canRead:
+    - /publicState
+    - /privateState/roles/{roleId}
+    - /derivedState
+    - /metaState/workflow
+  cannotRead:
+    - /hiddenState
+    - /privateState/roles/{otherRoleId}
+god:
+  canRead:
+    - /
+  canPatch:
+    - /
+owner:
+  canRead:
+    - /
+  canPatch:
+    - /

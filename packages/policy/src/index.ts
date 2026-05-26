@@ -32,6 +32,7 @@ const RUN_ROLE_CAPABILITIES = new Set<Capability>([
   "state.patch.admin",
   "memory.read",
   "memory.write",
+  "fs.project.read",
   "trace.read",
   "config.read",
   "role.impersonate",

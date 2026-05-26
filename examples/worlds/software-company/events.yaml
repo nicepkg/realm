@@ -1,0 +1,14 @@
+version: 1
+workflowEvents:
+  - id: scope-change
+    title: Scope Change
+    severity: medium
+    target: current-task
+  - id: test-failure
+    title: Test Failure
+    severity: high
+    target: implementation
+  - id: release-risk
+    title: Release Risk
+    severity: high
+    target: release

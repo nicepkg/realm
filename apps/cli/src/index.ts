@@ -16,7 +16,7 @@ import {
 import { FakeVerticalSliceRuntime } from "@realm/runtime";
 import { createRealmServer, createRealmWebSocketHandlers, realmWebSocketData } from "@realm/server";
 import { SQLiteEventStore } from "@realm/storage";
-import { writeTemplate } from "./cultivation-template.ts";
+import { writeTemplate } from "./project-templates.ts";
 
 type Command = "init" | "doctor" | "fake-run" | "open" | "trust" | "help" | "version";
 
@@ -204,6 +204,7 @@ Usage:
   realm open
   realm open --runtime fake
   realm init --template cultivation
+  realm init --template software-company
   realm trust --tier run-roles
   realm doctor
   realm fake-run

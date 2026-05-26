@@ -52,7 +52,7 @@ export const pages: Record<Locale, DocPage> = {
           "Realm is installed as a CLI and opened inside an existing project. The active project owns its .agents directory, while user secrets and provider settings stay in REALM_HOME or ~/.realm.",
           "The first UI is intentionally familiar: a narrow app rail, a conversation list, a central chat pane, and a contextual inspector. Advanced world, state, trace, and God controls extend the messenger model instead of replacing it.",
         ],
-        code: "cd /path/to/project\nrealm init --template cultivation\nrealm trust --tier run-roles\nrealm",
+        code: "cd /path/to/project\nrealm init --template cultivation\nrealm trust --tier run-roles\nrealm\n\n# Development workflow\nrealm init --template software-company\nrealm trust --tier run-roles\nrealm",
       },
       {
         id: "concepts",
@@ -75,7 +75,7 @@ export const pages: Record<Locale, DocPage> = {
           "During development, run Realm with Bun directly. For distribution, the same CLI can be published as an npm package or compiled into a Bun binary.",
           "Realm uses Pi through package dependencies. The Pi CLI/RPC path is explicit diagnostics only and is never required for normal role turns.",
         ],
-        code: "bun install\nbun run apps/cli/src/index.ts init --template cultivation\nbun run apps/cli/src/index.ts trust --tier run-roles\nbun run apps/cli/src/index.ts open\nbun run apps/cli/src/index.ts open --runtime fake\nbun run build:binary\n./dist/bin/realm doctor",
+        code: "bun install\nbun run apps/cli/src/index.ts init --template cultivation\nbun run apps/cli/src/index.ts init --template software-company\nbun run apps/cli/src/index.ts trust --tier run-roles\nbun run apps/cli/src/index.ts open\nbun run apps/cli/src/index.ts open --runtime fake\nbun run build:binary\n./dist/bin/realm doctor",
       },
       {
         id: "configuration",
@@ -90,8 +90,8 @@ export const pages: Record<Locale, DocPage> = {
         id: "worlds",
         title: "World templates",
         body: [
-          "Realm ships with three first-class example directions: cultivation simulation, investment council, and software company workflow.",
-          "Templates are not decorative samples. They are acceptance targets for runtime behavior, policy, state visibility, and replayability.",
+          "Realm ships with built-in templates for cultivation simulation and software company workflow, plus an investment council example direction.",
+          "Templates are not decorative samples. They are acceptance targets for runtime behavior, policy, state visibility, and replayability. The software company template creates PM, architect, engineer, QA, test, security, docs, and release roles with workflow state and approval rules.",
         ],
         bullets: [
           "Cultivation: roles have realms, HP, artifacts, random encounters, disasters, and God-adjudicated outcomes.",
@@ -167,7 +167,7 @@ export const pages: Record<Locale, DocPage> = {
           "Realm 是一个在项目目录内打开的 CLI。当前项目拥有自己的 .agents 目录；用户级密钥、模型 provider 和偏好配置保存在 REALM_HOME 或 ~/.realm。",
           "第一屏刻意保持熟悉：窄侧栏、会话列表、中间聊天区、右侧上下文面板。世界状态、上帝裁判、轨迹和设置都从这个聊天模型逐步展开。",
         ],
-        code: "cd /path/to/project\nrealm init --template cultivation\nrealm trust --tier run-roles\nrealm",
+        code: "cd /path/to/project\nrealm init --template cultivation\nrealm trust --tier run-roles\nrealm\n\n# 开发工作流\nrealm init --template software-company\nrealm trust --tier run-roles\nrealm",
       },
       {
         id: "concepts",
@@ -190,7 +190,7 @@ export const pages: Record<Locale, DocPage> = {
           "开发时可以直接用 Bun 运行。发布时同一套 CLI 既可以作为 npm 包安装，也可以编译成 Bun 二进制。",
           "Realm 通过 npm 包集成 PI。PI CLI/RPC 只用于显式诊断和兼容性冒烟，不是普通角色 turn 的依赖。",
         ],
-        code: "bun install\nbun run apps/cli/src/index.ts init --template cultivation\nbun run apps/cli/src/index.ts trust --tier run-roles\nbun run apps/cli/src/index.ts open\nbun run apps/cli/src/index.ts open --runtime fake\nbun run build:binary\n./dist/bin/realm doctor",
+        code: "bun install\nbun run apps/cli/src/index.ts init --template cultivation\nbun run apps/cli/src/index.ts init --template software-company\nbun run apps/cli/src/index.ts trust --tier run-roles\nbun run apps/cli/src/index.ts open\nbun run apps/cli/src/index.ts open --runtime fake\nbun run build:binary\n./dist/bin/realm doctor",
       },
       {
         id: "configuration",
@@ -205,8 +205,8 @@ export const pages: Record<Locale, DocPage> = {
         id: "worlds",
         title: "世界模板",
         body: [
-          "Realm 第一批模板覆盖修真模拟、投资委员会和软件公司工作流。",
-          "模板不是展示用样例，而是运行时行为、策略、状态可见性和可回放性的验收目标。",
+          "Realm 内置修真模拟和软件公司工作流模板，并保留投资委员会作为示例方向。",
+          "模板不是展示用样例，而是运行时行为、策略、状态可见性和可回放性的验收目标。软件公司模板会创建 PM、架构师、工程师、QA、测试、安全、文档和发布角色，并带工作流状态和审批规则。",
         ],
         bullets: [
           "修真世界：角色有境界、血条、法宝、奇遇、灾难和上帝裁决结果。",

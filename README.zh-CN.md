@@ -33,6 +33,15 @@ Pi CLI/RPC 子进程路径只作为显式诊断和兼容性冒烟，不是正常
 ```bash
 bun install
 bun run apps/cli/src/index.ts init --template cultivation
+bun run apps/cli/src/index.ts trust --tier run-roles
+bun run apps/cli/src/index.ts open
+```
+
+开发工作流模板：
+
+```bash
+bun run apps/cli/src/index.ts init --template software-company
+bun run apps/cli/src/index.ts trust --tier run-roles
 bun run apps/cli/src/index.ts open
 ```
 
@@ -41,6 +50,8 @@ npm 发布后的目标安装方式：
 ```bash
 bun add -g @nicepkg/realm
 realm init --template cultivation
+realm init --template software-company
+realm trust --tier run-roles
 realm
 ```
 
@@ -69,6 +80,8 @@ Realm 读取和写入项目里的：
   skills/
   worlds/<world-id>/world.yaml
   worlds/<world-id>/initial-state.yaml
+  worlds/<world-id>/state.schema.yaml
+  worlds/<world-id>/visibility.yaml
   state/
   logs/
 ```

@@ -8,11 +8,37 @@ mode:
 rooms:
   main:
     type: world-main
-    name: Product Room
+    name: All Hands
+  triage:
+    type: group
+    name: Triage
+  reviews:
+    type: group
+    name: Review Room
+  god:
+    type: god-channel
+    name: God / Workflow Judge
 roles:
   - id: product-manager
     model: default
   - id: architect
     model: default
+  - id: engineer
+    model: default
   - id: qa
     model: default
+  - id: test-expert
+    model: default
+  - id: security-reviewer
+    model: default
+  - id: doc-writer
+    model: default
+  - id: release-manager
+    model: default
+god:
+  id: workflow-god
+  model: default
+  permissions:
+    canPatchWorkflowState: true
+    canCreateReviewEvents: true
+    canRequestHumanApproval: true

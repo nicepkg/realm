@@ -28,6 +28,8 @@ Project configuration lives under `.agents/`:
 .agents/skills/
 .agents/worlds/<world-id>/world.yaml
 .agents/worlds/<world-id>/initial-state.yaml
+.agents/worlds/<world-id>/state.schema.yaml
+.agents/worlds/<world-id>/visibility.yaml
 ```
 
 User settings live under `REALM_HOME` or `~/.realm/` and store model provider references, preferred defaults, and Web UI preferences.
@@ -41,6 +43,15 @@ Realm uses Pi through npm packages:
 - `@earendil-works/pi-coding-agent`
 
 The Pi CLI/RPC path is optional and visible. It is only used for diagnostics and compatibility smoke tests.
+
+## Templates
+
+```bash
+realm init --template cultivation
+realm init --template software-company
+```
+
+The software company template creates Product Manager, Architect, Engineer, QA, Test Expert, Security Reviewer, Doc Writer, and Release Manager roles. It also creates workflow state, review rooms, world-level artifact/review skills, and rules that keep project writes, shell commands, network access, and config writes behind approval.
 
 ## State And God
 
