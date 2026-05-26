@@ -60,6 +60,10 @@ export function createRealmServer(options: RealmServerOptions): Hono {
   app.get("/api/health", (context) => context.json({ ok: true }));
   app.get("/api/project", async (context) => context.json(await service.getProject()));
   app.get("/api/settings", async (context) => context.json(await service.getSettings()));
+  app.get("/api/settings/export", async (context) => context.json(await service.exportSettings()));
+  app.post("/api/settings/import", async (context) =>
+    context.json(await service.importSettings(await context.req.json())),
+  );
   app.post("/api/settings/user", async (context) => {
     const request = updateUserSettingsRequestSchema.parse(await context.req.json());
     return context.json(await service.updateUserSettings(request));
@@ -71,6 +75,9 @@ export function createRealmServer(options: RealmServerOptions): Hono {
   app.get("/api/config/status", async (context) => context.json(await service.getConfigStatus()));
   app.get("/api/config/effective", async (context) =>
     context.json(await service.getEffectiveConfig()),
+  );
+  app.get("/api/policy/effective", async (context) =>
+    context.json(await service.getEffectivePolicy()),
   );
 
   app.get("/api/events", (context) => {

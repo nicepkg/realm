@@ -20,7 +20,7 @@ describe("buildRealmAgentTools", () => {
       sessionInput({
         allowedSkills: [
           {
-            id: "role-private:note-taker",
+            id: "role-private:leijun:note-taker",
             name: "note-taker",
             scope: "role-private",
             path: skillDir,
@@ -33,21 +33,21 @@ describe("buildRealmAgentTools", () => {
     const skillTool = tools.find((tool) => tool.name === "realm_skill_read");
 
     expect(tools.map((tool) => tool.name)).toContain("realm_skill_read");
-    const result = await skillTool?.execute("tool-1", { name: "role-private:note-taker" });
+    const result = await skillTool?.execute("tool-1", { name: "role-private:leijun:note-taker" });
 
     expect(result?.content[0]).toMatchObject({
       type: "text",
       text: expect.stringContaining("Capture durable notes."),
     });
     expect(result?.details).toEqual({
-      id: "role-private:note-taker",
+      id: "role-private:leijun:note-taker",
       name: "note-taker",
       scope: "role-private",
       contentHash: "hash-1",
     });
   });
 
-  test("rejects ambiguous name-only skill reads", async () => {
+  test("rejects name-only skill reads", async () => {
     const root = await mkdtemp(path.join(os.tmpdir(), "realm-pi-tools-"));
     const privateSkillDir = path.join(root, "roles", "leijun", "skills", "note-taker");
     const worldSkillDir = path.join(root, "worlds", "cultivation", "skills", "note-taker");
@@ -60,13 +60,13 @@ describe("buildRealmAgentTools", () => {
       sessionInput({
         allowedSkills: [
           {
-            id: "role-private:note-taker",
+            id: "role-private:leijun:note-taker",
             name: "note-taker",
             scope: "role-private",
             path: privateSkillDir,
           },
           {
-            id: "world:note-taker",
+            id: "world:cultivation:note-taker",
             name: "note-taker",
             scope: "world",
             path: worldSkillDir,
@@ -78,9 +78,9 @@ describe("buildRealmAgentTools", () => {
     const skillTool = tools.find((tool) => tool.name === "realm_skill_read");
 
     await expect(skillTool?.execute("tool-1", { name: "note-taker" })).rejects.toThrow(
-      "Skill name is ambiguous",
+      "Skill reads require an exact skill id",
     );
-    const result = await skillTool?.execute("tool-1", { name: "world:note-taker" });
+    const result = await skillTool?.execute("tool-1", { name: "world:cultivation:note-taker" });
     expect(result?.content[0]).toMatchObject({
       type: "text",
       text: expect.stringContaining("# World"),
@@ -91,7 +91,7 @@ describe("buildRealmAgentTools", () => {
     const tools = buildRealmAgentTools(sessionInput({ allowedSkillPaths: ["/tmp/allowed"] }));
     const skillTool = tools.find((tool) => tool.name === "realm_skill_read");
 
-    await expect(skillTool?.execute("tool-1", { name: "../secret" })).rejects.toThrow(
+    await expect(skillTool?.execute("tool-1", { name: "path:secret:missing" })).rejects.toThrow(
       "Skill is not available",
     );
   });

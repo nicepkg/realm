@@ -169,6 +169,65 @@ describe("RealmApplicationService", () => {
     expect(service.listEvents().map((event) => event.type)).toContain("audit.created");
   });
 
+  test("reports effective capability and skill policy", async () => {
+    const root = await mkdtemp(path.join(os.tmpdir(), "realm-app-policy-"));
+    const layout = await initProject(root, "demo");
+    const roleDir = path.join(layout.rolesDir, "leijun");
+    await mkdir(path.join(roleDir, "skills", "private-note"), { recursive: true });
+    await mkdir(path.join(layout.worldsDir, "cultivation", "skills", "encounter"), {
+      recursive: true,
+    });
+    await writeFile(
+      path.join(roleDir, "role.yaml"),
+      ["version: 1", "id: leijun", "displayName: Lei Jun", "model: default", ""].join("\n"),
+      "utf8",
+    );
+    await writeFile(
+      path.join(layout.worldsDir, "cultivation", "world.yaml"),
+      [
+        "version: 1",
+        "id: cultivation",
+        "name: Cultivation",
+        "mode:",
+        "  type: game",
+        "  time:",
+        "    kind: manual",
+        "rooms:",
+        "  main:",
+        "    type: world-main",
+        "    name: All Hands",
+        "roles:",
+        "  - id: leijun",
+        "    model: default",
+        "",
+      ].join("\n"),
+      "utf8",
+    );
+    await writeFile(
+      path.join(roleDir, "skills", "private-note", "SKILL.md"),
+      "# Private Note\n",
+      "utf8",
+    );
+    await writeFile(
+      path.join(layout.worldsDir, "cultivation", "skills", "encounter", "SKILL.md"),
+      "# Encounter\n",
+      "utf8",
+    );
+    const service = new RealmApplicationService({ root, trustTier: "run-roles" });
+
+    const policy = await service.getEffectivePolicy();
+
+    expect(policy.capabilities.find((item) => item.capability === "shell.run")).toMatchObject({
+      allow: false,
+      highRisk: true,
+    });
+    expect(policy.roleWorlds[0]?.allowedSkills.map((skill) => skill.id)).toEqual([
+      "role-private:leijun:private-note",
+      "world:cultivation:encounter",
+    ]);
+    expect(policy.warnings).toContain("Network fetch is disabled by project policy.");
+  });
+
   test("runs a role turn through the configured Pi bridge", async () => {
     const root = await mkdtemp(path.join(os.tmpdir(), "realm-app-role-turn-"));
     await initProject(root, "demo");
@@ -353,11 +412,11 @@ describe("RealmApplicationService", () => {
 
     const start = piBridge.starts[0];
     expect(start?.systemPrompt).toContain("Role DNA");
-    expect(start?.systemPrompt).toContain("role-private:note-taker");
+    expect(start?.systemPrompt).toContain("role-private:leijun:note-taker");
     expect(start?.allowedSkillPaths).toEqual([callableSkillDir]);
     expect(start?.allowedSkills).toEqual([
       expect.objectContaining({
-        id: "role-private:note-taker",
+        id: "role-private:leijun:note-taker",
         name: "note-taker",
         scope: "role-private",
         path: callableSkillDir,

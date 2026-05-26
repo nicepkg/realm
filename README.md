@@ -22,7 +22,9 @@ Realm is under active development, but the current vertical slice is usable:
 - roles, rooms, messages, DMs, groups, and all-hands rooms;
 - software company workflow events for artifacts, tasks, reviews, approval gates, and approved project patches;
 - a tested software-company fixture flow from discussion to patch, verification, and review;
-- role prompt skills and callable skill discovery;
+- role prompt skills, full callable skill identity, and skill allowlist/blacklist compilation;
+- effective policy matrix UI for capabilities, denied skills, and trust-risk warnings;
+- settings import/export without raw provider secrets;
 - Pi package bridge for role turns;
 - role memory and private world state access;
 - God state patches, kill/mute/revive actions, natural events, and deterministic random natural events;
@@ -107,6 +109,17 @@ Project trust decisions are machine-local and stored in `~/.realm/trust.json`.
 - DRY, SOLID, high cohesion, low coupling.
 - Cross-platform and cross-machine by default.
 - Important logic covered by unit and integration tests.
+
+## Governance
+
+Callable skills use exact identities such as `role-private:<roleId>:<skill>` and
+`world:<worldId>:<skill>`. Role prompt skills are reserved for system prompt assembly unless
+explicitly shared as callable skills through policy. The runtime rejects name-only skill reads.
+
+The Settings panel shows the effective capability and skill policy per world/role. High-risk
+capabilities such as `shell.run`, `network.fetch`, `fs.project.write`, and `config.write` remain
+denied unless policy and trust allow them. Settings export writes portable JSON with provider
+environment-variable references, not raw API keys.
 
 ## Documentation
 

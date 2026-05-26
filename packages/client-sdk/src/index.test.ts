@@ -43,6 +43,58 @@ describe("RealmHttpClient", () => {
     expect(response.user.defaultProvider).toBe("google");
   });
 
+  test("exports and imports portable settings", async () => {
+    const requestPaths: string[] = [];
+    const client = new RealmHttpClient({
+      fetchImpl: (async (input, init) => {
+        const path = new URL(String(input), "http://realm.test").pathname;
+        requestPaths.push(path);
+        const settings = {
+          user: {
+            version: 1,
+            defaultProvider: "openai",
+            defaultModel: "gpt-5",
+            providers: [],
+            web: { host: "127.0.0.1", preferredPort: 3737, openBrowser: true },
+          },
+          project: {
+            version: 1,
+            project: { name: "demo" },
+            defaults: { world: "cultivation", modelProfile: "default" },
+            skills: {},
+            security: {
+              requireTrust: true,
+              allowProjectShellByDefault: false,
+              allowNetworkByDefault: false,
+            },
+          },
+        };
+        if (path.endsWith("/export")) {
+          return Response.json({
+            version: 1,
+            exportedAt: "2026-05-27T00:00:00.000Z",
+            ...settings,
+            redactions: ["provider secret values are never exported"],
+          });
+        }
+        expect(JSON.parse(String(init?.body))).toEqual(settings);
+        return Response.json({
+          ...settings,
+          paths: {
+            userConfigPath: "/tmp/.realm/config.yaml",
+            projectConfigPath: "/tmp/demo/.agents/config.yaml",
+            projectLocalConfigPath: "/tmp/demo/.agents/config.local.yaml",
+          },
+        });
+      }) as typeof fetch,
+    });
+
+    const exported = await client.exportSettings();
+    await client.importSettings({ user: exported.user, project: exported.project });
+
+    expect(requestPaths).toEqual(["/api/settings/export", "/api/settings/import"]);
+  });
+
   test("starts and cancels role turns", async () => {
     const requestPaths: string[] = [];
     const client = new RealmHttpClient({
@@ -65,6 +117,52 @@ describe("RealmHttpClient", () => {
 
     expect(requestPaths).toEqual(["/api/rooms/main/role-turns/start", "/api/turns/turn-1/cancel"]);
     expect(cancelled.cancelled).toBe(true);
+  });
+
+  test("gets effective policy matrix", async () => {
+    let requestPath = "";
+    const client = new RealmHttpClient({
+      fetchImpl: (async (input) => {
+        requestPath = new URL(String(input), "http://realm.test").pathname;
+        return Response.json({
+          trustTier: "run-roles",
+          capabilities: [
+            {
+              capability: "network.fetch",
+              allow: false,
+              reason: "network.fetch requires elevated tool trust",
+              remediation: "Raise the trust tier and enable the capability explicitly.",
+              highRisk: true,
+            },
+          ],
+          roleWorlds: [
+            {
+              worldId: "cultivation",
+              roleId: "leijun",
+              allowedSkills: [
+                {
+                  id: "role-private:leijun:private-note",
+                  name: "private-note",
+                  scope: "role-private",
+                  source: "role-private",
+                  roleId: "leijun",
+                  relativePath: ".agents/roles/leijun/skills/private-note",
+                  path: "/tmp/demo/.agents/roles/leijun/skills/private-note",
+                  contentHash: "hash",
+                },
+              ],
+              deniedSkills: [],
+            },
+          ],
+          warnings: ["Network fetch is disabled by project policy."],
+        });
+      }) as typeof fetch,
+    });
+
+    const policy = await client.getEffectivePolicy();
+
+    expect(requestPath).toBe("/api/policy/effective");
+    expect(policy.roleWorlds[0]?.allowedSkills[0]?.id).toBe("role-private:leijun:private-note");
   });
 
   test("posts typed God role actions to the world endpoint", async () => {

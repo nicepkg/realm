@@ -78,6 +78,31 @@ describe("realm web view model", () => {
     });
   });
 
+  test("surfaces policy denials in the trace inspector feed", () => {
+    const event: RealmEvent = {
+      type: "audit.created",
+      eventId: "event-policy-denied",
+      seq: 1,
+      schemaVersion: 1,
+      aggregateId: "audit",
+      createdAt: "2026-05-26T01:00:00.000Z",
+      audit: {
+        id: "audit-1",
+        actorId: "owner",
+        action: "policy.denied",
+        target: "network.fetch",
+        reason: "network.fetch is not in the allowlist",
+        createdAt: "2026-05-26T01:00:00.000Z",
+      },
+    };
+
+    expect(isTraceEvent(event)).toBe(true);
+    expect(describeTraceEvent(event)).toEqual({
+      title: "Audit: policy.denied",
+      body: "network.fetch: network.fetch is not in the allowlist",
+    });
+  });
+
   test("describes turn model usage for trace inspectors", () => {
     const event: RealmEvent = {
       type: "turn.completed",

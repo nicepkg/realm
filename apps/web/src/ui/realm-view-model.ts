@@ -26,7 +26,8 @@ export type TraceEvent = Extract<
       | "turn.completed"
       | "turn.failed"
       | "turn.cancelled"
-      | "tool.called";
+      | "tool.called"
+      | "audit.created";
   }
 >;
 
@@ -113,7 +114,8 @@ export function isTraceEvent(event: RealmEvent): event is TraceEvent {
     event.type === "turn.completed" ||
     event.type === "turn.failed" ||
     event.type === "turn.cancelled" ||
-    event.type === "tool.called"
+    event.type === "tool.called" ||
+    event.type === "audit.created"
   );
 }
 
@@ -160,6 +162,12 @@ export function describeTraceEvent(event: TraceEvent): { title: string; body: st
     return {
       title: `Tool ${event.toolCall.status}: ${event.toolCall.name}`,
       body: event.toolCall.reason ?? event.toolCall.id,
+    };
+  }
+  if (event.type === "audit.created") {
+    return {
+      title: `Audit: ${event.audit.action}`,
+      body: `${event.audit.target}: ${event.audit.reason}`,
     };
   }
   return {

@@ -15,13 +15,17 @@ export type PolicyDecision =
   | { allow: true; reason: string; auditLevel: "none" | "standard" | "high" }
   | { allow: false; reason: string; remediation?: string };
 
-const HIGH_RISK_CAPABILITIES = new Set<Capability>([
+export const HIGH_RISK_CAPABILITIES = new Set<Capability>([
   "fs.project.write",
   "shell.run",
   "network.fetch",
   "model.configure",
   "config.write",
 ]);
+
+export function isHighRiskCapability(capability: Capability): boolean {
+  return HIGH_RISK_CAPABILITIES.has(capability);
+}
 
 const RUN_ROLE_CAPABILITIES = new Set<Capability>([
   "message.send",

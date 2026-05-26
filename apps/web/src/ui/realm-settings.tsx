@@ -9,8 +9,11 @@ import { KeyRound, Save, Settings2, ShieldCheck, Wifi } from "lucide-react";
 import { useEffect, useState } from "react";
 import { Button } from "./button.tsx";
 import { PanelTitle } from "./realm-atoms.tsx";
+import { PolicyMatrixPanel } from "./realm-policy-summary.tsx";
+import { SettingsPortabilityPanel } from "./realm-settings-portability.tsx";
 
 type SettingsSnapshot = Awaited<ReturnType<RealmHttpClient["getSettings"]>>;
+type EffectivePolicy = Awaited<ReturnType<RealmHttpClient["getEffectivePolicy"]>>;
 
 export function SettingsPanel({
   client,
@@ -20,6 +23,7 @@ export function SettingsPanel({
   onSaved: () => void;
 }) {
   const [draft, setDraft] = useState<SettingsSnapshot | undefined>();
+  const [policy, setPolicy] = useState<EffectivePolicy | undefined>();
   const [status, setStatus] = useState<"loading" | "ready" | "saving" | "error">("loading");
   const [error, setError] = useState<string | undefined>();
 
@@ -29,7 +33,12 @@ export function SettingsPanel({
 
   async function loadSettings() {
     try {
-      setDraft(await client.getSettings());
+      const [settings, effectivePolicy] = await Promise.all([
+        client.getSettings(),
+        client.getEffectivePolicy(),
+      ]);
+      setDraft(settings);
+      setPolicy(effectivePolicy);
       setStatus("ready");
     } catch (caught) {
       setError(caught instanceof Error ? caught.message : String(caught));
@@ -55,6 +64,7 @@ export function SettingsPanel({
     try {
       setStatus("saving");
       setDraft(await action());
+      setPolicy(await client.getEffectivePolicy());
       setStatus("ready");
       onSaved();
     } catch (caught) {
@@ -91,6 +101,14 @@ export function SettingsPanel({
         saving={status === "saving"}
         onChange={(project) => setDraft({ ...draft, project })}
         onSave={saveProject}
+      />
+      <PolicyMatrixPanel policy={policy} />
+      <SettingsPortabilityPanel
+        client={client}
+        onImported={() => {
+          void loadSettings();
+          onSaved();
+        }}
       />
     </section>
   );

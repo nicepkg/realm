@@ -102,10 +102,14 @@ export const skillSourceSchema = z.enum(["project", "global", "role-private", "w
 export type SkillSource = z.infer<typeof skillSourceSchema>;
 
 export type SkillIdentity = {
+  id: string;
   name: string;
   scope: SkillScope;
   source: SkillSource;
+  roleId?: string;
+  worldId?: string;
   path: string;
+  relativePath: string;
   contentHash: string;
 };
 

@@ -1,4 +1,9 @@
-import { projectConfigSchema, userConfigSchema } from "@realm/config/schemas";
+import {
+  projectConfigSchema,
+  skillScopeSchema,
+  skillSourceSchema,
+  userConfigSchema,
+} from "@realm/config/schemas";
 import {
   capabilitySchema,
   configPatchProposalSchema,
@@ -76,6 +81,19 @@ export const settingsResponseSchema = z.object({
   }),
 });
 
+export const settingsExportResponseSchema = z.object({
+  version: z.literal(1),
+  exportedAt: z.string().datetime({ offset: true }),
+  user: userConfigSchema,
+  project: projectConfigSchema,
+  redactions: z.array(z.string().min(1)),
+});
+
+export const settingsImportRequestSchema = z.object({
+  user: userConfigSchema,
+  project: projectConfigSchema,
+});
+
 export const updateUserSettingsRequestSchema = userConfigSchema;
 
 export const updateProjectSettingsRequestSchema = projectConfigSchema;
@@ -84,6 +102,47 @@ export const effectiveConfigResponseSchema = z.object({
   project: projectResponseSchema,
   worlds: z.array(worldSummarySchema),
   roles: z.array(roleSummarySchema),
+});
+
+export const policySkillIdentitySchema = z.object({
+  id: z.string().min(1),
+  name: z.string().min(1),
+  scope: skillScopeSchema,
+  source: skillSourceSchema,
+  roleId: z.string().min(1).optional(),
+  worldId: z.string().min(1).optional(),
+  relativePath: z.string().min(1),
+  path: z.string().min(1),
+  contentHash: z.string().min(1),
+});
+
+export const effectivePolicyResponseSchema = z.object({
+  trustTier: z.enum(["read-only", "run-roles", "elevated-tools"]),
+  capabilities: z.array(
+    z.object({
+      capability: capabilitySchema,
+      allow: z.boolean(),
+      reason: z.string().min(1),
+      remediation: z.string().optional(),
+      auditLevel: z.enum(["none", "standard", "high"]).optional(),
+      highRisk: z.boolean(),
+    }),
+  ),
+  roleWorlds: z.array(
+    z.object({
+      worldId: z.string().min(1),
+      roleId: z.string().min(1),
+      allowedSkills: z.array(policySkillIdentitySchema),
+      deniedSkills: z.array(
+        z.object({
+          skill: policySkillIdentitySchema,
+          reason: z.string().min(1),
+          pattern: z.string().min(1).optional(),
+        }),
+      ),
+    }),
+  ),
+  warnings: z.array(z.string().min(1)),
 });
 
 export const listEventsResponseSchema = z.object({

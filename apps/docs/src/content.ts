@@ -117,13 +117,15 @@ export const pages: Record<Locale, DocPage> = {
         id: "governance",
         title: "Tools, skills, and governance",
         body: [
-          "Skills can be global, project-level, world-level, role-private, or role-prompt skills. Policies compile allowlists and blacklists into effective capabilities.",
+          "Skills can be global, project-level, world-level, role-private, or role-prompt skills. Policies compile allowlists and blacklists into exact callable skill identities.",
           "High-risk tools such as shell, project file writes, and network access are denied unless explicitly granted by trusted configuration. Project trust decisions are machine-local in ~/.realm/trust.json.",
         ],
         bullets: [
+          "Callable skills use exact ids such as role-private:<roleId>:<skill> and world:<worldId>:<skill>.",
+          "Role prompt skills are not callable just because their directory is broadly included.",
           "Policy decisions are enforced by runtime services, not by UI hints.",
           "Denied actions become trace and audit events.",
-          "The Web UI shows effective permissions, while the runtime remains the source of truth.",
+          "The Web UI shows effective capabilities, denied skills, trust warnings, and secret-free settings import/export.",
         ],
       },
       {
@@ -232,13 +234,15 @@ export const pages: Record<Locale, DocPage> = {
         id: "governance",
         title: "工具、Skill 和治理",
         body: [
-          "Skill 可以是全局、项目级、世界级、角色私有或角色 system prompt skill。策略会把 allowlist/blacklist 编译成最终能力。",
+          "Skill 可以是全局、项目级、世界级、角色私有或角色 system prompt skill。策略会把 allowlist/blacklist 编译成精确的可调用 skill 身份。",
           "Shell、项目文件写入、联网等高风险工具默认拒绝，除非受信配置显式授权。项目 trust 决策保存在本机 ~/.realm/trust.json。",
         ],
         bullets: [
+          "可调用 skill 使用 role-private:<roleId>:<skill>、world:<worldId>:<skill> 这类精确 id。",
+          "角色 prompt skill 不会因为目录被广泛 include 就自动变成可调用 skill。",
           "策略由运行时服务强制执行，不靠 UI 提示。",
           "被拒绝的动作会进入 trace 和 audit。",
-          "Web UI 展示有效权限，但运行时才是最终裁决点。",
+          "Web UI 展示有效能力、被拒绝的 skill、trust 风险提示，以及不含原始密钥的设置导入/导出。",
         ],
       },
       {

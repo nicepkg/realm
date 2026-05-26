@@ -1,3 +1,4 @@
+import { createHash } from "node:crypto";
 import { readFile } from "node:fs/promises";
 import path from "node:path";
 import type { AgentTool } from "@earendil-works/pi-agent-core";
@@ -92,7 +93,7 @@ function buildSkillReadTool(allowedSkills: PiAllowedSkill[]): AgentTool {
     label: "Realm Skill Read",
     description: "Read one callable Realm skill that is explicitly available to this role.",
     parameters: Type.Object({
-      name: Type.String({ description: "Callable skill id (`scope:name`) or unique skill name." }),
+      name: Type.String({ description: "Exact callable Realm skill id." }),
     }),
     async execute(_toolCallId, params, signal) {
       const args = params as { name?: unknown };
@@ -117,7 +118,6 @@ function buildSkillReadTool(allowedSkills: PiAllowedSkill[]): AgentTool {
 
 type SkillIndex = {
   byId: Map<string, PiAllowedSkill>;
-  byName: Map<string, PiAllowedSkill | "ambiguous">;
 };
 
 function skillsFromPaths(allowedSkillPaths: string[]): PiAllowedSkill[] {
@@ -126,7 +126,7 @@ function skillsFromPaths(allowedSkillPaths: string[]): PiAllowedSkill[] {
     const resolvedPath = path.resolve(skillPath);
     const skillName = path.basename(resolvedPath);
     skills.push({
-      id: skillName,
+      id: `path:${skillName}:${hashPath(resolvedPath).slice(0, 12)}`,
       name: skillName,
       scope: "path",
       path: resolvedPath,
@@ -135,37 +135,29 @@ function skillsFromPaths(allowedSkillPaths: string[]): PiAllowedSkill[] {
   return skills;
 }
 
+function hashPath(value: string): string {
+  return createHash("sha256").update(value).digest("hex");
+}
+
 function indexAllowedSkills(allowedSkills: PiAllowedSkill[]): SkillIndex {
   const byId = new Map<string, PiAllowedSkill>();
-  const byName = new Map<string, PiAllowedSkill | "ambiguous">();
   for (const skill of allowedSkills) {
     const resolvedSkill = { ...skill, path: path.resolve(skill.path) };
     if (!byId.has(resolvedSkill.id)) {
       byId.set(resolvedSkill.id, resolvedSkill);
     }
-    const existing = byName.get(resolvedSkill.name);
-    if (!existing) {
-      byName.set(resolvedSkill.name, resolvedSkill);
-    } else if (existing !== "ambiguous" && existing.id !== resolvedSkill.id) {
-      byName.set(resolvedSkill.name, "ambiguous");
-    }
   }
-  return { byId, byName };
+  return { byId };
 }
 
 function resolveAllowedSkill(
   index: SkillIndex,
   requestedSkill: string,
 ): PiAllowedSkill | undefined {
-  const byId = index.byId.get(requestedSkill);
-  if (byId) {
-    return byId;
+  if (!requestedSkill.includes(":")) {
+    throw new Error(`Skill reads require an exact skill id: ${requestedSkill}`);
   }
-  const byName = index.byName.get(requestedSkill);
-  if (byName === "ambiguous") {
-    throw new Error(`Skill name is ambiguous; use a scoped skill id: ${requestedSkill}`);
-  }
-  return byName;
+  return index.byId.get(requestedSkill);
 }
 
 async function postJson(

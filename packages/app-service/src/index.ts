@@ -14,7 +14,7 @@ import type { TrustTier } from "@realm/policy";
 import { PiRoleTurnRunner } from "@realm/runtime";
 import { type EventStore, InMemoryEventStore } from "@realm/storage";
 import { ConfigPatchService } from "./config-patch-service.ts";
-import { ConfigQueryService } from "./config-query-service.ts";
+import { ConfigQueryService, type EffectivePolicyMatrix } from "./config-query-service.ts";
 import {
   type ExtensionAccessDecision,
   type ExtensionAccessInput,
@@ -40,7 +40,11 @@ import {
   loadRoleTurnContext,
   toPiAllowedSkills,
 } from "./role-turn-context.ts";
-import { SettingsService, type SettingsSnapshot } from "./settings-service.ts";
+import {
+  type SettingsExportSnapshot,
+  SettingsService,
+  type SettingsSnapshot,
+} from "./settings-service.ts";
 import { assertSafePathSegment, resolvePiExtensionPaths } from "./support.ts";
 import { type TurnCancelResult, TurnControlService } from "./turn-control-service.ts";
 import {
@@ -88,7 +92,7 @@ export type {
   StateQueryInput,
   WorldStateView,
 } from "./world-state-service.ts";
-export type { SettingsSnapshot, TurnCancelResult };
+export type { SettingsExportSnapshot, SettingsSnapshot, TurnCancelResult };
 
 export type RunRoleTurnInput = {
   turnId?: string;
@@ -142,7 +146,10 @@ export class RealmApplicationService {
       clock: this.clock,
     });
     this.piBridge = options.piBridge ?? new PackagePiBridge();
-    this.configQueryService = new ConfigQueryService(options.root);
+    this.configQueryService = new ConfigQueryService(options.root, {
+      env: options.env,
+      trustTier,
+    });
     this.configPatchService = new ConfigPatchService({
       eventStore: this.eventStore,
       clock: this.clock,
@@ -210,6 +217,21 @@ export class RealmApplicationService {
     return this.settingsService.getSettings();
   }
 
+  exportSettings(): Promise<SettingsExportSnapshot> {
+    return this.settingsService.exportSettings(this.clock);
+  }
+
+  async importSettings(input: unknown): Promise<SettingsSnapshot> {
+    const snapshot = await this.settingsService.importSettings(input);
+    this.policyGate.appendAudit({
+      actorId: "owner",
+      action: "settings.imported",
+      target: "settings",
+      reason: "Settings imported without raw secrets.",
+    });
+    return snapshot;
+  }
+
   async updateUserSettings(input: UserConfig): Promise<SettingsSnapshot> {
     const snapshot = await this.settingsService.updateUserSettings(input);
     this.policyGate.appendAudit({
@@ -242,6 +264,10 @@ export class RealmApplicationService {
     roles: Awaited<ReturnType<ConfigQueryService["listRoles"]>>;
   }> {
     return this.configQueryService.getEffectiveConfig();
+  }
+
+  async getEffectivePolicy(): Promise<EffectivePolicyMatrix> {
+    return this.configQueryService.getEffectivePolicy();
   }
 
   async listWorlds() {

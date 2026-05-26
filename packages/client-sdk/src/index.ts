@@ -18,6 +18,7 @@ import {
   decideWorkflowApprovalRequestSchema,
   decideWorkflowReviewRequestSchema,
   effectiveConfigResponseSchema,
+  effectivePolicyResponseSchema,
   extensionMemoryReadRequestSchema,
   extensionMemoryReadResponseSchema,
   extensionMemoryWriteRequestSchema,
@@ -43,6 +44,8 @@ import {
   runRoleTurnResponseSchema,
   sendMessageRequestSchema,
   sendMessageResponseSchema,
+  settingsExportResponseSchema,
+  type settingsImportRequestSchema,
   settingsResponseSchema,
   startRoleTurnResponseSchema,
   updateProjectSettingsRequestSchema,
@@ -79,6 +82,16 @@ export class RealmHttpClient {
     return this.get("/api/settings", settingsResponseSchema);
   }
 
+  async exportSettings(): Promise<z.infer<typeof settingsExportResponseSchema>> {
+    return this.get("/api/settings/export", settingsExportResponseSchema);
+  }
+
+  async importSettings(
+    input: z.input<typeof settingsImportRequestSchema>,
+  ): Promise<z.infer<typeof settingsResponseSchema>> {
+    return this.post("/api/settings/import", input, settingsResponseSchema);
+  }
+
   async updateUserSettings(
     input: z.input<typeof updateUserSettingsRequestSchema>,
   ): Promise<z.infer<typeof settingsResponseSchema>> {
@@ -101,6 +114,10 @@ export class RealmHttpClient {
 
   async getEffectiveConfig(): Promise<z.infer<typeof effectiveConfigResponseSchema>> {
     return this.get("/api/config/effective", effectiveConfigResponseSchema);
+  }
+
+  async getEffectivePolicy(): Promise<z.infer<typeof effectivePolicyResponseSchema>> {
+    return this.get("/api/policy/effective", effectivePolicyResponseSchema);
   }
 
   async listEvents(afterSeq = 0): Promise<z.infer<typeof listEventsResponseSchema>> {
