@@ -91,7 +91,9 @@ describe("RealmApplicationService world state", () => {
   test("detects duplicate state patches beyond the SQLite list window", async () => {
     const root = await mkdtemp(path.join(os.tmpdir(), "realm-app-state-idempotency-"));
     await initProject(root, "demo");
-    const store = new SQLiteEventStore(path.join(root, ".agents", "state", "events.sqlite"));
+    const store = new SQLiteEventStore(path.join(root, ".agents", "state", "events.sqlite"), {
+      defaultListLimit: 5,
+    });
     const service = new RealmApplicationService({
       root,
       eventStore: store,
@@ -104,7 +106,7 @@ describe("RealmApplicationService world state", () => {
       reason: "Initial HP update.",
       idempotencyKey: "stable-hp",
     });
-    for (let index = 0; index < 600; index += 1) {
+    for (let index = 0; index < 8; index += 1) {
       store.append({
         eventId: `event:config:${index}`,
         schemaVersion: 1,

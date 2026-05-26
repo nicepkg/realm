@@ -52,8 +52,10 @@ export class InMemoryEventStore implements EventStore {
 
 export class SQLiteEventStore implements EventStore {
   private readonly database: Database;
+  private readonly defaultListLimit: number;
 
-  constructor(filePath: string) {
+  constructor(filePath: string, options: { defaultListLimit?: number } = {}) {
+    this.defaultListLimit = options.defaultListLimit ?? 500;
     this.database = new Database(filePath);
     this.database.exec(`
       create table if not exists events (
@@ -110,7 +112,7 @@ export class SQLiteEventStore implements EventStore {
 
   list(options: EventListOptions = {}): readonly RealmEvent[] {
     const afterSeq = options.afterSeq ?? 0;
-    const limit = options.limit ?? 500;
+    const limit = options.limit ?? this.defaultListLimit;
     const rows = this.database
       .query<{ payload: string }, [number, number]>(
         "select payload from events where seq > ? order by seq asc limit ?",
