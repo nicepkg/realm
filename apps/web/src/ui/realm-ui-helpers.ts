@@ -17,19 +17,21 @@ export function slugify(value: string): string {
     .replace(/^-|-$/g, "");
 }
 
-export function connectEventFeed(onEvent: () => void): () => void {
+export function connectEventFeed(onEvent: (seq?: number) => void, afterSeq = 0): () => void {
   if ("WebSocket" in window) {
     const protocol = window.location.protocol === "https:" ? "wss:" : "ws:";
-    const socket = new WebSocket(`${protocol}//${window.location.host}/api/events/ws`);
+    const socket = new WebSocket(
+      `${protocol}//${window.location.host}/api/events/ws?afterSeq=${afterSeq}`,
+    );
     let fallback: EventSource | undefined;
     let disposed = false;
-    socket.onmessage = onEvent;
+    socket.onmessage = (event) => onEvent(readEventSeq(event.data));
     socket.onerror = () => {
       if (disposed) {
         return;
       }
       socket.close();
-      fallback = connectServerSentEvents(onEvent);
+      fallback = connectServerSentEvents(onEvent, afterSeq);
     };
     return () => {
       disposed = true;
@@ -40,15 +42,27 @@ export function connectEventFeed(onEvent: () => void): () => void {
     };
   }
 
-  const source = connectServerSentEvents(onEvent);
+  const source = connectServerSentEvents(onEvent, afterSeq);
   return () => source.close();
 }
 
-function connectServerSentEvents(onEvent: () => void): EventSource {
-  const source = new EventSource("/api/events/stream");
-  source.onmessage = onEvent;
+function connectServerSentEvents(onEvent: (seq?: number) => void, afterSeq: number): EventSource {
+  const source = new EventSource(`/api/events/stream?afterSeq=${afterSeq}`);
+  source.onmessage = (event) => onEvent(readEventSeq(event.data));
   source.onerror = () => {
     source.close();
   };
   return source;
+}
+
+function readEventSeq(data: unknown): number | undefined {
+  if (typeof data !== "string") {
+    return undefined;
+  }
+  try {
+    const parsed = JSON.parse(data) as { seq?: unknown };
+    return typeof parsed.seq === "number" ? parsed.seq : undefined;
+  } catch {
+    return undefined;
+  }
 }

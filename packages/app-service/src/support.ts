@@ -1,5 +1,6 @@
 import { createHash } from "node:crypto";
 import { stat } from "node:fs/promises";
+import path from "node:path";
 import { fileURLToPath } from "node:url";
 
 export const OWNER_ID = "owner";
@@ -95,6 +96,16 @@ export async function resolvePiExtensionPaths(configuredPath?: string): Promise<
     return [configuredPath];
   }
 
-  const defaultPath = fileURLToPath(new URL("../../pi-extension/src/index.ts", import.meta.url));
-  return (await pathExists(defaultPath)) ? [defaultPath] : [];
+  const candidates = [
+    path.join(path.dirname(process.execPath), "pi-extension", "index.js"),
+    fileURLToPath(new URL("./pi-extension/index.js", import.meta.url)),
+    fileURLToPath(new URL("../../pi-extension/dist/index.js", import.meta.url)),
+    fileURLToPath(new URL("../../pi-extension/src/index.ts", import.meta.url)),
+  ];
+  for (const candidate of candidates) {
+    if (await pathExists(candidate)) {
+      return [candidate];
+    }
+  }
+  return [];
 }

@@ -90,4 +90,25 @@ describe("StateReducer", () => {
         .leijun.hp,
     ).toBe("full");
   });
+
+  test("rejects traversal into an existing scalar without mutating state", () => {
+    const state = createInitialState({ publicState: { roles: { leijun: { hp: 100 } } } });
+    const result = new StateReducer().apply(state, {
+      id: "patch:1",
+      worldId: "cultivation",
+      actorId: "god",
+      proposedBy: "owner",
+      baseVersion: 0,
+      expectedVersion: 0,
+      operations: [{ op: "set", path: "/publicState/roles/leijun/hp/current", value: 90 }],
+      reason: "Invalid nested hit points",
+      createdAt: "2026-05-26T00:00:00.000Z",
+    });
+
+    expect(result).toMatchObject({
+      status: "rejected",
+      currentVersion: 0,
+    });
+    expect((state.state as TestState).publicState.roles.leijun.hp).toBe(100);
+  });
 });

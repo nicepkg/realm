@@ -81,11 +81,9 @@ export class SQLiteEventStore implements EventStore {
       }
     }
 
-    const nextSeq = this.lastSeq() + 1;
-    const event = realmEventSchema.parse({ ...input, seq: nextSeq });
+    const draft = realmEventSchema.parse({ ...input, seq: 0 });
     const insert = this.database.prepare(`
       insert into events (
-        seq,
         event_id,
         schema_version,
         aggregate_id,
@@ -93,21 +91,39 @@ export class SQLiteEventStore implements EventStore {
         event_type,
         created_at,
         payload
-      ) values (?, ?, ?, ?, ?, ?, ?, ?)
+      ) values (?, ?, ?, ?, ?, ?, ?)
+      returning seq
     `);
+    const updatePayload = this.database.prepare("update events set payload = ? where seq = ?");
+    const appendInTransaction = this.database.transaction(() => {
+      const row = insert.get(
+        draft.eventId,
+        draft.schemaVersion,
+        draft.aggregateId,
+        draft.idempotencyKey ?? null,
+        draft.type,
+        draft.createdAt,
+        JSON.stringify(draft),
+      ) as { seq: number } | null;
+      if (!row) {
+        throw new Error("SQLite did not return an event sequence");
+      }
+      const event = realmEventSchema.parse({ ...draft, seq: row.seq });
+      updatePayload.run(JSON.stringify(event), event.seq);
+      return event;
+    });
 
-    insert.run(
-      event.seq,
-      event.eventId,
-      event.schemaVersion,
-      event.aggregateId,
-      event.idempotencyKey ?? null,
-      event.type,
-      event.createdAt,
-      JSON.stringify(event),
-    );
-
-    return event;
+    try {
+      return appendInTransaction.immediate();
+    } catch (error) {
+      if (draft.idempotencyKey) {
+        const existing = this.findByIdempotencyKey(draft.idempotencyKey);
+        if (existing) {
+          return existing;
+        }
+      }
+      throw error;
+    }
   }
 
   list(options: EventListOptions = {}): readonly RealmEvent[] {

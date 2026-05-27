@@ -8,7 +8,7 @@ import type {
   WorldSummary,
 } from "@realm/api-contract";
 import { RealmHttpClient } from "@realm/client-sdk";
-import { type FormEvent, useEffect, useMemo, useState } from "react";
+import { type FormEvent, useEffect, useMemo, useRef, useState } from "react";
 import type { WorldBuilderMode } from "./realm-builders.tsx";
 import type { CreateRoomKind, GodRoleAction } from "./realm-context.tsx";
 import type { AppSection } from "./realm-panels.tsx";
@@ -73,6 +73,8 @@ export function useRealmAppState() {
   const [godActionRoleId, setGodActionRoleId] = useState("");
   const [godActionReason, setGodActionReason] = useState("God adjudicates a role action.");
   const [godActionResult, setGodActionResult] = useState<StatePatchResult | undefined>();
+  const latestEventSeqRef = useRef(0);
+  const reloadTimerRef = useRef<ReturnType<typeof setTimeout> | undefined>(undefined);
 
   const selectedWorld =
     state.worlds.find((world) => world.id === selectedWorldId) ?? state.worlds[0];
@@ -110,10 +112,27 @@ export function useRealmAppState() {
   });
 
   useEffect(() => {
-    void loadRealm(selectedWorldId, selectedRoomId);
-    return connectEventFeed(() => {
-      void loadRealm(selectedWorldId, selectedRoomId);
+    let disconnect = () => {};
+    let disposed = false;
+    void loadRealm(selectedWorldId, selectedRoomId).then(() => {
+      if (disposed) {
+        return;
+      }
+      disconnect = connectEventFeed((seq) => {
+        if (seq !== undefined && seq <= latestEventSeqRef.current) {
+          return;
+        }
+        scheduleReload(selectedWorldId, selectedRoomId);
+      }, latestEventSeqRef.current);
     });
+    return () => {
+      disposed = true;
+      disconnect();
+      if (reloadTimerRef.current) {
+        clearTimeout(reloadTimerRef.current);
+        reloadTimerRef.current = undefined;
+      }
+    };
   }, [selectedWorldId, selectedRoomId]);
 
   useEffect(() => {
@@ -141,6 +160,16 @@ export function useRealmAppState() {
     setActiveTurnId(undefined);
   }, [activeTurnId, state.events]);
 
+  function scheduleReload(preferredWorldId?: string, preferredRoomId?: string) {
+    if (reloadTimerRef.current) {
+      return;
+    }
+    reloadTimerRef.current = setTimeout(() => {
+      reloadTimerRef.current = undefined;
+      void loadRealm(preferredWorldId, preferredRoomId);
+    }, 100);
+  }
+
   async function loadRealm(preferredWorldId?: string, preferredRoomId?: string) {
     try {
       const effective = await client.getEffectiveConfig();
@@ -156,6 +185,7 @@ export function useRealmAppState() {
       const messages = room ? (await client.listMessages(room.id)).messages : [];
       const worldState = world ? await client.getWorldState(world.id) : undefined;
       const events = (await client.listEvents()).events;
+      latestEventSeqRef.current = events.at(-1)?.seq ?? latestEventSeqRef.current;
       const nextIdentities = ["owner", "god", ...effective.roles.map((role) => role.id)];
       setState({
         status: "ready",
@@ -232,13 +262,8 @@ export function useRealmAppState() {
   }
 
   async function proposeAssistantPatch() {
-    const response = await fetch("/api/assistant/config", {
-      method: "POST",
-      headers: { "content-type": "application/json" },
-      body: JSON.stringify({ goal: assistantGoal }),
-    });
-    const payload = (await response.json()) as { patch: ConfigPatchProposal };
-    setProposal(payload.patch);
+    const response = await client.proposeAssistantConfig({ goal: assistantGoal });
+    setProposal(response.patch);
   }
 
   async function proposeWorld() {

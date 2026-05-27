@@ -7,6 +7,7 @@ const binaryPath = path.join("dist", "bin", binaryName);
 
 await access(binaryPath);
 await access(path.join("dist", "bin", "web", "index.html"));
+await access(path.join("dist", "bin", "pi-extension", "index.js"));
 
 const smoke = Bun.spawn([binaryPath, "--version"], {
   stdout: "pipe",

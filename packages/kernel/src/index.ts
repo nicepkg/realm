@@ -141,10 +141,16 @@ function setAtPointer(target: WorldState, pointer: string, value: unknown): void
   }
 
   let current: Record<string, unknown> = target;
-  for (const part of parts.slice(0, -1)) {
+  for (const [index, part] of parts.slice(0, -1).entries()) {
     const next = current[part];
-    if (typeof next !== "object" || next === null || Array.isArray(next)) {
+    if (next === undefined) {
       current[part] = {};
+    } else if (typeof next !== "object" || next === null || Array.isArray(next)) {
+      const failedPath = `/${parts
+        .slice(0, index + 1)
+        .map(escapePointerPart)
+        .join("/")}`;
+      throw new Error(`Cannot traverse into non-object at ${failedPath}`);
     }
     current = current[part] as Record<string, unknown>;
   }
@@ -175,4 +181,8 @@ function removeAtPointer(target: WorldState, pointer: string): void {
   if (finalPart) {
     delete current[finalPart];
   }
+}
+
+function escapePointerPart(part: string): string {
+  return part.replace(/~/g, "~0").replace(/\//g, "~1");
 }

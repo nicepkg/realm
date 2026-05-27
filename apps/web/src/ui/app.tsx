@@ -18,6 +18,11 @@ import { useRealmAppState } from "./use-realm-app-state.ts";
 
 export function App() {
   const app = useRealmAppState();
+  const showChatTools = app.activeSection === "chats";
+  const showRoleTools = app.activeSection === "roles";
+  const showWorldTools = app.activeSection === "worlds";
+  const showGodTools = app.activeSection === "god";
+  const showTrace = showChatTools || showRoleTools || showGodTools;
 
   return (
     <main
@@ -78,147 +83,165 @@ export function App() {
             <SettingsPanel client={app.client} onSaved={() => void app.reload()} />
           ) : (
             <>
-              <RoleRunPanel
-                roles={app.state.roles}
-                selectedRoleId={app.runRoleId}
-                selectedRole={app.selectedRole}
-                selectedRoom={app.selectedRoom}
-                status={app.turnStatus}
-                error={app.state.error}
-                onCancel={app.cancelActiveTurn}
-                onRoleChange={app.setRunRoleId}
-                onRun={app.runSelectedRoleTurn}
-              />
-              <ContextSummary
-                eventsCount={app.state.events.length}
-                rolesCount={app.state.roles.length}
-                world={app.selectedWorld}
-                stateVersion={app.state.worldState?.version}
-              />
-              <CreateRoomPanel
-                type={app.roomType}
-                name={app.roomName}
-                memberText={app.roomMembers}
-                roles={app.state.roles}
-                disabled={!app.selectedWorld}
-                onTypeChange={app.setRoomType}
-                onNameChange={app.setRoomName}
-                onMemberTextChange={app.setRoomMembers}
-                onCreate={app.createRoom}
-              />
-              <AdminStatePatchPanel
-                path={app.statePatchPath}
-                value={app.statePatchValue}
-                reason={app.statePatchReason}
-                result={app.statePatchResult}
-                disabled={!app.selectedWorld}
-                onPathChange={app.setStatePatchPath}
-                onValueChange={app.setStatePatchValue}
-                onReasonChange={app.setStatePatchReason}
-                onApply={app.applyAdminStatePatch}
-              />
-              <GodActionPanel
-                action={app.godAction}
-                roles={app.state.roles}
-                targetRoleId={app.godActionRoleId}
-                reason={app.godActionReason}
-                result={app.godActionResult}
-                disabled={!app.selectedWorld}
-                onActionChange={app.setGodAction}
-                onRoleChange={app.setGodActionRoleId}
-                onReasonChange={app.setGodActionReason}
-                onApply={app.applyGodAction}
-              />
-              <WorldEventPanel
-                disabled={!app.selectedWorld}
-                title={app.worldEventTitle}
-                description={app.worldEventDescription}
-                path={app.worldEventPath}
-                value={app.worldEventValue}
-                conditionPath={app.worldEventConditionPath}
-                result={app.worldEventResult}
-                onTitleChange={app.setWorldEventTitle}
-                onDescriptionChange={app.setWorldEventDescription}
-                onPathChange={app.setWorldEventPath}
-                onValueChange={app.setWorldEventValue}
-                onConditionPathChange={app.setWorldEventConditionPath}
-                onTriggerManual={app.triggerManualWorldEvent}
-                onRandom={app.triggerRandomWorldEvent}
-                onTick={app.triggerWorldTick}
-                onTriggerCondition={app.triggerConditionWorldEvent}
-                onReplay={app.loadWorldEventReplay}
-              />
-              <WorldSimulationPanel
-                disabled={!app.selectedWorld}
-                ticks={app.simulationTicks}
-                maxActivations={app.simulationMaxActivations}
-                intervalMs={app.simulationIntervalMs}
-                seed={app.simulationSeed}
-                forkLabel={app.simulationForkLabel}
-                forkId={app.simulationForkId}
-                runId={app.simulationRunId}
-                result={app.simulationResult}
-                status={app.simulationStatus}
-                onTicksChange={app.setSimulationTicks}
-                onMaxActivationsChange={app.setSimulationMaxActivations}
-                onIntervalMsChange={app.setSimulationIntervalMs}
-                onSeedChange={app.setSimulationSeed}
-                onForkLabelChange={app.setSimulationForkLabel}
-                onForkIdChange={app.setSimulationForkId}
-                onRefresh={app.refreshSimulationStatus}
-                onRunTicks={app.runSimulationTicks}
-                onPause={app.pauseSimulation}
-                onResume={app.resumeSimulation}
-                onExport={app.exportSimulation}
-                onFork={app.forkSimulation}
-                onStartBackground={app.startBackgroundSimulation}
-                onStopBackground={app.stopBackgroundSimulation}
-              />
-              <ProjectPatchPanel
-                disabled={!app.selectedWorld}
-                roles={app.state.roles}
-                approvals={app.workflowApprovals}
-                patches={app.workflowProjectPatches}
-                requestedBy={app.workflowRequestedBy}
-                reason={app.workflowApprovalReason}
-                approvalId={app.workflowApprovalId}
-                title={app.projectPatchTitle}
-                path={app.projectPatchPath}
-                action={app.projectPatchAction}
-                content={app.projectPatchContent}
-                patchId={app.projectPatchId}
-                result={app.projectPatchResult}
-                onRequestedByChange={app.setWorkflowRequestedBy}
-                onReasonChange={app.setWorkflowApprovalReason}
-                onApprovalIdChange={app.setWorkflowApprovalId}
-                onTitleChange={app.setProjectPatchTitle}
-                onPathChange={app.setProjectPatchPath}
-                onActionChange={app.setProjectPatchAction}
-                onContentChange={app.setProjectPatchContent}
-                onPatchIdChange={app.setProjectPatchId}
-                onRequestApproval={app.requestProjectWriteApproval}
-                onApproveApproval={app.approveWorkflowApproval}
-                onProposePatch={app.proposeProjectPatch}
-                onApplyPatch={app.applyProjectPatch}
-              />
-              <TracePanel events={app.traceEvents} />
-              <BuilderPanel
-                roleName={app.roleName}
-                worldName={app.worldName}
-                worldMode={app.worldMode}
-                worldRoles={app.worldRoles}
-                assistantGoal={app.assistantGoal}
-                proposal={app.proposal}
-                onRoleNameChange={app.setRoleName}
-                onWorldNameChange={app.setWorldName}
-                onWorldModeChange={app.setWorldMode}
-                onWorldRolesChange={app.setWorldRoles}
-                onAssistantGoalChange={app.setAssistantGoal}
-                onProposeRole={app.proposeRole}
-                onProposeWorld={app.proposeWorld}
-                onProposeAssistant={app.proposeAssistantPatch}
-                onApplyProposal={app.applyProposal}
-              />
+              {showChatTools || showRoleTools ? (
+                <RoleRunPanel
+                  roles={app.state.roles}
+                  selectedRoleId={app.runRoleId}
+                  selectedRole={app.selectedRole}
+                  selectedRoom={app.selectedRoom}
+                  status={app.turnStatus}
+                  error={app.state.error}
+                  onCancel={app.cancelActiveTurn}
+                  onRoleChange={app.setRunRoleId}
+                  onRun={app.runSelectedRoleTurn}
+                />
+              ) : null}
+              {showChatTools || showRoleTools || showWorldTools ? (
+                <ContextSummary
+                  eventsCount={app.state.events.length}
+                  rolesCount={app.state.roles.length}
+                  world={app.selectedWorld}
+                  stateVersion={app.state.worldState?.version}
+                />
+              ) : null}
+              {showChatTools ? (
+                <CreateRoomPanel
+                  type={app.roomType}
+                  name={app.roomName}
+                  memberText={app.roomMembers}
+                  roles={app.state.roles}
+                  disabled={!app.selectedWorld}
+                  onTypeChange={app.setRoomType}
+                  onNameChange={app.setRoomName}
+                  onMemberTextChange={app.setRoomMembers}
+                  onCreate={app.createRoom}
+                />
+              ) : null}
+              {showGodTools ? (
+                <>
+                  <AdminStatePatchPanel
+                    path={app.statePatchPath}
+                    value={app.statePatchValue}
+                    reason={app.statePatchReason}
+                    result={app.statePatchResult}
+                    disabled={!app.selectedWorld}
+                    onPathChange={app.setStatePatchPath}
+                    onValueChange={app.setStatePatchValue}
+                    onReasonChange={app.setStatePatchReason}
+                    onApply={app.applyAdminStatePatch}
+                  />
+                  <GodActionPanel
+                    action={app.godAction}
+                    roles={app.state.roles}
+                    targetRoleId={app.godActionRoleId}
+                    reason={app.godActionReason}
+                    result={app.godActionResult}
+                    disabled={!app.selectedWorld}
+                    onActionChange={app.setGodAction}
+                    onRoleChange={app.setGodActionRoleId}
+                    onReasonChange={app.setGodActionReason}
+                    onApply={app.applyGodAction}
+                  />
+                </>
+              ) : null}
+              {showWorldTools || showGodTools ? (
+                <>
+                  <WorldEventPanel
+                    disabled={!app.selectedWorld}
+                    title={app.worldEventTitle}
+                    description={app.worldEventDescription}
+                    path={app.worldEventPath}
+                    value={app.worldEventValue}
+                    conditionPath={app.worldEventConditionPath}
+                    result={app.worldEventResult}
+                    onTitleChange={app.setWorldEventTitle}
+                    onDescriptionChange={app.setWorldEventDescription}
+                    onPathChange={app.setWorldEventPath}
+                    onValueChange={app.setWorldEventValue}
+                    onConditionPathChange={app.setWorldEventConditionPath}
+                    onTriggerManual={app.triggerManualWorldEvent}
+                    onRandom={app.triggerRandomWorldEvent}
+                    onTick={app.triggerWorldTick}
+                    onTriggerCondition={app.triggerConditionWorldEvent}
+                    onReplay={app.loadWorldEventReplay}
+                  />
+                  <WorldSimulationPanel
+                    disabled={!app.selectedWorld}
+                    ticks={app.simulationTicks}
+                    maxActivations={app.simulationMaxActivations}
+                    intervalMs={app.simulationIntervalMs}
+                    seed={app.simulationSeed}
+                    forkLabel={app.simulationForkLabel}
+                    forkId={app.simulationForkId}
+                    runId={app.simulationRunId}
+                    result={app.simulationResult}
+                    status={app.simulationStatus}
+                    onTicksChange={app.setSimulationTicks}
+                    onMaxActivationsChange={app.setSimulationMaxActivations}
+                    onIntervalMsChange={app.setSimulationIntervalMs}
+                    onSeedChange={app.setSimulationSeed}
+                    onForkLabelChange={app.setSimulationForkLabel}
+                    onForkIdChange={app.setSimulationForkId}
+                    onRefresh={app.refreshSimulationStatus}
+                    onRunTicks={app.runSimulationTicks}
+                    onPause={app.pauseSimulation}
+                    onResume={app.resumeSimulation}
+                    onExport={app.exportSimulation}
+                    onFork={app.forkSimulation}
+                    onStartBackground={app.startBackgroundSimulation}
+                    onStopBackground={app.stopBackgroundSimulation}
+                  />
+                </>
+              ) : null}
+              {showWorldTools ? (
+                <ProjectPatchPanel
+                  disabled={!app.selectedWorld}
+                  roles={app.state.roles}
+                  approvals={app.workflowApprovals}
+                  patches={app.workflowProjectPatches}
+                  requestedBy={app.workflowRequestedBy}
+                  reason={app.workflowApprovalReason}
+                  approvalId={app.workflowApprovalId}
+                  title={app.projectPatchTitle}
+                  path={app.projectPatchPath}
+                  action={app.projectPatchAction}
+                  content={app.projectPatchContent}
+                  patchId={app.projectPatchId}
+                  result={app.projectPatchResult}
+                  onRequestedByChange={app.setWorkflowRequestedBy}
+                  onReasonChange={app.setWorkflowApprovalReason}
+                  onApprovalIdChange={app.setWorkflowApprovalId}
+                  onTitleChange={app.setProjectPatchTitle}
+                  onPathChange={app.setProjectPatchPath}
+                  onActionChange={app.setProjectPatchAction}
+                  onContentChange={app.setProjectPatchContent}
+                  onPatchIdChange={app.setProjectPatchId}
+                  onRequestApproval={app.requestProjectWriteApproval}
+                  onApproveApproval={app.approveWorkflowApproval}
+                  onProposePatch={app.proposeProjectPatch}
+                  onApplyPatch={app.applyProjectPatch}
+                />
+              ) : null}
+              {showTrace ? <TracePanel events={app.traceEvents} /> : null}
+              {showRoleTools ? (
+                <BuilderPanel
+                  roleName={app.roleName}
+                  worldName={app.worldName}
+                  worldMode={app.worldMode}
+                  worldRoles={app.worldRoles}
+                  assistantGoal={app.assistantGoal}
+                  proposal={app.proposal}
+                  onRoleNameChange={app.setRoleName}
+                  onWorldNameChange={app.setWorldName}
+                  onWorldModeChange={app.setWorldMode}
+                  onWorldRolesChange={app.setWorldRoles}
+                  onAssistantGoalChange={app.setAssistantGoal}
+                  onProposeRole={app.proposeRole}
+                  onProposeWorld={app.proposeWorld}
+                  onProposeAssistant={app.proposeAssistantPatch}
+                  onApplyProposal={app.applyProposal}
+                />
+              ) : null}
             </>
           )}
         </div>

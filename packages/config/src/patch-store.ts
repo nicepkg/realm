@@ -1,7 +1,12 @@
 import { createHash, randomUUID } from "node:crypto";
 import { mkdir, readFile, rename, rm, writeFile } from "node:fs/promises";
 import path from "node:path";
-import { type Capability, type ConfigPatchProposal, configPatchProposalSchema } from "@realm/core";
+import {
+  type Capability,
+  type ConfigPatchProposal,
+  configPatchProposalSchema,
+  idSchema,
+} from "@realm/core";
 import YAML from "yaml";
 import { type ProjectLayout, projectLayout } from "./layout.ts";
 import {
@@ -108,6 +113,7 @@ export class FileConfigPatchStore {
   }
 
   async loadProposal(patchId: string): Promise<ConfigPatchProposal> {
+    assertSafePathSegment(patchId, "patchId");
     const proposalPath = this.proposalPath(patchId);
     const raw = await readFile(proposalPath, "utf8");
     return configPatchProposalSchema.parse(JSON.parse(raw));
@@ -161,6 +167,7 @@ export class FileConfigPatchStore {
   }
 
   async rollback(historyId: string): Promise<{ historyId: string; restoredPaths: string[] }> {
+    assertSafePathSegment(historyId, "historyId");
     const manifestPath = path.join(this.historyDir(historyId), "manifest.json");
     const manifest = JSON.parse(await readFile(manifestPath, "utf8")) as ConfigHistoryManifest;
 
@@ -275,6 +282,13 @@ async function writeFileAtomic(filePath: string, content: string): Promise<void>
   );
   await writeFile(tempPath, content, "utf8");
   await rename(tempPath, filePath);
+}
+
+function assertSafePathSegment(value: string, label: string): void {
+  idSchema.parse(value);
+  if (value.includes("/") || value.includes("\\") || value === "." || value === "..") {
+    throw new Error(`${label} must be a safe filesystem segment: ${value}`);
+  }
 }
 
 function hashText(value: string): string {

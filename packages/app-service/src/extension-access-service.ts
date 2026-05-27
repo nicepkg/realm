@@ -97,10 +97,28 @@ export class ExtensionAccessService {
       return deny(403, error instanceof Error ? error.message : String(error));
     }
 
+    this.options.appendAudit({
+      actorId: input.roleId,
+      action: "extension.allowed",
+      target: input.toolName,
+      reason: `${input.capability} allowed`,
+    });
+    if (input.toolCallId) {
+      this.appendToolCalled(input.toolCallId, input.toolName, "allowed");
+    }
     return { allow: true, scope };
   }
 
   private appendToolDenied(toolCallId: string, toolName: string, reason: string): void {
+    this.appendToolCalled(toolCallId, toolName, "denied", reason);
+  }
+
+  private appendToolCalled(
+    toolCallId: string,
+    toolName: string,
+    status: "allowed" | "denied",
+    reason?: string,
+  ): void {
     this.options.eventStore.append({
       eventId: makeId("event:tool", randomUUID()),
       schemaVersion: 1,
@@ -112,8 +130,8 @@ export class ExtensionAccessService {
       toolCall: {
         id: toolCallId,
         name: toolName,
-        status: "denied",
-        reason,
+        status,
+        ...(reason ? { reason } : {}),
       },
     });
   }

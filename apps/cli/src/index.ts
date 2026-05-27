@@ -3,6 +3,7 @@ import { constants } from "node:fs";
 import { access, mkdir, stat } from "node:fs/promises";
 import os from "node:os";
 import path from "node:path";
+import { fileURLToPath } from "node:url";
 import { RealmApplicationService } from "@realm/app-service";
 import {
   initProject,
@@ -17,6 +18,7 @@ import { FakeVerticalSliceRuntime } from "@realm/runtime";
 import { createRealmServer, createRealmWebSocketHandlers, realmWebSocketData } from "@realm/server";
 import { SQLiteEventStore } from "@realm/storage";
 import { runTui } from "@realm/tui";
+import rootPackage from "../../../package.json" with { type: "json" };
 import { writeTemplate } from "./project-templates.ts";
 
 type Command = "init" | "doctor" | "fake-run" | "open" | "trust" | "tui" | "help" | "version";
@@ -44,7 +46,7 @@ async function main(argv: string[]): Promise<void> {
       await runTui(argv);
       return;
     case "version":
-      console.log("0.1.0");
+      console.log(rootPackage.version);
       return;
     case "help":
       printHelp();
@@ -104,6 +106,7 @@ async function doctor(argv: string[]): Promise<void> {
   console.log(
     `State gitignored: ${(await gitignoreContains(root, ".agents/state/")) ? "ok" : "missing"}`,
   );
+  console.log("Pi adapter: package (default)");
   console.log(`Pi packages: ${piPackageStatus}`);
   if (argv.includes("--fallback")) {
     console.log(
@@ -280,16 +283,38 @@ async function commandExists(command: string): Promise<boolean> {
 }
 
 async function checkPiPackageImports(): Promise<string> {
+  const packages = [
+    "@earendil-works/pi-agent-core",
+    "@earendil-works/pi-ai",
+    "@earendil-works/pi-coding-agent",
+  ];
   try {
-    await Promise.all([
-      import("@earendil-works/pi-agent-core"),
-      import("@earendil-works/pi-ai"),
-      import("@earendil-works/pi-coding-agent"),
-    ]);
-    return "ok";
+    await Promise.all(packages.map((packageName) => import(packageName)));
+    const versions = await Promise.all(
+      packages.map(async (packageName) => `${packageName}@${await packageVersion(packageName)}`),
+    );
+    return `ok (${versions.join(", ")})`;
   } catch (error) {
     return `failed (${error instanceof Error ? error.message : String(error)})`;
   }
+}
+
+async function packageVersion(packageName: string): Promise<string> {
+  let current = path.dirname(fileURLToPath(import.meta.resolve(packageName)));
+  while (current !== path.dirname(current)) {
+    const packageJsonPath = path.join(current, "package.json");
+    if (await pathExists(packageJsonPath)) {
+      const packageJson = JSON.parse(await Bun.file(packageJsonPath).text()) as {
+        name?: string;
+        version?: string;
+      };
+      if (packageJson.name === packageName) {
+        return packageJson.version ?? "unknown";
+      }
+    }
+    current = path.dirname(current);
+  }
+  return "unknown";
 }
 
 async function gitignoreContains(root: string, entry: string): Promise<boolean> {

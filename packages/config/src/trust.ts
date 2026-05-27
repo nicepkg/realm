@@ -1,4 +1,4 @@
-import { mkdir, readFile, writeFile } from "node:fs/promises";
+import { mkdir, readFile, rename, writeFile } from "node:fs/promises";
 import path from "node:path";
 import { z } from "zod";
 import { userConfigDir } from "./layout.ts";
@@ -72,6 +72,15 @@ async function loadTrustStore(env: NodeJS.ProcessEnv): Promise<TrustStore> {
 
 async function saveTrustStore(store: TrustStore, env: NodeJS.ProcessEnv): Promise<void> {
   const filePath = trustStorePath(env);
+  await writeFileAtomic(filePath, `${JSON.stringify(store, null, 2)}\n`);
+}
+
+async function writeFileAtomic(filePath: string, content: string): Promise<void> {
   await mkdir(path.dirname(filePath), { recursive: true });
-  await writeFile(filePath, `${JSON.stringify(store, null, 2)}\n`, "utf8");
+  const tempPath = path.join(
+    path.dirname(filePath),
+    `.${path.basename(filePath)}.${process.pid}.${Date.now()}.tmp`,
+  );
+  await writeFile(tempPath, content, "utf8");
+  await rename(tempPath, filePath);
 }

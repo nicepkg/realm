@@ -3,6 +3,7 @@ import { mkdir, mkdtemp, readFile, writeFile } from "node:fs/promises";
 import os from "node:os";
 import path from "node:path";
 import {
+  FileConfigPatchStore,
   initProject,
   loadCallableSkillsForRole,
   loadProjectConfig,
@@ -174,6 +175,15 @@ describe("config project layout", () => {
       tier: "run-roles",
       trustedAt: "2026-05-26T00:00:00.000Z",
     });
+  });
+
+  test("rejects unsafe config patch and history ids", async () => {
+    const root = await mkdtemp(path.join(os.tmpdir(), "realm-config-safe-id-"));
+    await initProject(root, "demo");
+    const store = new FileConfigPatchStore(root);
+
+    await expect(store.loadProposal("../escape")).rejects.toThrow();
+    await expect(store.rollback("..\\escape")).rejects.toThrow();
   });
 
   test("resolves project root from nested directory", async () => {

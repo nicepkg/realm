@@ -42,6 +42,7 @@ jobs:
       - run: bun run typecheck
       - run: bun test
       - run: bun run build:binary
+      - run: bun run smoke:binary
       - run: mkdir release
         shell: bash
       - run: cp "dist/bin/${{ matrix.binary }}" "release/${{ matrix.release_binary }}"

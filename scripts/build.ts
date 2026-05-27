@@ -1,5 +1,6 @@
 import { cp, mkdir, rm } from "node:fs/promises";
 import path from "node:path";
+import { buildPiExtension } from "./build-pi-extension.ts";
 
 await mkdir("dist", { recursive: true });
 
@@ -35,3 +36,5 @@ const packagedWebDir = path.join("dist", "web");
 await rm(packagedWebDir, { force: true, recursive: true });
 await cp(path.join("apps", "web", "dist"), packagedWebDir, { recursive: true });
 console.log("Copied Web UI assets to dist/web");
+
+await buildPiExtension(path.join("dist", "pi-extension"));
