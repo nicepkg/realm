@@ -1,4 +1,4 @@
-import { Activity, Braces, Clock3, Database } from "lucide-react";
+import { Activity, Braces, Clock3, Database, ShieldAlert } from "lucide-react";
 import type { RealmAppController } from "@/app/types.ts";
 import { Badge } from "@/components/ui/badge";
 import { ScrollArea } from "@/components/ui/scroll-area";
@@ -11,7 +11,15 @@ import {
 } from "@/components/ui/sheet";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { useI18n } from "@/i18n/index.tsx";
-import { describeTraceEvent } from "@/view-models/realm-view-model.ts";
+import { describeTraceEvent, type TraceEvent } from "@/view-models/realm-view-model.ts";
+
+type AccessDenial = {
+  id: string;
+  reason: string;
+  recoveryKey: "policy" | "token";
+  source: "audit" | "tool";
+  target: string;
+};
 
 export function WorldInspectorSheet({
   app,
@@ -55,14 +63,18 @@ export function WorldInspectorContent({ app }: { app: RealmAppController }) {
         />
       </section>
       <Tabs defaultValue="state">
-        <TabsList className="grid w-full grid-cols-2">
+        <TabsList className="grid w-full grid-cols-3">
           <TabsTrigger data-testid="world-inspector-state-tab" value="state">
             <Braces className="size-3.5" />
-            {t("inspector.stateSnapshot")}
+            {t("inspector.stateTab")}
           </TabsTrigger>
           <TabsTrigger data-testid="world-inspector-events-tab" value="events">
             <Activity className="size-3.5" />
-            {t("inspector.eventTimeline")}
+            {t("inspector.eventsTab")}
+          </TabsTrigger>
+          <TabsTrigger data-testid="world-inspector-access-tab" value="access">
+            <ShieldAlert className="size-3.5" />
+            {t("inspector.accessTab")}
           </TabsTrigger>
         </TabsList>
         <TabsContent className="mt-3" value="state">
@@ -78,9 +90,88 @@ export function WorldInspectorContent({ app }: { app: RealmAppController }) {
         <TabsContent className="mt-3" value="events">
           <WorldEventTimeline app={app} />
         </TabsContent>
+        <TabsContent className="mt-3" value="access">
+          <AccessAuditTimeline events={app.traceEvents} />
+        </TabsContent>
       </Tabs>
     </div>
   );
+}
+
+export function AccessAuditTimeline({ events }: { events: TraceEvent[] }) {
+  const { t } = useI18n();
+  const denials = accessDenialsForEvents(events);
+
+  return (
+    <ScrollArea className="h-[300px] rounded-[6px] bg-[#f7f7f8]">
+      <div className="space-y-2 p-3" data-testid="world-access-audit">
+        {denials.length === 0 ? (
+          <div className="text-[13px] text-[var(--realm-fg-muted)]">
+            {t("inspector.noAccessDenials")}
+          </div>
+        ) : (
+          denials.map((denial) => (
+            <article
+              className="rounded-[6px] bg-white p-3 text-[12px]"
+              data-testid="world-access-denial-row"
+              key={denial.id}
+            >
+              <div className="flex items-center gap-2">
+                <ShieldAlert className="size-3.5 text-[#ff9500]" />
+                <span className="min-w-0 flex-1 truncate font-medium">
+                  {denial.source === "tool"
+                    ? t("inspector.toolDenied")
+                    : t("inspector.auditDenied")}
+                  : {denial.target}
+                </span>
+                <Badge className="border-transparent bg-[#fff4e5] text-[#7a4a00]">
+                  {t("inspector.denied")}
+                </Badge>
+              </div>
+              <div className="mt-2 text-[var(--realm-fg-muted)]">
+                <span className="font-medium text-[#1f1f21]">{t("inspector.reason")}: </span>
+                {denial.reason}
+              </div>
+              <div className="mt-2 rounded-[5px] bg-[#f7f7f8] p-2 text-[var(--realm-fg-muted)]">
+                <span className="font-medium text-[#1f1f21]">{t("inspector.recovery")}: </span>
+                {denial.recoveryKey === "token"
+                  ? t("inspector.recoveryToken")
+                  : t("inspector.recoveryPolicy")}
+              </div>
+            </article>
+          ))
+        )}
+      </div>
+    </ScrollArea>
+  );
+}
+
+export function accessDenialsForEvents(events: TraceEvent[]): AccessDenial[] {
+  return events.flatMap((event): AccessDenial[] => {
+    if (event.type === "tool.called" && event.toolCall.status === "denied") {
+      return [
+        {
+          id: event.eventId,
+          reason: event.toolCall.reason ?? "Denied by host/runtime policy",
+          recoveryKey: recoveryKeyForReason(event.toolCall.reason),
+          source: "tool",
+          target: event.toolCall.name,
+        },
+      ];
+    }
+    if (event.type === "audit.created" && isDeniedAudit(event.audit.action)) {
+      return [
+        {
+          id: event.eventId,
+          reason: event.audit.reason ?? event.audit.action,
+          recoveryKey: recoveryKeyForReason(event.audit.reason),
+          source: "audit",
+          target: event.audit.target ?? event.audit.action,
+        },
+      ];
+    }
+    return [];
+  });
 }
 
 export function WorldEventTimeline({ app }: { app: RealmAppController }) {
@@ -135,4 +226,16 @@ function InspectorMetric({ label, value }: { label: string; value: string }) {
       <div className="mt-1 truncate font-medium text-[#1f1f21]">{value}</div>
     </div>
   );
+}
+
+function isDeniedAudit(action: string): boolean {
+  return action.includes("denied");
+}
+
+function recoveryKeyForReason(reason: string | undefined): AccessDenial["recoveryKey"] {
+  const normalized = reason?.toLowerCase() ?? "";
+  if (normalized.includes("bearer token") || normalized.includes("token is scoped")) {
+    return "token";
+  }
+  return "policy";
 }

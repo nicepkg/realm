@@ -4,6 +4,8 @@ import { renderToStaticMarkup } from "react-dom/server";
 import type { RealmAppController } from "@/app/types.ts";
 import { I18nProvider } from "@/i18n/index.tsx";
 import {
+  AccessAuditTimeline,
+  accessDenialsForEvents,
   formatStateSnapshot,
   WorldEventTimeline,
   WorldInspectorContent,
@@ -37,10 +39,87 @@ describe("world inspector sheet", () => {
     expect(html).toContain("manual");
   });
 
+  test("renders denied tool and policy events with recovery guidance", () => {
+    const html = renderToStaticMarkup(
+      <I18nProvider>
+        <AccessAuditTimeline events={mockDeniedEvents()} />
+      </I18nProvider>,
+    );
+
+    expect(html).toContain('data-testid="world-access-audit"');
+    expect(html).toContain('data-testid="world-access-denial-row"');
+    expect(html).toContain("Tool denied");
+    expect(html).toContain("memory.write");
+    expect(html).toContain("memory.write is denied by host policy");
+    expect(html).toContain("host/runtime policy is authoritative");
+    expect(html).toContain("Audit denied");
+    expect(html).toContain("network.fetch");
+  });
+
+  test("classifies extension token denials separately from policy recovery", () => {
+    expect(accessDenialsForEvents(mockDeniedEvents()).map((denial) => denial.recoveryKey)).toEqual([
+      "policy",
+      "policy",
+      "token",
+    ]);
+  });
+
   test("formats missing world state as an empty JSON object", () => {
     expect(formatStateSnapshot(undefined)).toBe("{}");
   });
 });
+
+function mockDeniedEvents(): Parameters<typeof accessDenialsForEvents>[0] {
+  return [
+    {
+      aggregateId: "trace-tool-denied",
+      createdAt: "2026-05-26T01:00:00.000Z",
+      eventId: "event-tool-denied",
+      schemaVersion: 1,
+      seq: 10,
+      toolCall: {
+        id: "tool-denied-1",
+        name: "memory.write",
+        reason: "memory.write is denied by host policy",
+        status: "denied",
+      },
+      traceId: "trace-tool-denied",
+      type: "tool.called",
+    },
+    {
+      aggregateId: "audit",
+      audit: {
+        action: "policy.denied",
+        actorId: "owner",
+        createdAt: "2026-05-26T01:00:00.000Z",
+        id: "audit-policy-denied",
+        reason: "network.fetch is not in the allowlist",
+        target: "network.fetch",
+      },
+      createdAt: "2026-05-26T01:00:00.000Z",
+      eventId: "event-policy-denied",
+      schemaVersion: 1,
+      seq: 11,
+      type: "audit.created",
+    },
+    {
+      aggregateId: "audit",
+      audit: {
+        action: "extension.denied",
+        actorId: "leijun",
+        createdAt: "2026-05-26T01:00:00.000Z",
+        id: "audit-extension-denied",
+        reason: "Missing Realm extension bearer token",
+        target: "state.query",
+      },
+      createdAt: "2026-05-26T01:00:00.000Z",
+      eventId: "event-extension-denied",
+      schemaVersion: 1,
+      seq: 12,
+      type: "audit.created",
+    },
+  ] as Parameters<typeof accessDenialsForEvents>[0];
+}
 
 function mockApp(): RealmAppController {
   const room: Room = {

@@ -210,6 +210,12 @@ try {
     "World Inspector exposes recent events as a secondary sheet",
     "document.querySelector(\"[data-testid='world-event-timeline']\") !== null",
   );
+  await clickInPage("[data-testid='world-inspector-access-tab']");
+  await waitForSelector("[data-testid='world-access-audit']");
+  await assertPage(
+    "World Inspector exposes denied access recovery guidance surface",
+    "document.querySelector(\"[data-testid='world-access-audit']\") !== null",
+  );
   await screenshot("world-inspector.png");
   await browser("press", "Escape");
   await browser("wait", "200");
