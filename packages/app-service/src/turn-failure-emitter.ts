@@ -58,7 +58,7 @@ export class TurnFailureEmitter {
 
   private hasTerminalEvent(turnId: string): boolean {
     return this.options.eventStore
-      .list({ limit: 500 })
+      .list({ limit: 5000 })
       .some(
         (event) =>
           (event.type === "turn.failed" ||
