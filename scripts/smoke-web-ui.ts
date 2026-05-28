@@ -1,5 +1,5 @@
 import { constants } from "node:fs";
-import { access, cp, mkdir, mkdtemp, rm } from "node:fs/promises";
+import { access, cp, mkdir, mkdtemp, rm, writeFile } from "node:fs/promises";
 import os from "node:os";
 import path from "node:path";
 import {
@@ -282,6 +282,20 @@ try {
     "document.querySelector(\"[data-testid='config-patch-raw-diff']\")?.textContent?.includes('diff --realm') === true",
   );
   await screenshot("assistant-config-preview.png");
+  const qaRolePath = path.join(projectDir, ".agents", "roles", "qa", "role.yaml");
+  await mkdir(path.dirname(qaRolePath), { recursive: true });
+  await writeFile(
+    qaRolePath,
+    "version: 1\nid: qa\ndisplayName: Existing QA\nmodel: default\n",
+    "utf8",
+  );
+  await clickInPage("[data-testid='config-patch-apply']");
+  await waitForSelector("[data-testid='patch-conflict-resolution']");
+  await assertPage(
+    "Config patch conflict shows the stale file and proposed diff before any write",
+    "(() => { const panel = document.querySelector(\"[data-testid='patch-conflict-resolution']\"); const diff = document.querySelector(\"[data-testid='patch-conflict-diff']\"); return panel?.textContent?.includes('.agents/roles/qa/role.yaml') === true && diff?.textContent?.includes('diff --realm .agents/roles/qa/role.yaml') === true; })()",
+  );
+  await screenshot("assistant-config-conflict.png");
   await browser("press", "Escape");
   await browser("wait", "200");
 

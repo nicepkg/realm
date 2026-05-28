@@ -22,6 +22,22 @@ export function buildRawPatchText(proposal: ConfigPatchProposal): string {
   return proposal.operations.map(formatOperationDiff).join("\n");
 }
 
+export function buildConflictPatchText(
+  proposal: ConfigPatchProposal,
+  error: string | undefined,
+): string {
+  const conflictPath = configConflictPath(error);
+  const operations = conflictPath
+    ? proposal.operations.filter((operation) => operation.path === conflictPath)
+    : [];
+  return operations.map(formatOperationDiff).join("\n");
+}
+
+export function configConflictPath(error: string | undefined): string | undefined {
+  const match = error?.match(/Config conflict at (.+)$/i);
+  return match?.[1]?.trim();
+}
+
 export function isConflictError(error: string | undefined): boolean {
   return Boolean(error?.toLowerCase().includes("config conflict"));
 }

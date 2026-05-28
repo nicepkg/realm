@@ -1,7 +1,9 @@
 import { describe, expect, test } from "bun:test";
 import type { ConfigPatchProposal } from "@realm/api-contract";
 import {
+  buildConflictPatchText,
   buildRawPatchText,
+  configConflictPath,
   isConflictError,
   summarizePatchOperations,
 } from "./patch-preview-model.ts";
@@ -29,6 +31,17 @@ describe("patch preview model", () => {
   test("detects apply-time conflict errors", () => {
     expect(isConflictError("Config conflict at .agents/config.yaml")).toBe(true);
     expect(isConflictError("Type APPLY patch-1 to apply")).toBe(false);
+  });
+
+  test("extracts the conflicted file diff from a stale patch error", () => {
+    const error = "Config conflict at .agents/config.yaml";
+
+    expect(configConflictPath(error)).toBe(".agents/config.yaml");
+    expect(buildConflictPatchText(samplePatch, error)).toContain(
+      "diff --realm .agents/config.yaml",
+    );
+    expect(buildConflictPatchText(samplePatch, error)).toContain("# previous: old-hash");
+    expect(buildConflictPatchText(samplePatch, error)).not.toContain("demo/world.yaml");
   });
 });
 

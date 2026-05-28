@@ -9,7 +9,9 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { useI18n } from "@/i18n/index.tsx";
 import type { PatchApplyResult } from "./config-action-types.ts";
 import {
+  buildConflictPatchText,
   buildRawPatchText,
+  configConflictPath,
   isConflictError,
   summarizePatchOperations,
 } from "./patch-preview-model.ts";
@@ -42,9 +44,14 @@ export function PatchPreview({
   const activeProposal = proposal;
   const summary = summarizePatchOperations(proposal.operations);
   const rawPatch = buildRawPatchText(proposal);
+  const hasConflict = isConflictError(error);
+  const conflictPath = configConflictPath(error);
+  const conflictPatch = buildConflictPatchText(proposal, error);
   const requiresConfirmation = Boolean(proposal.typedConfirmation);
   const canApply =
-    !busy && (!proposal.typedConfirmation || confirmation === proposal.typedConfirmation);
+    !busy &&
+    !hasConflict &&
+    (!proposal.typedConfirmation || confirmation === proposal.typedConfirmation);
 
   async function applyPatch() {
     setError(undefined);
@@ -115,15 +122,35 @@ export function PatchPreview({
       ) : null}
       {error ? (
         <div
-          className="rounded-md bg-[#fff4e5] p-2 text-[#7a4a00] text-[12px]"
+          className="space-y-2 rounded-md bg-[#fff4e5] p-2 text-[#7a4a00] text-[12px]"
           data-testid={isConflictError(error) ? "patch-conflict-error" : "patch-error"}
         >
           <div className="font-medium">
-            {isConflictError(error)
-              ? t("sheet.config.conflictDetected")
-              : t("sheet.config.applyFailed")}
+            {hasConflict ? t("sheet.config.conflictDetected") : t("sheet.config.applyFailed")}
           </div>
-          {error}
+          <div>{error}</div>
+          {conflictPath ? (
+            <div
+              className="rounded-[6px] bg-white p-2 text-[var(--realm-fg-muted)]"
+              data-testid="patch-conflict-resolution"
+            >
+              <div className="font-medium text-[var(--realm-fg)]">
+                {t("sheet.config.conflictStatus")}: {conflictPath}
+              </div>
+              <div className="mt-1">
+                {t("sheet.config.rawDiffHelp")} {t("sheet.config.reject")} /{" "}
+                {t("sheet.config.preview")}.
+              </div>
+              {conflictPatch ? (
+                <pre
+                  className="mt-2 max-h-40 overflow-auto rounded-[4px] bg-[#1f1f21] p-2 text-[11px] text-white"
+                  data-testid="patch-conflict-diff"
+                >
+                  {conflictPatch}
+                </pre>
+              ) : null}
+            </div>
+          ) : null}
         </div>
       ) : null}
       {applyResult ? (
@@ -207,7 +234,11 @@ export function PatchPreview({
             <InfoMetric label={t("sheet.config.deletes")} value={String(summary.delete)} />
             <InfoMetric
               label={t("sheet.config.conflictStatus")}
-              value={t("sheet.config.conflictCheckedAtApply")}
+              value={
+                error && hasConflict
+                  ? t("sheet.config.conflictDetected")
+                  : t("sheet.config.conflictCheckedAtApply")
+              }
             />
           </div>
           <section className="rounded-md bg-white p-2 text-[12px]">
