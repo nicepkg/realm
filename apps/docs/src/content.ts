@@ -8,6 +8,7 @@ export const pages: Record<Locale, DocsPage> = {
     locale: "en",
     languageLabel: "English",
     switchLabel: "简体中文",
+    menuLabel: "Open menu",
     nav: [
       { label: "Quick start", value: "quick-start" },
       { label: "Concepts", value: "concepts" },
@@ -31,6 +32,24 @@ export const pages: Record<Locale, DocsPage> = {
       secondaryAction: "View GitHub",
       proof: ["Bun + TypeScript", "Pi package-first", "Web + TUI", "Binary-ready"],
     },
+    valueProps: [
+      {
+        label: "Local-first",
+        value: "Runs entirely on your machine. No cloud account, no data leaving the repo.",
+      },
+      {
+        label: "WeChat-clean",
+        value: "A familiar messenger workspace for roles, rooms, and worlds — not a prompt box.",
+      },
+      {
+        label: "Real role accounts",
+        value: "Each role acts like an account, with audited turns and scoped tools.",
+      },
+      {
+        label: "Web + terminal",
+        value: "One runtime, two surfaces. Drive the same world from the browser or the TUI.",
+      },
+    ],
     preview: {
       managerTitle: "Create World",
       managerAction: "Create",
@@ -235,6 +254,7 @@ export const pages: Record<Locale, DocsPage> = {
     locale: "zh-CN",
     languageLabel: "简体中文",
     switchLabel: "English",
+    menuLabel: "打开菜单",
     nav: [
       { label: "快速开始", value: "quick-start" },
       { label: "核心概念", value: "concepts" },
@@ -258,6 +278,15 @@ export const pages: Record<Locale, DocsPage> = {
       secondaryAction: "查看 GitHub",
       proof: ["Bun + TypeScript", "Pi 包优先", "Web + TUI", "可打包二进制"],
     },
+    valueProps: [
+      { label: "本地优先", value: "完全在本机运行，无需云账号，数据不离开仓库。" },
+      {
+        label: "微信式工作区",
+        value: "用熟悉的消息界面组织角色、房间和世界，而不是一个提示词框。",
+      },
+      { label: "真正的角色账号", value: "每个角色都像一个账号，回合可审计、工具受限授权。" },
+      { label: "Web 与终端", value: "同一套运行时，两个界面。浏览器或终端都能驱动同一个世界。" },
+    ],
     preview: {
       managerTitle: "创建世界",
       managerAction: "创建",

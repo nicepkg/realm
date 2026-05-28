@@ -126,13 +126,90 @@ code {
   padding: 8px 12px;
 }
 
+/* Hamburger: hidden on desktop, revealed on mobile in responsive.css. */
+.menu-toggle {
+  align-items: center;
+  background: #fff;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  cursor: pointer;
+  display: none;
+  height: 36px;
+  justify-content: center;
+  padding: 0;
+  width: 40px;
+}
+
+.menu-toggle-bars,
+.menu-toggle-bars::before,
+.menu-toggle-bars::after {
+  background: #1d1d1f;
+  border-radius: 2px;
+  content: "";
+  display: block;
+  height: 2px;
+  width: 18px;
+}
+
+.menu-toggle-bars {
+  position: relative;
+}
+
+.menu-toggle-bars::before {
+  position: absolute;
+  top: -6px;
+}
+
+.menu-toggle-bars::after {
+  position: absolute;
+  top: 6px;
+}
+
+.mobile-nav {
+  background: #fff;
+  border: 1px solid var(--line);
+  border-radius: 12px;
+  box-shadow: 0 16px 40px rgba(0, 0, 0, 0.14);
+  display: none;
+  flex-direction: column;
+  gap: 2px;
+  padding: 8px;
+  position: absolute;
+  right: clamp(14px, 4vw, 48px);
+  top: 60px;
+  width: min(280px, calc(100vw - 28px));
+  z-index: 30;
+}
+
+.mobile-nav a {
+  border-radius: 8px;
+  color: #1d1d1f;
+  font-size: 15px;
+  padding: 10px 12px;
+}
+
+.mobile-nav a:hover {
+  background: var(--surface-muted);
+}
+
+.mobile-nav-locale {
+  background: #fff;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  cursor: pointer;
+  margin-top: 6px;
+  min-height: 40px;
+  padding: 8px 12px;
+  text-align: center;
+}
+
 .hero-section {
   display: grid;
-  gap: clamp(28px, 4vw, 42px);
+  gap: clamp(20px, 3vw, 32px);
   grid-template-columns: 1fr;
   margin: 0 auto;
   max-width: 1240px;
-  padding: clamp(40px, 5vw, 60px) clamp(18px, 5vw, 48px) 28px;
+  padding: clamp(24px, 3vw, 40px) clamp(18px, 5vw, 48px) 24px;
 }
 
 .hero-copy {
@@ -145,7 +222,7 @@ code {
   display: flex;
   flex-wrap: wrap;
   gap: 8px;
-  margin-bottom: 22px;
+  margin-bottom: 16px;
 }
 
 .proof-row span {
@@ -164,17 +241,18 @@ p {
 }
 
 h1 {
-  font-size: clamp(56px, 8vw, 104px);
+  font-size: clamp(44px, 6vw, 68px);
   font-weight: 700;
-  letter-spacing: 0;
-  line-height: 0.94;
-  margin-bottom: 22px;
+  letter-spacing: -0.02em;
+  line-height: 1.02;
+  margin-bottom: 18px;
 }
 
 .hero-copy p {
   color: var(--text-muted);
-  font-size: 21px;
-  line-height: 1.55;
+  font-size: 19px;
+  line-height: 1.5;
+  margin-bottom: 0;
   max-width: 760px;
 }
 
@@ -186,7 +264,7 @@ h1 {
   display: grid;
   gap: 10px;
   grid-template-columns: auto minmax(0, 1fr);
-  margin-top: 30px;
+  margin-top: 22px;
   max-width: 680px;
   padding: 12px 14px;
 }
@@ -206,7 +284,7 @@ h1 {
   display: flex;
   flex-wrap: wrap;
   gap: 12px;
-  margin-top: 24px;
+  margin-top: 18px;
 }
 
 .primary-action,
@@ -252,205 +330,4 @@ h1 {
 .doc-index a:hover {
   background: var(--surface-muted);
   color: #1d1d1f;
-}
-
-.band,
-.reference-section,
-.final-cta {
-  margin: 0 auto;
-  max-width: 1180px;
-  padding: 72px clamp(18px, 5vw, 42px);
-}
-
-.section-heading {
-  max-width: 760px;
-}
-
-.section-heading > span {
-  color: var(--realm-primary);
-  font-size: 13px;
-  font-weight: 650;
-}
-
-h2 {
-  font-size: clamp(32px, 5vw, 56px);
-  font-weight: 680;
-  letter-spacing: 0;
-  line-height: 1.06;
-  margin-bottom: 16px;
-}
-
-.section-heading p,
-.reference-row p,
-.final-cta p {
-  color: var(--text-muted);
-  font-size: 17px;
-  line-height: 1.7;
-}
-
-.command-list {
-  background: #fff;
-  border: 1px solid var(--line);
-  border-radius: 8px;
-  margin-top: 30px;
-  overflow: hidden;
-}
-
-.command-row {
-  align-items: center;
-  display: grid;
-  gap: 14px;
-  grid-template-columns: 46px 160px minmax(0, 1fr);
-  min-height: 64px;
-  padding: 0 18px;
-}
-
-.command-row + .command-row {
-  border-top: 1px solid var(--line);
-}
-
-.command-row span {
-  color: var(--text-faint);
-  font-variant-numeric: tabular-nums;
-}
-
-.command-row code {
-  overflow-x: auto;
-  white-space: nowrap;
-}
-
-.concept-map,
-.example-grid {
-  display: grid;
-  gap: 14px;
-  grid-template-columns: repeat(4, minmax(0, 1fr));
-  margin-top: 28px;
-}
-
-.concept-map article,
-.example-grid article {
-  background: #fff;
-  border: 1px solid var(--line);
-  border-radius: 8px;
-  padding: 18px;
-}
-
-.concept-map span,
-.example-grid strong {
-  display: block;
-  font-weight: 680;
-  margin-bottom: 10px;
-}
-
-.concept-map p,
-.example-grid p {
-  color: var(--text-muted);
-  line-height: 1.6;
-  margin-bottom: 0;
-}
-
-.split-band {
-  align-items: start;
-  display: grid;
-  gap: 36px;
-  grid-template-columns: minmax(0, 0.92fr) minmax(280px, 0.72fr);
-}
-
-.workflow-list,
-.trust-list,
-.reference-row ul {
-  list-style: none;
-  margin: 0;
-  padding: 0;
-}
-
-.workflow-list li,
-.trust-list li {
-  background: #fff;
-  border: 1px solid var(--line);
-  border-radius: 8px;
-  color: #3f3f46;
-  line-height: 1.55;
-  margin-bottom: 10px;
-  padding: 14px 16px;
-}
-
-.terminal-preview {
-  background: #111214;
-  border-radius: 8px;
-  color: #f5f5f7;
-  display: grid;
-  line-height: 1.65;
-  margin-top: 28px;
-  overflow-x: auto;
-  padding: 22px;
-}
-
-.terminal-preview span:nth-child(2) {
-  color: #67e89a;
-}
-
-.reference-section {
-  display: grid;
-  gap: 0;
-}
-
-.reference-row {
-  border-top: 1px solid var(--line);
-  display: grid;
-  gap: 28px;
-  grid-template-columns: 160px minmax(0, 1fr);
-  padding: 32px 0;
-  scroll-margin-top: 84px;
-}
-
-.reference-row > span {
-  color: var(--realm-primary);
-  font-size: 13px;
-  font-weight: 650;
-}
-
-.reference-row h2 {
-  font-size: clamp(26px, 4vw, 38px);
-}
-
-.reference-row li {
-  color: #3f3f46;
-  line-height: 1.6;
-  margin: 8px 0;
-  padding-left: 18px;
-  position: relative;
-}
-
-.reference-row li::before {
-  background: var(--realm-primary);
-  border-radius: 999px;
-  content: "";
-  height: 6px;
-  left: 0;
-  position: absolute;
-  top: 0.74em;
-  width: 6px;
-}
-
-.reference-row pre {
-  background: #111214;
-  border-radius: 8px;
-  color: #f5f5f7;
-  line-height: 1.6;
-  margin: 18px 0 0;
-  overflow-x: auto;
-  padding: 18px;
-}
-
-.final-cta {
-  padding-bottom: 96px;
-}
-
-.final-cta h2 {
-  max-width: 720px;
-}
-
-.final-cta p {
-  max-width: 680px;
 }

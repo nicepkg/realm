@@ -36,6 +36,18 @@ describe("docs content", () => {
     );
     expect(pages["zh-CN"].quickStart.steps).toHaveLength(pages.en.quickStart.steps.length);
     expect(pages["zh-CN"].concepts.nodes).toHaveLength(pages.en.concepts.nodes.length);
+    expect(pages["zh-CN"].valueProps).toHaveLength(pages.en.valueProps.length);
+  });
+
+  test("ships user-facing value props in both locales", () => {
+    for (const page of Object.values(pages)) {
+      expect(page.valueProps.length).toBe(4);
+      for (const prop of page.valueProps) {
+        expect(prop.label.length).toBeGreaterThan(0);
+        expect(prop.value.length).toBeGreaterThan(0);
+      }
+      expect(page.menuLabel.length).toBeGreaterThan(0);
+    }
   });
 
   test("supports only shareable en and zh-CN locales", () => {

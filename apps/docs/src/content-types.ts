@@ -18,6 +18,7 @@ export type DocsPage = {
   locale: Locale;
   languageLabel: string;
   switchLabel: string;
+  menuLabel: string;
   nav: TextPair[];
   hero: {
     title: string;
@@ -28,6 +29,7 @@ export type DocsPage = {
     secondaryAction: string;
     proof: string[];
   };
+  valueProps: TextPair[];
   preview: {
     managerTitle: string;
     managerAction: string;

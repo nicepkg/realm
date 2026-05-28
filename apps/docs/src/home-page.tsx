@@ -78,19 +78,13 @@ function ProductPreview({ page }: { page: DocsPage }) {
             •••
           </button>
         </header>
-        <div className="topbar-menu" role="menu" aria-label="Top bar actions">
-          <button type="button">{preview.command}</button>
-          <button type="button">{preview.inspector}</button>
-          <button type="button">{preview.god}</button>
-          <button type="button">{preview.settings}</button>
-        </div>
         <div className="message-time">{preview.time}</div>
         <div className="message-row outgoing">
           <div className="message-bubble">{preview.outgoing}</div>
-          <Avatar seed="🎧" />
+          <Avatar seed="B" />
         </div>
         <div className="message-row incoming">
-          <Avatar seed="🚀" />
+          <Avatar seed={preview.incomingAuthor.charAt(0)} />
           <span>
             <small>{preview.incomingAuthor}</small>
             <div className="message-bubble">{preview.incoming}</div>
@@ -125,24 +119,9 @@ function DocIndex({ page }: { page: DocsPage }) {
 }
 
 function ProofBand({ page }: { page: DocsPage }) {
-  const items =
-    page.locale === "zh-CN"
-      ? [
-          { label: "Web", value: "Agent Browser 截图验收" },
-          { label: "TUI", value: "Pi TUI 覆盖交互确认" },
-          { label: "Docs", value: "中英文路线与移动端 smoke" },
-          { label: "Release", value: "Bun 二进制与 CI 检查" },
-        ]
-      : [
-          { label: "Web", value: "Agent Browser screenshot acceptance" },
-          { label: "TUI", value: "Pi TUI interaction coverage" },
-          { label: "Docs", value: "EN/ZH routes and mobile smoke" },
-          { label: "Release", value: "Bun binary and CI checks" },
-        ];
-
   return (
-    <section className="proof-band" aria-label="Verification signals">
-      {items.map((item) => (
+    <section className="proof-band" aria-label="Why Realm">
+      {page.valueProps.map((item) => (
         <article key={item.label}>
           <strong>{item.label}</strong>
           <span>{item.value}</span>
@@ -304,12 +283,11 @@ function FinalCta({ page }: { page: DocsPage }) {
   );
 }
 
+// WeChat-style member collage: a tight nine-grid of monogram tiles on white,
+// each member rendered as an initial — no green fill, no emoji confetti.
+const GROUP_AVATAR_MEMBERS = ["B", "L", "Q", "M", "K", "S", "A", "T", "D"];
+
 function GroupAvatar() {
-  const rows = [
-    ["🎧", "🚀", "🧪"],
-    ["🧭", "💬", "⚡"],
-    ["🎯", "🌿", "📌"],
-  ];
   return (
     <span
       className="group-avatar"
@@ -317,12 +295,8 @@ function GroupAvatar() {
       data-wechat-grid-shape="nine-grid"
       aria-hidden="true"
     >
-      {rows.map((row) => (
-        <span className="group-avatar-row" key={row.join("-")}>
-          {row.map((cell) => (
-            <i key={cell}>{cell}</i>
-          ))}
-        </span>
+      {GROUP_AVATAR_MEMBERS.map((member) => (
+        <i key={member}>{member}</i>
       ))}
     </span>
   );

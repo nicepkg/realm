@@ -13,6 +13,7 @@
 @media (max-width: 760px) {
   .topbar {
     gap: 12px;
+    justify-content: space-between;
     padding: 0 14px;
   }
 
@@ -21,8 +22,17 @@
   }
 
   .topnav,
-  .brand small {
+  .brand small,
+  .language-button {
     display: none;
+  }
+
+  .menu-toggle {
+    display: inline-flex;
+  }
+
+  .mobile-nav {
+    display: flex;
   }
 
   .doc-index {
