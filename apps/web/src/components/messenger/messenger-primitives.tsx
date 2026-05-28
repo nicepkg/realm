@@ -36,67 +36,20 @@ const GROUP_CELL_ROOMY_SIZE_CLASS: Record<AvatarSize, string> = {
   xl: "size-[26px] text-[14px]",
 };
 
-const AVATAR_GLYPHS = [
-  "🌸",
-  "🌙",
-  "🌊",
-  "🌿",
-  "🍀",
-  "🍉",
-  "🍿",
-  "☕",
-  "🎧",
-  "🎮",
-  "🎲",
-  "🎯",
-  "🎨",
-  "🎬",
-  "🎵",
-  "🏮",
-  "💎",
-  "💡",
-  "💬",
-  "📚",
-  "📌",
-  "🧃",
-  "🧩",
-  "🧪",
-  "🧵",
-  "🪁",
-  "🪐",
-  "🪄",
-  "🧿",
-  "⚡",
-  "✨",
-];
-
+// WeChat-flat avatar palette: muted, desaturated, calm. No rainbow, no
+// AI-purple, no gradients. Monogram initials only — no emoji glyphs.
 const AVATAR_COLORS = [
-  { background: "#ff6b81", color: "#ffffff" },
-  { background: "#4d96ff", color: "#ffffff" },
-  { background: "#38bdf8", color: "#ffffff" },
-  { background: "#ffb020", color: "#261900" },
-  { background: "#8e6cf7", color: "#ffffff" },
-  { background: "#18a0a8", color: "#ffffff" },
-  { background: "#ff7a45", color: "#ffffff" },
-  { background: "#5c6f82", color: "#ffffff" },
-  { background: "#f05a7e", color: "#ffffff" },
-  { background: "#ff5c8a", color: "#ffffff" },
+  { background: "#7d8794", color: "#ffffff" },
+  { background: "#6f8aa3", color: "#ffffff" },
+  { background: "#8a8f7d", color: "#ffffff" },
+  { background: "#9a8c80", color: "#ffffff" },
+  { background: "#7f9387", color: "#ffffff" },
+  { background: "#94838d", color: "#ffffff" },
+  { background: "#83909a", color: "#ffffff" },
+  { background: "#a09583", color: "#ffffff" },
 ];
 
-const DEFAULT_AVATAR_COLOR = { background: "#8e6cf7", color: "#ffffff" };
-const DEFAULT_AVATAR_ACCENT = "#ffffff66";
-const DEFAULT_AVATAR_GLYPH = "💬";
-
-const AVATAR_ACCENTS = [
-  DEFAULT_AVATAR_ACCENT,
-  "#0000001f",
-  "#ffd16699",
-  "#7bdff299",
-  "#f7aef899",
-  "#b8f2e699",
-  "#fff3b099",
-  "#d0f4de99",
-];
+const DEFAULT_AVATAR_COLOR = { background: "#8a909a", color: "#ffffff" };
 
 export function RoomAvatar({
   className,
@@ -165,24 +118,23 @@ export function IdentityAvatar({
   const displayLabel = label ?? (identity ? labelForIdentity(identity, roles) : "Realm");
   const explicitAvatar = identity ? avatarForIdentity(identity, roles) : undefined;
   const profile = avatarProfileForIdentity(displayLabel || identity || "Realm");
-  const avatarKind = explicitAvatar?.image ? "image" : explicitAvatar?.emoji ? "emoji" : "fallback";
-  const glyph = explicitAvatar?.emoji ?? profile.glyph;
+  const avatarKind = explicitAvatar?.image ? "image" : "monogram";
+  const monogram = profile.initials;
 
   return (
     <span
       data-avatar-seed={identity ?? displayLabel}
-      data-avatar-glyph={glyph}
+      data-avatar-monogram={monogram}
       data-avatar-kind={avatarKind}
       data-testid="identity-avatar"
       data-wechat-avatar="person"
       className={cn(
-        "relative flex shrink-0 items-center justify-center overflow-hidden font-semibold leading-none shadow-[inset_0_0_0_1px_rgba(0,0,0,0.05)]",
+        "relative flex shrink-0 items-center justify-center overflow-hidden font-semibold leading-none shadow-[inset_0_0_0_1px_rgba(0,0,0,0.04)]",
         AVATAR_SIZE_CLASS[size],
         className,
       )}
       style={{
         backgroundColor: profile.background,
-        backgroundImage: profile.backgroundImage,
         color: profile.color,
       }}
       title={displayLabel}
@@ -195,19 +147,9 @@ export function IdentityAvatar({
           src={explicitAvatar.image}
         />
       ) : (
-        <>
-          <span
-            aria-hidden="true"
-            className="absolute -right-1 -bottom-1 size-[18px] rounded-full opacity-35"
-            style={{ backgroundColor: profile.accent }}
-          />
-          <span
-            aria-hidden="true"
-            className="relative z-10 drop-shadow-[0_1px_1px_rgba(0,0,0,0.16)]"
-          >
-            {glyph}
-          </span>
-        </>
+        <span aria-hidden="true" className="relative z-10">
+          {monogram}
+        </span>
       )}
       <span className="sr-only">{displayLabel}</span>
     </span>
@@ -252,12 +194,8 @@ export function GroupAvatarGrid({
           {row.map((member) => {
             const seed = member.label || member.id;
             const profile = avatarProfileForIdentity(seed);
-            const avatarKind = member.avatar?.image
-              ? "image"
-              : member.avatar?.emoji
-                ? "emoji"
-                : "fallback";
-            const glyph = member.avatar?.emoji ?? profile.glyph;
+            const avatarKind = member.avatar?.image ? "image" : "monogram";
+            const monogram = profile.initials;
             return (
               <span
                 className={cn(
@@ -265,14 +203,13 @@ export function GroupAvatarGrid({
                   groupCellSizeClass(size, cells.length),
                 )}
                 data-avatar-seed={seed}
-                data-avatar-glyph={glyph}
+                data-avatar-monogram={monogram}
                 data-avatar-kind={avatarKind}
                 data-testid="group-avatar-cell"
                 data-wechat-avatar="group-member"
                 key={member.id || member.label}
                 style={{
                   backgroundColor: profile.background,
-                  backgroundImage: profile.backgroundImage,
                   color: profile.color,
                 }}
                 title={member.label}
@@ -285,16 +222,9 @@ export function GroupAvatarGrid({
                     src={member.avatar.image}
                   />
                 ) : (
-                  <>
-                    <span
-                      aria-hidden="true"
-                      className="absolute -right-1 -bottom-1 size-[7px] rounded-full opacity-45"
-                      style={{ backgroundColor: profile.accent }}
-                    />
-                    <span aria-hidden="true" className="relative z-10">
-                      {glyph}
-                    </span>
-                  </>
+                  <span aria-hidden="true" className="relative z-10">
+                    {monogram}
+                  </span>
                 )}
                 <span className="sr-only">{member.label}</span>
               </span>
@@ -360,12 +290,8 @@ export function formatMessageTime(value: string): string {
 export function avatarProfileForIdentity(seed: string) {
   const hash = hashText(seed || "realm");
   const color = AVATAR_COLORS[(hash >>> 8) % AVATAR_COLORS.length] ?? DEFAULT_AVATAR_COLOR;
-  const accent = AVATAR_ACCENTS[(hash >>> 16) % AVATAR_ACCENTS.length] ?? DEFAULT_AVATAR_ACCENT;
   return {
     ...color,
-    accent,
-    backgroundImage: avatarPatternForHash(hash, accent),
-    glyph: AVATAR_GLYPHS[hash % AVATAR_GLYPHS.length] ?? DEFAULT_AVATAR_GLYPH,
     initials: initialsForAvatar(seed),
   };
 }
@@ -413,20 +339,19 @@ function hashText(value: string): number {
   return hash >>> 0;
 }
 
-function avatarPatternForHash(hash: number, accent: string): string {
-  const angle = hash % 180;
-  const stop = 38 + (hash % 24);
-  return `linear-gradient(${angle}deg, transparent ${stop}%, ${accent} ${stop}%)`;
-}
-
 function initialsForAvatar(seed: string): string {
   const compact = seed.trim();
   if (!compact) {
     return "R";
   }
-  const ascii = compact.match(/[a-z0-9]/i);
-  if (ascii) {
-    return ascii[0].toUpperCase();
+  // Latin labels → up to 2 leading letters (word initials); CJK/other → first glyph.
+  const latinWords = compact.match(/[a-z0-9]+/gi);
+  if (latinWords && latinWords.length > 0) {
+    const [first, second] = latinWords;
+    if (first && second) {
+      return `${first[0]}${second[0]}`.toUpperCase();
+    }
+    return (first ?? "").slice(0, 2).toUpperCase();
   }
   return Array.from(compact)[0] ?? "R";
 }

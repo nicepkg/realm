@@ -1,13 +1,13 @@
 import type { ConfigPatchProposal } from "@realm/api-contract";
 import { AlertTriangle, RotateCcw } from "lucide-react";
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Separator } from "@/components/ui/separator";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { useI18n } from "@/i18n/index.tsx";
-import type { PatchApplyResult } from "./config-action-types.ts";
+import type { PatchApplyResult, PatchRevisionInput } from "./config-action-types.ts";
 import {
   buildConflictPatchText,
   buildRawPatchText,
@@ -21,6 +21,7 @@ export function PatchPreview({
   onApplied,
   onApply,
   onReject,
+  onRevise,
   onRollback,
   proposal,
 }: {
@@ -28,6 +29,7 @@ export function PatchPreview({
   proposal?: ConfigPatchProposal;
   onApply: (confirmation?: string) => Promise<PatchApplyResult>;
   onReject?: () => void;
+  onRevise?: (input: PatchRevisionInput) => Promise<ConfigPatchProposal>;
   onRollback: (historyId: string) => Promise<{ historyId: string; restoredPaths: string[] }>;
   onApplied?: (proposal: ConfigPatchProposal, result: PatchApplyResult) => Promise<void> | void;
 }) {
@@ -36,6 +38,22 @@ export function PatchPreview({
   const [applyResult, setApplyResult] = useState<PatchApplyResult | undefined>();
   const [rollbackResult, setRollbackResult] = useState<string[] | undefined>();
   const [error, setError] = useState<string | undefined>();
+  const [editedContents, setEditedContents] = useState<Record<string, string | null>>({});
+  const [revisionError, setRevisionError] = useState<string | undefined>();
+  const [revising, setRevising] = useState(false);
+  const proposalId = proposal?.id;
+
+  useEffect(() => {
+    if (!proposalId) {
+      return;
+    }
+    setConfirmation("");
+    setApplyResult(undefined);
+    setRollbackResult(undefined);
+    setError(undefined);
+    setEditedContents({});
+    setRevisionError(undefined);
+  }, [proposalId]);
 
   if (!proposal) {
     return null;
@@ -48,6 +66,11 @@ export function PatchPreview({
   const conflictPath = configConflictPath(error);
   const conflictPatch = buildConflictPatchText(proposal, error);
   const requiresConfirmation = Boolean(proposal.typedConfirmation);
+  const hasEdits = proposal.operations.some(
+    (operation) =>
+      Object.hasOwn(editedContents, operation.path) &&
+      editedContents[operation.path] !== operation.nextContent,
+  );
   const canApply =
     !busy &&
     !hasConflict &&
@@ -75,6 +98,28 @@ export function PatchPreview({
       setRollbackResult(result.restoredPaths);
     } catch (error) {
       setError(error instanceof Error ? error.message : String(error));
+    }
+  }
+
+  async function revisePatch() {
+    if (!onRevise || !hasEdits) {
+      return;
+    }
+    setRevising(true);
+    setRevisionError(undefined);
+    try {
+      await onRevise({
+        operations: activeProposal.operations.map((operation) => ({
+          nextContent: Object.hasOwn(editedContents, operation.path)
+            ? (editedContents[operation.path] ?? null)
+            : operation.nextContent,
+          path: operation.path,
+        })),
+      });
+    } catch (error) {
+      setRevisionError(error instanceof Error ? error.message : String(error));
+    } finally {
+      setRevising(false);
     }
   }
 
@@ -153,6 +198,12 @@ export function PatchPreview({
           ) : null}
         </div>
       ) : null}
+      {revisionError ? (
+        <div className="rounded-md bg-[#fff4e5] p-2 text-[#7a4a00] text-[12px]">
+          <div className="font-medium">{t("sheet.config.applyFailed")}</div>
+          {revisionError}
+        </div>
+      ) : null}
       {applyResult ? (
         <div
           className="rounded-md bg-white p-2 text-[12px] text-[var(--realm-fg-muted)]"
@@ -184,6 +235,17 @@ export function PatchPreview({
         >
           {t("sheet.config.apply")}
         </Button>
+        {onRevise ? (
+          <Button
+            data-testid="config-patch-revise"
+            disabled={!hasEdits || busy || revising || Boolean(applyResult)}
+            onClick={() => void revisePatch()}
+            type="button"
+            variant="secondary"
+          >
+            {t("sheet.config.preview")}
+          </Button>
+        ) : null}
         {applyResult ? (
           <Button
             disabled={busy || Boolean(rollbackResult)}
@@ -276,9 +338,29 @@ export function PatchPreview({
                   : t("sheet.config.newFile")}{" "}
                 {operation.nextHash ? `-> ${operation.nextHash.slice(0, 10)}` : ""}
               </div>
-              <pre className="mt-2 max-h-36 overflow-auto whitespace-pre-wrap text-[11px] text-[var(--realm-fg-muted)]">
-                {operation.nextContent ?? ""}
-              </pre>
+              {operation.action === "delete" ? (
+                <pre className="mt-2 max-h-36 overflow-auto whitespace-pre-wrap text-[11px] text-[var(--realm-fg-muted)]">
+                  {operation.nextContent ?? ""}
+                </pre>
+              ) : (
+                <textarea
+                  aria-label={operation.path}
+                  className="mt-2 min-h-36 w-full resize-y rounded-[6px] border border-[var(--realm-line)] bg-[#fbfbfc] p-2 font-mono text-[11px] text-[var(--realm-fg)] outline-none focus-visible:ring-2 focus-visible:ring-[#07c160]"
+                  data-testid="config-patch-edit-content"
+                  onChange={(event) =>
+                    setEditedContents((current) => ({
+                      ...current,
+                      [operation.path]: event.currentTarget.value,
+                    }))
+                  }
+                  spellCheck={false}
+                  value={
+                    Object.hasOwn(editedContents, operation.path)
+                      ? (editedContents[operation.path] ?? "")
+                      : (operation.nextContent ?? "")
+                  }
+                />
+              )}
             </div>
           ))}
         </TabsContent>

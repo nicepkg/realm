@@ -5,6 +5,7 @@ import {
   Menu,
   MessageCircle,
   Settings2,
+  ShieldAlert,
   UsersRound,
 } from "lucide-react";
 import type { ReactNode } from "react";
@@ -26,6 +27,7 @@ export function MessengerSidebar({
 }) {
   const { t } = useI18n();
   const isChatSection = app.activeSection === "chats" || app.activeSection === "settings";
+  const isReceiving = app.turnRun.status === "running";
   const title =
     app.activeSection === "roles"
       ? t("workspace.contacts")
@@ -37,7 +39,8 @@ export function MessengerSidebar({
       ? app.state.roles.length
       : app.activeSection === "worlds"
         ? app.state.worlds.length
-        : app.conversations.length;
+        : app.conversations.filter((conversation) => conversation.room.type !== "god-channel")
+            .length;
   const sectionCountLabel =
     app.activeSection === "roles"
       ? t("workspace.roleCount")
@@ -53,13 +56,16 @@ export function MessengerSidebar({
       <header className="shrink-0 border-[#d9d9dc] border-b bg-[#f2f2f2]">
         <div className="relative flex h-[86px] items-center justify-center px-4">
           <h2 className="flex max-w-[72%] items-center justify-center gap-2 truncate text-center font-semibold text-[18px] leading-6 text-[#111]">
-            {isChatSection ? (
+            {isChatSection && isReceiving ? (
               <span
                 aria-hidden="true"
-                className="size-4 shrink-0 rounded-full border-2 border-[#b9b9bd] border-t-transparent"
+                className="size-4 shrink-0 animate-spin rounded-full border-2 border-[#b9b9bd] border-t-transparent"
+                data-testid="rail-receiving-indicator"
               />
             ) : null}
-            <span className="truncate">{isChatSection ? t("workspace.receiving") : title}</span>
+            <span className="truncate" data-testid="rail-title">
+              {isChatSection && isReceiving ? t("workspace.receiving") : title}
+            </span>
           </h2>
           <button
             aria-label={t("common.create")}
@@ -96,9 +102,44 @@ export function MessengerSidebar({
 }
 
 function ConversationRows({ app }: { app: RealmAppController }) {
+  const { t } = useI18n();
+  // The God channel is an audited adjudication surface, not a peer DM. Keep it
+  // out of the plain chat list and present it as a distinct gated entry.
+  const chatConversations = app.conversations.filter(
+    (conversation) => conversation.room.type !== "god-channel",
+  );
+  const godConversation = app.conversations.find(
+    (conversation) => conversation.room.type === "god-channel",
+  );
+
   return (
     <div className="bg-white">
-      {app.conversations.map((conversation) => (
+      {godConversation ? (
+        <button
+          className={cn(
+            "relative grid h-[72px] w-full grid-cols-[56px_minmax(0,1fr)_auto] items-center gap-3 bg-[#fcfbf8] px-5 text-left transition after:absolute after:right-0 after:bottom-0 after:left-0 after:h-px after:bg-[#ececec] hover:bg-[#f6f4ee]",
+            godConversation.id === app.selectedRoom?.id && "bg-[#f0ede4] hover:bg-[#f0ede4]",
+          )}
+          data-adjudication-entry="god"
+          data-testid={`room-${godConversation.id}`}
+          key={godConversation.id}
+          onClick={() => void app.selectRoom(godConversation.id)}
+          type="button"
+        >
+          <span className="flex size-[44px] items-center justify-center rounded-[6px] bg-[#efe7d4] text-[#9a7b2e]">
+            <ShieldAlert className="size-6" />
+          </span>
+          <span className="min-w-0 self-center">
+            <span className="block truncate font-medium text-[15px] leading-[20px] text-[#5a4a1f]">
+              {t("workspace.adjudication")}
+            </span>
+            <span className="mt-[2px] block truncate text-[13px] leading-[18px] text-[#a59770]">
+              {t("workspace.godRoomSubtitle")}
+            </span>
+          </span>
+        </button>
+      ) : null}
+      {chatConversations.map((conversation) => (
         <button
           className={cn(
             "relative grid h-[82px] w-full grid-cols-[56px_minmax(0,1fr)_62px] items-center gap-3 px-5 text-left transition after:absolute after:right-0 after:bottom-0 after:left-[96px] after:h-px after:bg-[#e5e5e7] hover:bg-[#f3f3f4]",

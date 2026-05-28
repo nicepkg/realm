@@ -1,61 +1,32 @@
-import type {
-  Message,
-  RealmEvent,
-  RoleSummary,
-  Room,
-  StatePatchResult,
-  WorldSummary,
-} from "@realm/api-contract";
+import type { StatePatchResult } from "@realm/api-contract";
 import { RealmHttpClient } from "@realm/client-sdk";
 import { type FormEvent, useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useI18n } from "@/i18n/index.tsx";
 import { connectEventFeed } from "@/state/event-feed.ts";
+import {
+  type AppSection,
+  type AppState,
+  appendSentMessage,
+  classifyTurnFailure,
+  type GodRoleAction,
+  idleTurnRun,
+  initialState,
+  type LoadRealmOptions,
+  latestDenialReason,
+  type PendingMessage,
+  resolveIdentityAfterRealmLoad,
+  type SendError,
+  type TurnRunState,
+} from "@/state/realm-app-state-model.ts";
 import { buildConversationRows, isTraceEvent } from "@/view-models/realm-view-model.ts";
 
-export type AppSection = "chats" | "roles" | "worlds" | "settings";
-export type GodRoleAction = "kill" | "mute" | "revive";
-export type TurnRunState = {
-  status: "idle" | "running" | "error";
-  worldId?: string;
-  roomId?: string;
-  roleId?: string;
-  turnId?: string;
-  startedAt?: string;
-  error?: string;
-};
-
-type AppState = {
-  status: "loading" | "ready" | "error";
-  projectName: string;
-  worlds: WorldSummary[];
-  rooms: Room[];
-  roles: RoleSummary[];
-  messages: Message[];
-  conversationMessages: Message[];
-  events: RealmEvent[];
-  worldState?: {
-    version: number;
-    state: Record<string, unknown>;
-  };
-  error?: string;
-};
-
-type LoadRealmOptions = {
-  resetIdentity?: boolean;
-};
-
-const initialState: AppState = {
-  conversationMessages: [],
-  events: [],
-  messages: [],
-  projectName: "Realm",
-  roles: [],
-  rooms: [],
-  status: "loading",
-  worlds: [],
-};
-
-const idleTurnRun: TurnRunState = { status: "idle" };
+export type {
+  AppSection,
+  GodRoleAction,
+  PendingMessage,
+  SendError,
+  TurnRunState,
+} from "@/state/realm-app-state-model.ts";
 
 export function useRealmAppState() {
   const { t } = useI18n();
@@ -72,8 +43,12 @@ export function useRealmAppState() {
   const [godActionRoleId, setGodActionRoleId] = useState("");
   const [godActionReason, setGodActionReason] = useState("");
   const [godActionResult, setGodActionResult] = useState<StatePatchResult | undefined>();
+  const [pendingMessages, setPendingMessages] = useState<PendingMessage[]>([]);
+  const [sendError, setSendError] = useState<SendError | undefined>();
   const latestEventSeqRef = useRef(0);
   const reloadTimerRef = useRef<ReturnType<typeof setTimeout> | undefined>(undefined);
+  const selectedRoomIdRef = useRef<string | undefined>(undefined);
+  selectedRoomIdRef.current = selectedRoomId;
 
   const loadRealm = useCallback(
     async (preferredWorldId?: string, preferredRoomId?: string, options: LoadRealmOptions = {}) => {
@@ -228,9 +203,12 @@ export function useRealmAppState() {
         return current;
       }
       if (completed.type === "turn.failed") {
+        const reason = latestDenialReason(state.events);
+        const classified = classifyTurnFailure(reason, t);
         return {
           ...current,
-          error: "Role turn failed. Check the trace for provider or policy details.",
+          error: classified.error,
+          trustRelated: classified.trustRelated,
           status: "error",
           turnId: undefined,
         };
@@ -241,7 +219,12 @@ export function useRealmAppState() {
         turnId: undefined,
       };
     });
-  }, [state.events, turnRun.turnId]);
+  }, [state.events, turnRun.turnId, t]);
+
+  function clearPendingSendState() {
+    setPendingMessages([]);
+    setSendError(undefined);
+  }
 
   async function selectWorld(worldId: string) {
     setSelectedWorldId(worldId);
@@ -249,28 +232,136 @@ export function useRealmAppState() {
     setDraft("");
     setTurnRun(idleTurnRun);
     setActiveSection("chats");
+    clearPendingSendState();
     await loadRealm(worldId, undefined, { resetIdentity: true });
   }
 
   async function selectRoom(roomId: string) {
     setSelectedRoomId(roomId);
     setActiveSection("chats");
+    clearPendingSendState();
     await loadRealm(selectedWorld?.id, roomId);
   }
 
+  /**
+   * Core send path shared by first-attempt and retry. Inserts an optimistic
+   * pending bubble immediately; on success appends the returned message to the
+   * active room only (no full reload); on failure marks the bubble failed and
+   * raises an inline error that preserves the draft for retry.
+   */
+  const dispatchSend = useCallback(
+    async (input: {
+      worldId: string;
+      roomId: string;
+      displayedAuthorId: string;
+      content: string;
+    }) => {
+      const pendingId = `pending-${crypto.randomUUID()}`;
+      const optimistic: PendingMessage = {
+        content: input.content,
+        createdAt: new Date().toISOString(),
+        displayedAuthorId: input.displayedAuthorId,
+        pendingId,
+        roomId: input.roomId,
+        status: "pending",
+        worldId: input.worldId,
+      };
+      setSendError(undefined);
+      setPendingMessages((current) => [...current, optimistic]);
+      try {
+        const isOwner = input.displayedAuthorId === "owner";
+        const response = await client.sendMessage(input.roomId, {
+          content: input.content,
+          displayedAuthorId: input.displayedAuthorId,
+          idempotencyKey: `web-message-${isOwner ? "" : "identity-confirmed:"}${Date.now()}`,
+          worldId: input.worldId,
+        });
+        setPendingMessages((current) => current.filter((entry) => entry.pendingId !== pendingId));
+        setState((current) =>
+          appendSentMessage(current, response.message, {
+            isActiveRoom: selectedRoomIdRef.current === input.roomId,
+          }),
+        );
+      } catch (error) {
+        const message = error instanceof Error ? error.message : String(error);
+        setPendingMessages((current) =>
+          current.map((entry) =>
+            entry.pendingId === pendingId ? { ...entry, status: "failed" } : entry,
+          ),
+        );
+        setSendError({
+          displayedAuthorId: input.displayedAuthorId,
+          draft: input.content,
+          message,
+          pendingId,
+          roomId: input.roomId,
+          worldId: input.worldId,
+        });
+      }
+    },
+    [client],
+  );
+
   async function sendMessage(event?: FormEvent) {
     event?.preventDefault();
-    if (!draft.trim() || !selectedWorld || !selectedRoom) {
+    const content = draft.trim();
+    if (!content || !selectedWorld || !selectedRoom) {
       return;
     }
-    await client.sendMessage(selectedRoom.id, {
-      content: draft.trim(),
+    setDraft("");
+    await dispatchSend({
+      content,
       displayedAuthorId: identity,
-      idempotencyKey: `web-message-${identity === "owner" ? "" : "identity-confirmed:"}${Date.now()}`,
+      roomId: selectedRoom.id,
       worldId: selectedWorld.id,
     });
-    setDraft("");
-    await loadRealm(selectedWorld.id, selectedRoom.id);
+  }
+
+  async function retrySend() {
+    if (!sendError) {
+      return;
+    }
+    const retried = sendError;
+    setPendingMessages((current) =>
+      current.filter((entry) => entry.pendingId !== retried.pendingId),
+    );
+    setSendError(undefined);
+    await dispatchSend({
+      content: retried.draft,
+      displayedAuthorId: retried.displayedAuthorId,
+      roomId: retried.roomId,
+      worldId: retried.worldId,
+    });
+  }
+
+  function dismissSendError() {
+    if (!sendError) {
+      return;
+    }
+    const dismissed = sendError;
+    setPendingMessages((current) =>
+      current.filter((entry) => entry.pendingId !== dismissed.pendingId),
+    );
+    setSendError(undefined);
+    if (!draft.trim()) {
+      setDraft(dismissed.draft);
+    }
+  }
+
+  function sendErrorDetails(): string {
+    if (!sendError) {
+      return "";
+    }
+    return JSON.stringify(
+      {
+        displayedAuthorId: sendError.displayedAuthorId,
+        error: sendError.message,
+        roomId: sendError.roomId,
+        worldId: sendError.worldId,
+      },
+      null,
+      2,
+    );
   }
 
   async function runSelectedRoleTurn() {
@@ -301,11 +392,14 @@ export function useRealmAppState() {
       );
     } catch (error) {
       const message = error instanceof Error ? error.message : String(error);
-      setTurnRun({ ...request, error: message, status: "error", turnId: undefined });
-      setState((current) => ({
-        ...current,
-        error: message,
-      }));
+      const classified = classifyTurnFailure(message, t);
+      setTurnRun({
+        ...request,
+        error: classified.error,
+        trustRelated: classified.trustRelated,
+        status: "error",
+        turnId: undefined,
+      });
     }
   }
 
@@ -369,12 +463,19 @@ export function useRealmAppState() {
     godActionRoleId,
     identities,
     identity,
+    dismissSendError,
+    pendingMessages: selectedRoom
+      ? pendingMessages.filter((entry) => entry.roomId === selectedRoom.id)
+      : [],
     reload: () => loadRealm(selectedWorld?.id, selectedRoom?.id),
+    retrySend,
     runRoleId,
     runSelectedRoleTurn,
     selectedRole,
     selectedRoom,
     selectedWorld,
+    sendError,
+    sendErrorDetails,
     sendMessage,
     selectRoom,
     selectWorld,
@@ -390,15 +491,4 @@ export function useRealmAppState() {
     turnRun,
     turnStatus: turnRun.status,
   };
-}
-
-export function resolveIdentityAfterRealmLoad(
-  currentIdentity: string,
-  availableIdentities: string[],
-  resetIdentity = false,
-): string {
-  if (resetIdentity) {
-    return "owner";
-  }
-  return availableIdentities.includes(currentIdentity) ? currentIdentity : "owner";
 }

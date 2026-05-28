@@ -8,9 +8,9 @@ import {
   Plus,
   Search,
   Settings2,
-  Sparkles,
+  ShieldAlert,
 } from "lucide-react";
-import { useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 import { GroupAvatarGrid } from "@/components/messenger/messenger-primitives.tsx";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -20,6 +20,14 @@ import { Skeleton } from "@/components/ui/skeleton";
 import { useI18n } from "@/i18n/index.tsx";
 import { filterWorldsForManager } from "@/view-models/world-manager-view-model.ts";
 import type { RealmAppController } from "./types.ts";
+
+type TrustTier = "read-only" | "run-roles" | "elevated-tools";
+
+/** Local trust state for the World Manager attention banner. */
+type TrustState =
+  | { status: "loading" }
+  | { status: "ready"; tier: TrustTier }
+  | { status: "error" };
 
 export function WorldManagerPage({
   app,
@@ -35,10 +43,51 @@ export function WorldManagerPage({
   onOpenSettings: () => void;
 }) {
   const { t } = useI18n();
+  const { client } = app;
   const worldCount = app.state.worlds.length;
   const [worldSearch, setWorldSearch] = useState("");
   const visibleWorlds = filterWorldsForManager(app.state.worlds, app.state.roles, worldSearch);
   const health = app.state.status === "error" ? t("manager.healthAttention") : t("common.ready");
+
+  const [trust, setTrust] = useState<TrustState>({ status: "loading" });
+  const [trusting, setTrusting] = useState(false);
+  const [trustFailed, setTrustFailed] = useState(false);
+
+  const refreshTrust = useCallback(async () => {
+    try {
+      const policy = await client.getEffectivePolicy();
+      setTrust({ status: "ready", tier: policy.trustTier });
+    } catch {
+      setTrust({ status: "error" });
+    }
+  }, [client]);
+
+  useEffect(() => {
+    void refreshTrust();
+  }, [refreshTrust]);
+
+  const handleTrustProject = useCallback(async () => {
+    setTrusting(true);
+    setTrustFailed(false);
+    try {
+      const response = await client.setTrust("run-roles");
+      setTrust({ status: "ready", tier: response.trustTier });
+    } catch {
+      setTrustFailed(true);
+    } finally {
+      setTrusting(false);
+    }
+  }, [client]);
+
+  const trustLabel =
+    trust.status === "ready"
+      ? trust.tier === "read-only"
+        ? t("manager.trustReadOnly")
+        : trust.tier === "run-roles"
+          ? t("manager.trustRunRoles")
+          : t("manager.trustElevated")
+      : t("common.loading");
+  const isReadOnly = trust.status === "ready" && trust.tier === "read-only";
 
   return (
     <main
@@ -46,20 +95,23 @@ export function WorldManagerPage({
       data-testid="world-manager"
     >
       <header className="shrink-0 border-[var(--realm-line)] border-b bg-white/90">
-        <div className="mx-auto flex h-12 max-w-7xl items-center gap-3 px-4">
+        <div className="mx-auto flex h-12 max-w-5xl items-center gap-3 px-4">
           <div className="flex min-w-0 flex-1 items-center gap-2">
             <FolderGit2 className="size-4 shrink-0 text-[#6e6e73]" />
             <span className="truncate font-medium text-[#1d1d1f] text-[13px]">
               {app.state.projectName}
             </span>
           </div>
-          <div className="flex items-center gap-2">
-            <span className="hidden items-center gap-1 text-[#6e6e73] text-[12px] sm:inline-flex">
-              <CircleDot className="size-3 text-[#07c160]" />
+          <div className="flex items-center gap-3 text-[12px]">
+            <span className="hidden items-center gap-1 text-[#6e6e73] sm:inline-flex">
+              <CircleDot className="size-3 text-[#6e6e73]" />
               {health}
             </span>
-            <Badge className="border-transparent bg-white text-[#6e6e73]">
-              {worldCount} {t("common.worlds")}
+            <span className="hidden items-center gap-1 text-[#6e6e73] sm:inline-flex">
+              {t("manager.trustStatus")}: <span className="text-[#1d1d1f]">{trustLabel}</span>
+            </span>
+            <Badge className="border-transparent bg-[#f0f0f2] text-[#6e6e73]">
+              {t("workspace.worldCountLabel")(worldCount)}
             </Badge>
             <Button
               aria-label={t("common.settings")}
@@ -75,77 +127,64 @@ export function WorldManagerPage({
         </div>
       </header>
 
-      <section className="mx-auto grid min-h-0 w-full max-w-7xl flex-1 grid-cols-1 gap-6 overflow-auto px-4 py-6 lg:grid-cols-[minmax(360px,0.9fr)_minmax(460px,1.1fr)] lg:overflow-hidden">
-        <section className="flex min-h-0 flex-col justify-center">
-          <div className="max-w-xl">
-            <div className="mb-4 inline-flex items-center gap-2 rounded-full bg-white px-3 py-1.5 text-[#6e6e73] text-[12px]">
-              <Sparkles className="size-3.5 text-[#07c160]" />
-              <span>{t("manager.title")}</span>
+      <section className="mx-auto flex min-h-0 w-full max-w-5xl flex-1 flex-col gap-3 overflow-hidden px-4 py-4">
+        {isReadOnly ? (
+          <div
+            className="flex shrink-0 flex-col gap-3 rounded-lg bg-[#fff4e5] p-4 sm:flex-row sm:items-center"
+            data-testid="trust-banner"
+          >
+            <ShieldAlert className="size-5 shrink-0 text-[#ff9500]" />
+            <div className="min-w-0 flex-1">
+              <div className="font-medium text-[#1d1d1f] text-[14px]">
+                {t("manager.trustBannerTitle")}
+              </div>
+              <p className="mt-0.5 text-[#6e6e73] text-[13px] leading-5">
+                {t("manager.trustBannerBody")}
+              </p>
+              {trustFailed ? (
+                <p className="mt-1 text-[#ff3b30] text-[12px]" data-testid="trust-banner-error">
+                  {t("manager.trustBannerError")}
+                </p>
+              ) : null}
             </div>
-            <h1 className="font-semibold text-[#1d1d1f] text-[42px] leading-[1.08] tracking-normal md:text-[56px]">
-              {t("manager.createWorld")}
-            </h1>
-            <p className="mt-4 max-w-lg text-[#6e6e73] text-[17px] leading-7">
-              {t("manager.subtitle")}
-            </p>
-
-            <div className="mt-8 flex flex-col gap-3 sm:flex-row">
-              <Button
-                className="h-11 rounded-lg px-5 text-[15px]"
-                data-testid="create-world-primary"
-                onClick={onCreateWorld}
-                type="button"
-              >
-                <Plus className="size-4" />
-                {t("manager.createWorld")}
-              </Button>
-              <Button
-                className="h-11 rounded-lg px-5 text-[15px]"
-                onClick={onAskAssistant}
-                type="button"
-                variant="secondary"
-              >
-                <Bot className="size-4" />
-                {t("common.askAssistant")}
-              </Button>
-            </div>
-
-            <button
-              className="mt-7 grid w-full max-w-lg grid-cols-[48px_minmax(0,1fr)_auto] items-center gap-3 rounded-lg bg-white px-4 py-4 text-left transition hover:bg-[#fbfbfc]"
-              onClick={onCreateWorld}
+            <Button
+              className="h-9 shrink-0 rounded-lg px-4 text-[14px]"
+              data-testid="trust-project"
+              disabled={trusting}
+              onClick={() => void handleTrustProject()}
               type="button"
             >
-              <span className="flex size-12 items-center justify-center rounded-lg bg-[#e6f7ee] text-[#087a43]">
-                <Plus className="size-5" />
-              </span>
-              <span className="min-w-0">
-                <span className="block font-semibold text-[#1d1d1f] text-[15px]">
-                  {t("manager.createWorld")}
-                </span>
-                <span className="mt-1 block truncate text-[#6e6e73] text-[13px]">
-                  {t("manager.subtitle")}
-                </span>
-              </span>
-              <ArrowRight className="size-5 text-[#087a43]" />
-            </button>
+              {trusting ? t("manager.trustBannerPending") : t("manager.trustBannerAction")}
+            </Button>
           </div>
-        </section>
+        ) : null}
 
-        <section className="flex min-h-0 flex-col rounded-lg bg-white">
+        <section className="flex min-h-0 flex-1 flex-col rounded-lg bg-white">
           <div className="shrink-0 border-[var(--realm-line)] border-b p-4">
             <div className="mb-3 flex items-center justify-between gap-3">
               <div className="min-w-0">
-                <h2 className="truncate font-semibold text-[#1d1d1f] text-[18px]">
+                <h1 className="truncate font-semibold text-[#1d1d1f] text-[18px]">
                   {t("common.worlds")}
-                </h2>
+                </h1>
                 <p className="mt-0.5 truncate text-[#6e6e73] text-[13px]">
                   {t("manager.projectHint")}
                 </p>
               </div>
-              <Button onClick={onCreateWorld} size="sm" type="button">
-                <Plus className="size-4" />
-                {t("common.create")}
-              </Button>
+              <div className="flex shrink-0 items-center gap-2">
+                <Button onClick={onAskAssistant} size="sm" type="button" variant="secondary">
+                  <Bot className="size-4" />
+                  {t("common.askAssistant")}
+                </Button>
+                <Button
+                  data-testid="create-world-primary"
+                  onClick={onCreateWorld}
+                  size="sm"
+                  type="button"
+                >
+                  <Plus className="size-4" />
+                  {t("manager.createWorld")}
+                </Button>
+              </div>
             </div>
             <label
               className="flex h-9 items-center gap-2 rounded-md bg-[#f0f0f2] px-3"
@@ -222,7 +261,7 @@ export function WorldManagerPage({
                         {world.name}
                       </span>
                       {world.id === app.selectedWorld?.id ? (
-                        <Badge className="border-transparent bg-[#e6f7ee] text-[#087a43]">
+                        <Badge className="border-transparent bg-[#f0f0f2] text-[#6e6e73]">
                           {t("common.active")}
                         </Badge>
                       ) : null}
@@ -235,8 +274,8 @@ export function WorldManagerPage({
                       </span>
                     </div>
                   </div>
-                  <span className="inline-flex items-center gap-1 text-[#087a43] text-sm">
-                    {t("common.enter")} <ArrowRight className="size-4" />
+                  <span className="inline-flex items-center gap-1 text-[#6e6e73] text-sm">
+                    {t("common.enter")} <ArrowRight className="size-4 text-[#a1a1a6]" />
                   </span>
                 </button>
               ))}

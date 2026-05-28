@@ -3,6 +3,7 @@ import type { RealmEvent, Room, WorldSummary } from "@realm/api-contract";
 import { renderToStaticMarkup } from "react-dom/server";
 import type { RealmAppController } from "@/app/types.ts";
 import { I18nProvider } from "@/i18n/index.tsx";
+import { auditKindLabel } from "./world-audit-timeline.tsx";
 import {
   AccessAuditTimeline,
   accessDenialsForEvents,
@@ -66,6 +67,14 @@ describe("world inspector sheet", () => {
 
   test("formats missing world state as an empty JSON object", () => {
     expect(formatStateSnapshot(undefined)).toBe("{}");
+  });
+
+  test("labels each audit kind distinctly for the full audit timeline", () => {
+    const t = (key: string) => key;
+    expect(auditKindLabel("impersonation", t)).toBe("inspector.auditKindImpersonation");
+    expect(auditKindLabel("tool", t)).toBe("inspector.auditKindTool");
+    expect(auditKindLabel("state-patch", t)).toBe("inspector.auditKindStatePatch");
+    expect(auditKindLabel("audit", t)).toBe("inspector.auditKindAudit");
   });
 });
 

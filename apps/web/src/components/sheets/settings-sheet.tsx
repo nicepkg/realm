@@ -123,6 +123,14 @@ export function SettingsSheet({
           <SheetTitle>{t("sheet.settings.title")}</SheetTitle>
           <SheetDescription>{t("sheet.settings.body")}</SheetDescription>
         </SheetHeader>
+        {/*
+         * Language lives outside the load branches so it stays usable even when
+         * the settings API fails — the locale is client-side state, not part of
+         * the server snapshot.
+         */}
+        <div className="px-4">
+          <LanguageSection locale={locale} setLocale={setLocale} />
+        </div>
         {loadState.status === "loading" || loadState.status === "idle" ? <SettingsLoading /> : null}
         {loadState.status === "error" ? (
           <div className="mx-4 rounded-[8px] bg-[#fff4e5] p-3 text-[#7a4a00] text-[13px]">
@@ -132,26 +140,6 @@ export function SettingsSheet({
         ) : null}
         {loadState.status === "ready" ? (
           <div className="space-y-5 px-4 pb-5">
-            <SettingsSection title={t("sheet.settings.language")}>
-              <div className="flex gap-2">
-                <Button
-                  onClick={() => setLocale("en")}
-                  size="sm"
-                  type="button"
-                  variant={locale === "en" ? "default" : "secondary"}
-                >
-                  {t("sheet.settings.english")}
-                </Button>
-                <Button
-                  onClick={() => setLocale("zh-CN")}
-                  size="sm"
-                  type="button"
-                  variant={locale === "zh-CN" ? "default" : "secondary"}
-                >
-                  {t("sheet.settings.simplifiedChinese")}
-                </Button>
-              </div>
-            </SettingsSection>
             <ProviderDefaults
               draft={loadState.draft}
               onDraftChange={(draft) =>
@@ -172,6 +160,38 @@ export function SettingsSheet({
         ) : null}
       </SheetContent>
     </Sheet>
+  );
+}
+
+function LanguageSection({
+  locale,
+  setLocale,
+}: {
+  locale: ReturnType<typeof useI18n>["locale"];
+  setLocale: ReturnType<typeof useI18n>["setLocale"];
+}) {
+  const { t } = useI18n();
+  return (
+    <SettingsSection title={t("sheet.settings.language")}>
+      <div className="flex gap-2">
+        <Button
+          onClick={() => setLocale("en")}
+          size="sm"
+          type="button"
+          variant={locale === "en" ? "default" : "secondary"}
+        >
+          {t("sheet.settings.english")}
+        </Button>
+        <Button
+          onClick={() => setLocale("zh-CN")}
+          size="sm"
+          type="button"
+          variant={locale === "zh-CN" ? "default" : "secondary"}
+        >
+          {t("sheet.settings.simplifiedChinese")}
+        </Button>
+      </div>
+    </SettingsSection>
   );
 }
 

@@ -17,6 +17,7 @@ import type {
   ConfigActionSheetKind,
   PatchAppliedHandler,
   PatchApplyResult,
+  PatchRevisionInput,
 } from "./config-action-types.ts";
 import { PatchPreview } from "./patch-preview.tsx";
 
@@ -64,6 +65,20 @@ export function AssistantConfigSheet({
       const result = await app.client.applyConfigPatch(proposal.id, { confirmation });
       await app.reload();
       return result;
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  async function reviseProposal(input: PatchRevisionInput): Promise<ConfigPatchProposal> {
+    if (!proposal) {
+      throw new Error("No proposal loaded.");
+    }
+    setBusy(true);
+    try {
+      const response = await app.client.reviseConfigPatch(proposal.id, input);
+      setProposal(response.patch);
+      return response.patch;
     } finally {
       setBusy(false);
     }
@@ -126,6 +141,7 @@ export function AssistantConfigSheet({
           onApplied={onPatchApplied}
           onApply={applyProposal}
           onReject={() => setProposal(undefined)}
+          onRevise={reviseProposal}
           onRollback={(historyId) => app.client.rollbackConfig(historyId)}
         />
       </SheetContent>

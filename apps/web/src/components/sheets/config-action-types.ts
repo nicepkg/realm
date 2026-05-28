@@ -10,6 +10,13 @@ export type PatchApplyResult = {
   changedPaths: string[];
 };
 
+export type PatchRevisionInput = {
+  operations: Array<{
+    path: string;
+    nextContent: string | null;
+  }>;
+};
+
 export type PatchAppliedHandler = (proposal: ConfigPatchProposal, result: PatchApplyResult) => void;
 
 export type AppliedConfigPatch = PatchApplyResult & {

@@ -1,5 +1,6 @@
 import { useEffect, useState } from "react";
 import { RealmCommandPalette } from "@/components/command/realm-command-palette.tsx";
+import { LocaleToggle } from "@/components/layout/locale-toggle.tsx";
 import {
   type ConfigActionSheetKind,
   ConfigActionSheets,
@@ -52,6 +53,12 @@ export function AppShell() {
 
   return (
     <TooltipProvider>
+      {/*
+       * Persistent locale toggle. Mounted in the shell (not inside a page) so it
+       * survives mode switches and is reachable from both World Manager and
+       * Workspace without opening Settings.
+       */}
+      <LocaleToggle className="fixed top-2.5 right-3 z-50" />
       {mode === "manager" ? (
         <WorldManagerPage
           app={app}
@@ -87,24 +94,31 @@ export function AppShell() {
         open={workspaceSheet}
         onOpenChange={setWorkspaceSheet}
       />
-      <RealmCommandPalette
-        app={app}
-        mode={mode}
-        open={commandOpen}
-        onAskAssistant={() => setActionSheet("assistant-config")}
-        onBackToWorlds={() => setMode("manager")}
-        onCreateRoom={() => {
-          enterWorkspace(app.selectedWorld?.id);
-          setActionSheet("create-room");
-        }}
-        onCreateWorld={() => setActionSheet("create-world")}
-        onEnterWorkspace={enterWorkspace}
-        onOpenGod={() => openWorkspaceSheet("god")}
-        onOpenWorldInspector={() => openWorkspaceSheet("world-inspector")}
-        onOpenChange={setCommandOpen}
-        onInspectRole={inspectRole}
-        onOpenSettings={() => openWorkspaceSheet("settings")}
-      />
+      {/*
+       * Mount the command palette only while open so its dialog content (and the
+       * full command list) is absent from the accessibility tree / DOM snapshot
+       * when closed, instead of relying on a hidden-but-present Radix portal.
+       */}
+      {commandOpen ? (
+        <RealmCommandPalette
+          app={app}
+          mode={mode}
+          open={commandOpen}
+          onAskAssistant={() => setActionSheet("assistant-config")}
+          onBackToWorlds={() => setMode("manager")}
+          onCreateRoom={() => {
+            enterWorkspace(app.selectedWorld?.id);
+            setActionSheet("create-room");
+          }}
+          onCreateWorld={() => setActionSheet("create-world")}
+          onEnterWorkspace={enterWorkspace}
+          onOpenGod={() => openWorkspaceSheet("god")}
+          onOpenWorldInspector={() => openWorkspaceSheet("world-inspector")}
+          onOpenChange={setCommandOpen}
+          onInspectRole={inspectRole}
+          onOpenSettings={() => openWorkspaceSheet("settings")}
+        />
+      ) : null}
     </TooltipProvider>
   );
 }

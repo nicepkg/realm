@@ -15,10 +15,14 @@ describe("messenger avatar primitives", () => {
     const owner = avatarProfileForIdentity("Boss");
 
     expect(first).toEqual(second);
-    expect(typeof first.glyph).toBe("string");
+    expect(typeof first.initials).toBe("string");
+    expect(first.initials.length).toBeGreaterThan(0);
     expect(other).not.toEqual(first);
     expect(owner.background).not.toBe("#07c160");
     expect(owner.background).not.toBe("#32b768");
+    // No banned AI-purple and no emoji glyphs in the flat palette.
+    expect(first.background).not.toBe("#8e6cf7");
+    expect(first).not.toHaveProperty("glyph");
   });
 
   test("builds WeChat-style group avatar rows from real room members", () => {

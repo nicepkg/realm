@@ -1,4 +1,4 @@
-import { Activity, Braces, Clock3, Database, ShieldAlert } from "lucide-react";
+import { Activity, Braces, Clock3, Database, GitFork, ScrollText, ShieldAlert } from "lucide-react";
 import type { RealmAppController } from "@/app/types.ts";
 import { Badge } from "@/components/ui/badge";
 import { ScrollArea } from "@/components/ui/scroll-area";
@@ -12,6 +12,8 @@ import {
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { useI18n } from "@/i18n/index.tsx";
 import { describeTraceEvent, type TraceEvent } from "@/view-models/realm-view-model.ts";
+import { WorldAuditTimeline } from "./world-audit-timeline.tsx";
+import { WorldSimulationTab } from "./world-simulation-tab.tsx";
 
 type AccessDenial = {
   id: string;
@@ -63,7 +65,7 @@ export function WorldInspectorContent({ app }: { app: RealmAppController }) {
         />
       </section>
       <Tabs defaultValue="state">
-        <TabsList className="grid w-full grid-cols-3">
+        <TabsList className="grid w-full grid-cols-5">
           <TabsTrigger data-testid="world-inspector-state-tab" value="state">
             <Braces className="size-3.5" />
             {t("inspector.stateTab")}
@@ -72,9 +74,17 @@ export function WorldInspectorContent({ app }: { app: RealmAppController }) {
             <Activity className="size-3.5" />
             {t("inspector.eventsTab")}
           </TabsTrigger>
+          <TabsTrigger data-testid="world-inspector-audit-tab" value="audit">
+            <ScrollText className="size-3.5" />
+            {t("inspector.auditTab")}
+          </TabsTrigger>
           <TabsTrigger data-testid="world-inspector-access-tab" value="access">
             <ShieldAlert className="size-3.5" />
             {t("inspector.accessTab")}
+          </TabsTrigger>
+          <TabsTrigger data-testid="world-inspector-simulation-tab" value="simulation">
+            <GitFork className="size-3.5" />
+            {t("inspector.simulationTab")}
           </TabsTrigger>
         </TabsList>
         <TabsContent className="mt-3" value="state">
@@ -90,8 +100,14 @@ export function WorldInspectorContent({ app }: { app: RealmAppController }) {
         <TabsContent className="mt-3" value="events">
           <WorldEventTimeline app={app} />
         </TabsContent>
+        <TabsContent className="mt-3" value="audit">
+          <WorldAuditTimeline app={app} />
+        </TabsContent>
         <TabsContent className="mt-3" value="access">
           <AccessAuditTimeline events={app.traceEvents} />
+        </TabsContent>
+        <TabsContent className="mt-3" value="simulation">
+          <WorldSimulationTab app={app} />
         </TabsContent>
       </Tabs>
     </div>

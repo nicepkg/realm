@@ -3,7 +3,7 @@ import type { RoleSummary, Room, WorldSummary } from "@realm/api-contract";
 import { renderToStaticMarkup } from "react-dom/server";
 import type { RealmAppController } from "@/app/types.ts";
 import { I18nProvider } from "@/i18n/index.tsx";
-import { ChatHeader } from "./messenger-chat.tsx";
+import { ChatHeader, MessengerTimeline } from "./messenger-chat.tsx";
 
 describe("messenger chat header", () => {
   test("keeps project, world, room, identity, and running state visible", () => {
@@ -47,6 +47,71 @@ describe("messenger chat header", () => {
     expect(html).toContain("Role is running");
   });
 });
+
+describe("messenger timeline send states", () => {
+  test("renders a pending bubble and a failed bubble from the state layer", () => {
+    const html = renderToStaticMarkup(
+      <I18nProvider>
+        <MessengerTimeline
+          app={timelineApp({
+            pendingMessages: [
+              { pendingId: "p1", content: "queued draft", status: "pending" },
+              { pendingId: "p2", content: "failed draft", status: "failed" },
+            ],
+          })}
+        />
+      </I18nProvider>,
+    );
+
+    expect(html).toContain('data-testid="pending-message"');
+    expect(html).toContain('data-status="pending"');
+    expect(html).toContain('data-status="failed"');
+    expect(html).toContain("queued draft");
+  });
+
+  test("renders an inline send error with retry when the state layer reports one", () => {
+    const html = renderToStaticMarkup(
+      <I18nProvider>
+        <MessengerTimeline
+          app={timelineApp({
+            sendError: { message: "read-only project", draft: "kept draft" },
+          })}
+        />
+      </I18nProvider>,
+    );
+
+    expect(html).toContain('data-testid="send-error"');
+    expect(html).toContain('data-testid="send-error-retry"');
+    expect(html).toContain('role="alert"');
+  });
+
+  test("renders a God adjudication result as an in-timeline notice", () => {
+    const html = renderToStaticMarkup(
+      <I18nProvider>
+        <MessengerTimeline app={timelineApp({ godActionResult: { status: "committed" } })} />
+      </I18nProvider>,
+    );
+
+    expect(html).toContain('data-testid="god-result-notice"');
+  });
+});
+
+function timelineApp(overrides: {
+  pendingMessages?: Array<{ pendingId: string; content: string; status: "pending" | "failed" }>;
+  sendError?: { message: string; draft: string };
+  godActionResult?: unknown;
+}): RealmAppController {
+  return {
+    state: { status: "ready", messages: [], roles: [], error: undefined },
+    selectedRoom: undefined,
+    pendingMessages: overrides.pendingMessages ?? [],
+    sendError: overrides.sendError,
+    godActionResult: overrides.godActionResult,
+    retrySend: () => undefined,
+    dismissSendError: () => undefined,
+    sendErrorDetails: () => "{}",
+  } as unknown as RealmAppController;
+}
 
 function mockApp(turnRun: RealmAppController["turnRun"]): RealmAppController {
   const role: RoleSummary = {

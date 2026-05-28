@@ -27,15 +27,20 @@ export const ConversationContent = ({ className, ...props }: ConversationContent
 );
 
 export type ConversationEmptyStateProps = ComponentProps<"div"> & {
-  title?: string;
-  description?: string;
+  /**
+   * Required (no English default) so a caller that forgets to pass a localized
+   * value fails loudly at the type level instead of silently rendering
+   * hardcoded English. Pass an empty string to intentionally omit.
+   */
+  title: string;
+  description: string;
   icon?: React.ReactNode;
 };
 
 export const ConversationEmptyState = ({
   className,
-  title = "No messages yet",
-  description = "Start a conversation to see messages here",
+  title,
+  description,
   icon,
   children,
   ...props

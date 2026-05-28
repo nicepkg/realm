@@ -46,6 +46,10 @@ export function MessengerComposer({
     ? displayNameForIdentity(pendingIdentity, app.state.roles)
     : undefined;
   const canSend = Boolean(app.selectedRoom && app.draft.trim() && !pendingIdentity);
+  const isImpersonating = app.identity !== "owner";
+  const activeIdentityLabel = isImpersonating
+    ? displayNameForIdentity(app.identity, app.state.roles)
+    : t("common.boss");
 
   useEffect(() => {
     resizeComposer(inputRef.current, app.draft.length);
@@ -70,6 +74,44 @@ export function MessengerComposer({
       data-wechat-composer="voice-input-emoji-plus-send"
     >
       <form className="w-full" onSubmit={submit}>
+        <div className="flex items-center gap-2 px-5 pt-2.5">
+          <button
+            aria-label={t("workspace.sendAs")}
+            className={cn(
+              "inline-flex items-center gap-1.5 rounded-full px-2.5 py-1 text-[12px] transition",
+              isImpersonating
+                ? "bg-[#fff4e5] text-[#7a4a00] hover:bg-[#ffe8bf]"
+                : "bg-[#ececee] text-[var(--realm-fg-muted)] hover:bg-[#e2e2e5]",
+            )}
+            data-testid="composer-identity-chip"
+            data-identity-impersonating={isImpersonating ? "true" : "false"}
+            onClick={() => setActionTrayOpen((open) => !open)}
+            type="button"
+          >
+            <span
+              aria-hidden="true"
+              className={cn(
+                "size-1.5 rounded-full",
+                isImpersonating ? "bg-[var(--realm-impersonate,#ff9500)]" : "bg-[#a0a0a5]",
+              )}
+            />
+            <span className="max-w-[160px] truncate font-medium">
+              {isImpersonating
+                ? `${t("workspace.speakingAs")} ${activeIdentityLabel}`
+                : t("workspace.sendAsBoss")}
+            </span>
+          </button>
+          {isImpersonating ? (
+            <button
+              className="inline-flex items-center rounded-full px-2 py-1 text-[#7a4a00] text-[12px] underline-offset-2 transition hover:underline"
+              data-testid="composer-exit-takeover"
+              onClick={() => app.setIdentity("owner")}
+              type="button"
+            >
+              {t("workspace.exitTakeover")}
+            </button>
+          ) : null}
+        </div>
         {pendingIdentity && pendingIdentityLabel ? (
           <div
             className="mx-4 mt-2 flex flex-wrap items-center justify-between gap-2 rounded-md bg-[#fff4e5] px-3 py-2 text-[#7a4a00] text-[12px]"
