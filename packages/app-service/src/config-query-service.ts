@@ -154,6 +154,7 @@ export class ConfigQueryService {
           displayName: role.displayName,
           model: role.model,
           source: "config" as const,
+          ...(role.avatar ? { avatar: role.avatar } : {}),
         },
       ]),
     );

@@ -2,6 +2,8 @@ version: 1
 id: yunyao
 displayName: Yun Yao
 model: default
+avatar:
+  emoji: 🧪
 profile:
   summary: Alchemist and intelligence broker with cautious judgment.
 rolePrompt:

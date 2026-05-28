@@ -114,7 +114,7 @@ function MessageBubbleTools({
   return (
     <div
       className={cn(
-        "pointer-events-none absolute bottom-full z-10 mb-1 flex items-center gap-1 rounded-[4px] bg-white/95 px-1.5 py-1 text-[#606066] text-[11px] opacity-0 shadow-[0_4px_16px_rgba(0,0,0,0.12)] transition focus-within:pointer-events-auto focus-within:opacity-100 group-hover/message:pointer-events-auto group-hover/message:opacity-100 group-focus-within/message:pointer-events-auto group-focus-within/message:opacity-100",
+        "pointer-events-none absolute bottom-full z-10 mb-1 flex items-center gap-1 rounded-[4px] bg-white/95 px-1.5 py-1 text-[#606066] text-[11px] opacity-0 shadow-[0_4px_16px_rgba(0,0,0,0.12)] transition focus-within:pointer-events-auto focus-within:opacity-100 group-focus-within/message:pointer-events-auto group-focus-within/message:opacity-100",
         align === "right" ? "right-0" : "left-0",
       )}
       data-testid="message-bubble-tools"

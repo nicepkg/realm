@@ -116,6 +116,10 @@ try {
     "(() => { const grid = document.querySelector(\"[data-testid='group-avatar-grid']\"); if (!grid) return false; const cells = grid.querySelectorAll(\"[data-testid='group-avatar-cell']\").length; const rows = grid.querySelectorAll(\"[data-testid='group-avatar-row']\").length; return grid.getAttribute('data-wechat-grid') === 'member-collage' && grid.getAttribute('data-wechat-grid-shape') === 'nine-grid' && rows === 3 && cells === 9; })()",
   );
   await assertPage(
+    "WeChat avatars use configured role faces first and deterministic fallback slots when missing",
+    "(() => { const grid = document.querySelector(\"[data-testid='group-avatar-grid']\"); if (!grid) return false; const configured = grid.querySelectorAll(\"[data-avatar-kind='emoji'], [data-avatar-kind='image']\").length; const fallback = grid.querySelectorAll(\"[data-avatar-kind='fallback']\").length; return configured >= 3 && fallback >= 1; })()",
+  );
+  await assertPage(
     "WeChat top bar keeps room chrome and assistive project/world/identity/running metadata",
     "(() => { return document.querySelector(\"[data-testid='topbar-more']\") !== null && document.querySelector(\"[data-testid='context-project']\")?.textContent?.trim().length > 0 && document.querySelector(\"[data-testid='context-world']\")?.textContent?.trim().length > 0 && document.querySelector(\"[data-testid='context-identity']\")?.textContent?.includes('Boss') === true && document.querySelector(\"[data-testid='context-running-state']\")?.textContent?.includes('Ready') === true; })()",
   );

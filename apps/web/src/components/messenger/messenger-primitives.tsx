@@ -1,8 +1,9 @@
-import type { RoleSummary, Room } from "@realm/api-contract";
+import type { RoleAvatar, RoleSummary, Room } from "@realm/api-contract";
 import { cn } from "@/lib/utils.ts";
 
 type AvatarSize = "sm" | "md" | "lg" | "xl";
 type AvatarPerson = {
+  avatar?: RoleAvatar;
   id: string;
   label: string;
 };
@@ -155,13 +156,16 @@ export function IdentityAvatar({
   size?: AvatarSize;
 }) {
   const displayLabel = label ?? (identity ? labelForIdentity(identity, roles) : "Realm");
+  const explicitAvatar = identity ? avatarForIdentity(identity, roles) : undefined;
   const profile = avatarProfileForIdentity(displayLabel || identity || "Realm");
+  const avatarKind = explicitAvatar?.image ? "image" : explicitAvatar?.emoji ? "emoji" : "fallback";
+  const glyph = explicitAvatar?.emoji ?? profile.glyph;
 
   return (
     <span
       data-avatar-seed={identity ?? displayLabel}
-      data-avatar-glyph={profile.glyph}
-      data-avatar-kind="fallback"
+      data-avatar-glyph={glyph}
+      data-avatar-kind={avatarKind}
       data-testid="identity-avatar"
       data-wechat-avatar="person"
       className={cn(
@@ -176,14 +180,28 @@ export function IdentityAvatar({
       }}
       title={displayLabel}
     >
-      <span
-        aria-hidden="true"
-        className="absolute -right-1 -bottom-1 size-[18px] rounded-full opacity-35"
-        style={{ backgroundColor: profile.accent }}
-      />
-      <span aria-hidden="true" className="relative z-10 drop-shadow-[0_1px_1px_rgba(0,0,0,0.16)]">
-        {profile.glyph}
-      </span>
+      {explicitAvatar?.image ? (
+        <img
+          alt=""
+          className="size-full object-cover"
+          draggable={false}
+          src={explicitAvatar.image}
+        />
+      ) : (
+        <>
+          <span
+            aria-hidden="true"
+            className="absolute -right-1 -bottom-1 size-[18px] rounded-full opacity-35"
+            style={{ backgroundColor: profile.accent }}
+          />
+          <span
+            aria-hidden="true"
+            className="relative z-10 drop-shadow-[0_1px_1px_rgba(0,0,0,0.16)]"
+          >
+            {glyph}
+          </span>
+        </>
+      )}
       <span className="sr-only">{displayLabel}</span>
     </span>
   );
@@ -227,6 +245,12 @@ export function GroupAvatarGrid({
           {row.map((member) => {
             const seed = member.label || member.id;
             const profile = avatarProfileForIdentity(seed);
+            const avatarKind = member.avatar?.image
+              ? "image"
+              : member.avatar?.emoji
+                ? "emoji"
+                : "fallback";
+            const glyph = member.avatar?.emoji ?? profile.glyph;
             return (
               <span
                 className={cn(
@@ -234,8 +258,8 @@ export function GroupAvatarGrid({
                   GROUP_CELL_SIZE_CLASS[size],
                 )}
                 data-avatar-seed={seed}
-                data-avatar-glyph={profile.glyph}
-                data-avatar-kind="fallback"
+                data-avatar-glyph={glyph}
+                data-avatar-kind={avatarKind}
                 data-testid="group-avatar-cell"
                 data-wechat-avatar="group-member"
                 key={member.id || member.label}
@@ -246,14 +270,25 @@ export function GroupAvatarGrid({
                 }}
                 title={member.label}
               >
-                <span
-                  aria-hidden="true"
-                  className="absolute -right-1 -bottom-1 size-[7px] rounded-full opacity-45"
-                  style={{ backgroundColor: profile.accent }}
-                />
-                <span aria-hidden="true" className="relative z-10">
-                  {profile.glyph}
-                </span>
+                {member.avatar?.image ? (
+                  <img
+                    alt=""
+                    className="size-full object-cover"
+                    draggable={false}
+                    src={member.avatar.image}
+                  />
+                ) : (
+                  <>
+                    <span
+                      aria-hidden="true"
+                      className="absolute -right-1 -bottom-1 size-[7px] rounded-full opacity-45"
+                      style={{ backgroundColor: profile.accent }}
+                    />
+                    <span aria-hidden="true" className="relative z-10">
+                      {glyph}
+                    </span>
+                  </>
+                )}
                 <span className="sr-only">{member.label}</span>
               </span>
             );
@@ -279,6 +314,10 @@ export function labelForIdentity(identity: string, roles: RoleSummary[]) {
   return roles.find((role) => role.id === identity)?.displayName ?? identity;
 }
 
+function avatarForIdentity(identity: string, roles: RoleSummary[]): RoleAvatar | undefined {
+  return roles.find((role) => role.id === identity)?.avatar;
+}
+
 export function roomMembersForAvatar(room: Room, roles: RoleSummary[]): AvatarPerson[] {
   const roleIds = roles.map((role) => role.id);
   const fallbackIds =
@@ -293,7 +332,14 @@ export function roomMembersForAvatar(room: Room, roles: RoleSummary[]): AvatarPe
     }
     return [...new Set(sourceIds.filter(Boolean))];
   })();
-  return ids.map((id) => ({ id, label: labelForIdentity(id, roles) }));
+  return ids.map((id) => {
+    const avatar = avatarForIdentity(id, roles);
+    return {
+      ...(avatar ? { avatar } : {}),
+      id,
+      label: labelForIdentity(id, roles),
+    };
+  });
 }
 
 export function formatMessageTime(value: string): string {

@@ -86,11 +86,20 @@ export const roomSchema = z.object({
 
 export type Room = z.infer<typeof roomSchema>;
 
+export const roleAvatarSchema = z
+  .object({
+    emoji: z.string().min(1).optional(),
+    image: z.string().min(1).optional(),
+  })
+  .refine((avatar) => avatar.emoji || avatar.image, "Avatar must include emoji or image");
+export type RoleAvatar = z.infer<typeof roleAvatarSchema>;
+
 export const roleSummarySchema = z.object({
   id: idSchema,
   displayName: z.string().min(1),
   model: z.string().min(1),
   source: z.enum(["config", "world", "template"]),
+  avatar: roleAvatarSchema.optional(),
 });
 
 export type RoleSummary = z.infer<typeof roleSummarySchema>;

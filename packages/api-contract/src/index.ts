@@ -34,6 +34,7 @@ export type {
   Message,
   ModelUsage,
   RealmEvent,
+  RoleAvatar,
   RoleSummary,
   Room,
   StatePatch,

@@ -214,6 +214,8 @@ describe("config project layout", () => {
         "id: leijun",
         "displayName: Lei Jun",
         "model: default",
+        "avatar:",
+        "  emoji: 🧭",
         "rolePrompt:",
         "  skill: leijun",
         "  source: role-private",
@@ -233,6 +235,7 @@ describe("config project layout", () => {
 
     expect(promptSkill?.scope).toBe("role-prompt");
     expect(promptSkill?.content).toContain("Role DNA");
+    expect(role?.avatar).toEqual({ emoji: "🧭" });
     expect(callableSkills.map((skill) => `${skill.scope}:${skill.name}`)).toEqual([
       "role-private:note-taker",
       "world:market-news",

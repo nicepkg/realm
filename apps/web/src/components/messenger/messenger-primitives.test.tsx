@@ -23,6 +23,7 @@ describe("messenger avatar primitives", () => {
 
   test("builds WeChat-style group avatar rows from room members", () => {
     const roles: RoleSummary[] = Array.from({ length: 10 }, (_, index) => ({
+      ...(index === 0 ? { avatar: { emoji: "🧭" } } : {}),
       displayName: `Role ${index + 1}`,
       id: `role-${index + 1}`,
       model: "default",
@@ -40,6 +41,11 @@ describe("messenger avatar primitives", () => {
     const rows = groupRowsForMembers(members.slice(0, 9));
 
     expect(members[0]).toEqual({ id: "owner", label: "Boss" });
+    expect(members[1]).toEqual({
+      avatar: { emoji: "🧭" },
+      id: "role-1",
+      label: "Role 1",
+    });
     expect(rows).toHaveLength(3);
     expect(rows.flat()).toHaveLength(9);
     expect(rows.every((row) => row.length <= 3)).toBe(true);

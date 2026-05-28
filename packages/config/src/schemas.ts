@@ -1,3 +1,4 @@
+import { roleAvatarSchema } from "@realm/core";
 import { z } from "zod";
 
 export const skillPolicySchema = z.object({
@@ -153,6 +154,7 @@ export const roleConfigSchema = z.object({
   id: z.string().min(1),
   displayName: z.string().min(1),
   model: z.string().min(1),
+  avatar: roleAvatarSchema.optional(),
   profile: z
     .object({
       summary: z.string().default(""),

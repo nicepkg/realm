@@ -51,6 +51,33 @@ describe("RealmApplicationService", () => {
     expect(service.listEvents().map((event) => event.type)).not.toContain("config.patch.applied");
   });
 
+  test("exposes configured role avatars through effective config", async () => {
+    const root = await mkdtemp(path.join(os.tmpdir(), "realm-app-avatar-"));
+    await initProject(root, "demo");
+    const roleDir = path.join(root, ".agents", "roles", "leijun");
+    await mkdir(roleDir, { recursive: true });
+    await writeFile(
+      path.join(roleDir, "role.yaml"),
+      [
+        "version: 1",
+        "id: leijun",
+        "displayName: Lei Jun",
+        "model: default",
+        "avatar:",
+        "  emoji: 🧭",
+        "",
+      ].join("\n"),
+      "utf8",
+    );
+    const service = new RealmApplicationService({ root, trustTier: "run-roles" });
+
+    const effective = await service.getEffectiveConfig();
+
+    expect(effective.roles.find((role) => role.id === "leijun")?.avatar).toEqual({
+      emoji: "🧭",
+    });
+  });
+
   test("requires typed confirmation for high-risk config patches", async () => {
     const root = await mkdtemp(path.join(os.tmpdir(), "realm-app-config-risk-"));
     await initProject(root, "demo");
