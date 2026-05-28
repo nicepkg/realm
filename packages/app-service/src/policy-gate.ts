@@ -23,6 +23,10 @@ export class ServicePolicyGate {
     },
   ) {}
 
+  setTrustTier(trustTier: TrustTier): void {
+    this.input.trustTier = trustTier;
+  }
+
   appendAudit(input: AppendAuditInput): void {
     const createdAt = nowIso(this.input.clock());
     this.input.eventStore.append({

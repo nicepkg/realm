@@ -1,24 +1,18 @@
 import {
   adminStatePatchRequestSchema,
   adminStatePatchResponseSchema,
-  applyProjectPatchRequestSchema,
   assistantConfigRequestSchema,
   cancelTurnResponseSchema,
   configPatchApplyRequestSchema,
   configPatchApplyResponseSchema,
   configPatchProposalResponseSchema,
+  configPatchReviseRequestSchema,
   configRollbackResponseSchema,
   configStatusResponseSchema,
   createRoleRequestSchema,
   createRoomRequestSchema,
   createRoomResponseSchema,
-  createWorkflowArtifactRequestSchema,
-  createWorkflowArtifactResponseSchema,
-  createWorkflowTaskRequestSchema,
-  createWorkflowTaskResponseSchema,
   createWorldRequestSchema,
-  decideWorkflowApprovalRequestSchema,
-  decideWorkflowReviewRequestSchema,
   effectiveConfigResponseSchema,
   effectivePolicyResponseSchema,
   extensionMemoryReadRequestSchema,
@@ -29,6 +23,7 @@ import {
   extensionStateQueryResponseSchema,
   godRoleActionRequestSchema,
   godRoleActionResponseSchema,
+  listAuditsResponseSchema,
   listEventsResponseSchema,
   listMessagesResponseSchema,
   listRolesResponseSchema,
@@ -36,17 +31,15 @@ import {
   listWorldsResponseSchema,
   naturalWorldEventRequestSchema,
   naturalWorldEventResponseSchema,
-  projectPatchResponseSchema,
   projectResponseSchema,
-  proposeProjectPatchRequestSchema,
   randomNaturalWorldEventRequestSchema,
   randomWorldEventRequestSchema,
-  requestWorkflowApprovalRequestSchema,
-  requestWorkflowReviewRequestSchema,
   runRoleTurnRequestSchema,
   runRoleTurnResponseSchema,
   sendMessageRequestSchema,
   sendMessageResponseSchema,
+  setTrustRequestSchema,
+  setTrustResponseSchema,
   settingsExportResponseSchema,
   type settingsImportRequestSchema,
   settingsResponseSchema,
@@ -54,8 +47,6 @@ import {
   tickWorldEventRequestSchema,
   updateProjectSettingsRequestSchema,
   updateUserSettingsRequestSchema,
-  workflowApprovalResponseSchema,
-  workflowReviewResponseSchema,
   worldEventConditionRequestSchema,
   worldEventReplayResponseSchema,
   worldEventTriggerRequestSchema,
@@ -64,13 +55,14 @@ import {
   worldTickTriggerResponseSchema,
 } from "@realm/api-contract";
 import type { z } from "zod";
-import { type RealmClientOptions, RealmHttpTransport } from "./http.ts";
+import type { RealmClientOptions } from "./http.ts";
 import { RealmSimulationClient } from "./simulation-client.ts";
+import { RealmWorkflowClient } from "./workflow-client.ts";
 
 export type { RealmClientOptions } from "./http.ts";
 export { RealmSimulationClient } from "./simulation-client.ts";
 
-export class RealmHttpClient extends RealmHttpTransport {
+export class RealmHttpClient extends RealmWorkflowClient {
   readonly simulation: RealmSimulationClient;
 
   constructor(options: RealmClientOptions = {}) {
@@ -119,8 +111,16 @@ export class RealmHttpClient extends RealmHttpTransport {
   async getEffectivePolicy(): Promise<z.infer<typeof effectivePolicyResponseSchema>> {
     return this.get("/api/policy/effective", effectivePolicyResponseSchema);
   }
+  async setTrust(
+    tier: z.input<typeof setTrustRequestSchema>["tier"],
+  ): Promise<z.infer<typeof setTrustResponseSchema>> {
+    return this.post("/api/trust", setTrustRequestSchema.parse({ tier }), setTrustResponseSchema);
+  }
   async listEvents(afterSeq = 0): Promise<z.infer<typeof listEventsResponseSchema>> {
     return this.get(`/api/events?afterSeq=${afterSeq}`, listEventsResponseSchema);
+  }
+  async listAudits(worldId: string): Promise<z.infer<typeof listAuditsResponseSchema>> {
+    return this.get(`/api/worlds/${encodeURIComponent(worldId)}/audits`, listAuditsResponseSchema);
   }
   async listWorlds(): Promise<z.infer<typeof listWorldsResponseSchema>> {
     return this.get("/api/worlds", listWorldsResponseSchema);
@@ -243,102 +243,22 @@ export class RealmHttpClient extends RealmHttpTransport {
     );
   }
 
+  async reviseConfigPatch(
+    patchId: string,
+    input: z.input<typeof configPatchReviseRequestSchema>,
+  ): Promise<z.infer<typeof configPatchProposalResponseSchema>> {
+    return this.post(
+      `/api/config/patches/${encodeURIComponent(patchId)}/revise`,
+      configPatchReviseRequestSchema.parse(input),
+      configPatchProposalResponseSchema,
+    );
+  }
+
   async rollbackConfig(historyId: string): Promise<z.infer<typeof configRollbackResponseSchema>> {
     return this.post(
       `/api/config/history/${encodeURIComponent(historyId)}/rollback`,
       {},
       configRollbackResponseSchema,
-    );
-  }
-
-  async createWorkflowArtifact(
-    worldId: string,
-    input: z.input<typeof createWorkflowArtifactRequestSchema>,
-  ): Promise<z.infer<typeof createWorkflowArtifactResponseSchema>> {
-    return this.post(
-      `/api/worlds/${encodeURIComponent(worldId)}/workflow/artifacts`,
-      createWorkflowArtifactRequestSchema.parse(input),
-      createWorkflowArtifactResponseSchema,
-    );
-  }
-
-  async createWorkflowTask(
-    worldId: string,
-    input: z.input<typeof createWorkflowTaskRequestSchema>,
-  ): Promise<z.infer<typeof createWorkflowTaskResponseSchema>> {
-    return this.post(
-      `/api/worlds/${encodeURIComponent(worldId)}/workflow/tasks`,
-      createWorkflowTaskRequestSchema.parse(input),
-      createWorkflowTaskResponseSchema,
-    );
-  }
-
-  async requestWorkflowReview(
-    worldId: string,
-    input: z.input<typeof requestWorkflowReviewRequestSchema>,
-  ): Promise<z.infer<typeof workflowReviewResponseSchema>> {
-    return this.post(
-      `/api/worlds/${encodeURIComponent(worldId)}/workflow/reviews`,
-      requestWorkflowReviewRequestSchema.parse(input),
-      workflowReviewResponseSchema,
-    );
-  }
-
-  async decideWorkflowReview(
-    worldId: string,
-    reviewId: string,
-    input: z.input<typeof decideWorkflowReviewRequestSchema>,
-  ): Promise<z.infer<typeof workflowReviewResponseSchema>> {
-    return this.post(
-      `/api/worlds/${encodeURIComponent(worldId)}/workflow/reviews/${encodeURIComponent(reviewId)}/decision`,
-      decideWorkflowReviewRequestSchema.parse(input),
-      workflowReviewResponseSchema,
-    );
-  }
-
-  async requestWorkflowApproval(
-    worldId: string,
-    input: z.input<typeof requestWorkflowApprovalRequestSchema>,
-  ): Promise<z.infer<typeof workflowApprovalResponseSchema>> {
-    return this.post(
-      `/api/worlds/${encodeURIComponent(worldId)}/workflow/approvals`,
-      requestWorkflowApprovalRequestSchema.parse(input),
-      workflowApprovalResponseSchema,
-    );
-  }
-
-  async decideWorkflowApproval(
-    worldId: string,
-    approvalId: string,
-    input: z.input<typeof decideWorkflowApprovalRequestSchema>,
-  ): Promise<z.infer<typeof workflowApprovalResponseSchema>> {
-    return this.post(
-      `/api/worlds/${encodeURIComponent(worldId)}/workflow/approvals/${encodeURIComponent(approvalId)}/decision`,
-      decideWorkflowApprovalRequestSchema.parse(input),
-      workflowApprovalResponseSchema,
-    );
-  }
-
-  async proposeProjectPatch(
-    worldId: string,
-    input: z.input<typeof proposeProjectPatchRequestSchema>,
-  ): Promise<z.infer<typeof projectPatchResponseSchema>> {
-    return this.post(
-      `/api/worlds/${encodeURIComponent(worldId)}/workflow/project-patches`,
-      proposeProjectPatchRequestSchema.parse(input),
-      projectPatchResponseSchema,
-    );
-  }
-
-  async applyProjectPatch(
-    worldId: string,
-    patchId: string,
-    input: z.input<typeof applyProjectPatchRequestSchema>,
-  ): Promise<z.infer<typeof projectPatchResponseSchema>> {
-    return this.post(
-      `/api/worlds/${encodeURIComponent(worldId)}/workflow/project-patches/${encodeURIComponent(patchId)}/apply`,
-      applyProjectPatchRequestSchema.parse(input),
-      projectPatchResponseSchema,
     );
   }
 

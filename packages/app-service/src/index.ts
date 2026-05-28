@@ -1,17 +1,21 @@
 import path from "node:path";
 import {
   type ConfigPatchApplyInput,
+  type ConfigPatchRevisionInput,
   type CreateRolePatchInput,
   type CreateWorldPatchInput,
   FileConfigPatchStore,
   type ProjectConfig,
   projectLayout,
+  trustProject,
   type UserConfig,
 } from "@realm/config";
 import type { ConfigPatchProposal, Message, RealmEvent, Room } from "@realm/core";
 import { PackagePiBridge, type PiBridge } from "@realm/pi-bridge";
+import type { TrustTier } from "@realm/policy";
 import { PiRoleTurnRunner } from "@realm/runtime";
 import { type EventStore, InMemoryEventStore } from "@realm/storage";
+import { projectAuditTimeline } from "./audit-projection.ts";
 import { ConfigPatchService } from "./config-patch-service.ts";
 import { ConfigQueryService, type EffectivePolicyMatrix } from "./config-query-service.ts";
 import {
@@ -67,33 +71,7 @@ import {
   type WorldStateView,
 } from "./world-state-service.ts";
 
-export type {
-  ExtensionAccessDecision,
-  ExtensionAccessInput,
-  ExtensionSessionScope,
-} from "./extension-access-service.ts";
-export type { CreateRoomInput, SendMessageInput } from "./message-service.ts";
-export type { ApplyProjectPatchInput, ProposeProjectPatchInput } from "./project-patch-service.ts";
-export type { RoleMemoryInput, RoleMemoryWriteInput } from "./role-memory-service.ts";
-export type { RealmApplicationServiceOptions, RunRoleTurnInput } from "./types.ts";
-export type {
-  CreateWorkflowArtifactInput,
-  CreateWorkflowTaskInput,
-  DecideWorkflowApprovalInput,
-  DecideWorkflowReviewInput,
-  RequestWorkflowApprovalInput,
-  RequestWorkflowReviewInput,
-} from "./workflow-service.ts";
-export type {
-  AdminStatePatchInput,
-  GodRoleActionInput,
-  GodRoleActionResult,
-  NaturalWorldEventInput,
-  NaturalWorldEventResult,
-  RandomNaturalWorldEventInput,
-  StateQueryInput,
-  WorldStateView,
-} from "./world-state-service.ts";
+export * from "./public-types.ts";
 export type { SettingsExportSnapshot, SettingsSnapshot, TurnCancelResult };
 export { OWNER_ID };
 
@@ -264,6 +242,25 @@ export class RealmApplicationService {
   async getEffectivePolicy(): Promise<EffectivePolicyMatrix> {
     return this.configQueryService.getEffectivePolicy();
   }
+
+  /**
+   * Set and persist the project trust tier. Persists to the user-local trust
+   * store (the same file the runtime reads at startup via `readProjectTrust`)
+   * so set and read agree across restarts, and updates the live policy gate so
+   * the running process honors the new tier immediately without a restart.
+   */
+  async setTrust(tier: TrustTier): Promise<{ trustTier: TrustTier; trustedAt: string }> {
+    const record = await trustProject(this.options.root, tier, this.options.env, this.clock);
+    this.policyGate.setTrustTier(record.tier);
+    this.configQueryService.setTrustTier(record.tier);
+    this.policyGate.appendAudit({
+      actorId: OWNER_ID,
+      action: "trust.updated",
+      target: "project-trust",
+      reason: `Project trust tier set to ${record.tier}.`,
+    });
+    return { trustTier: record.tier, trustedAt: record.trustedAt };
+  }
   async listWorlds() {
     return this.configQueryService.listWorlds();
   }
@@ -280,6 +277,12 @@ export class RealmApplicationService {
   }
   lastEventSeq(): number {
     return this.eventStore.lastSeq();
+  }
+
+  /** Full audit timeline for a world (read-only, capability-free). */
+  listAudits(worldId: string): { audits: ReturnType<typeof projectAuditTimeline> } {
+    assertSafePathSegment(worldId, "worldId");
+    return { audits: projectAuditTimeline(this.eventStore.list({ limit: 500 })) };
   }
 
   createRoom(input: CreateRoomInput): Room {
@@ -434,6 +437,13 @@ export class RealmApplicationService {
     input: ConfigPatchApplyInput = {},
   ): Promise<{ patchId: string; historyId: string; changedPaths: string[] }> {
     return this.configPatchService.applyConfigPatch(patchId, input);
+  }
+
+  async reviseConfigPatch(
+    patchId: string,
+    input: ConfigPatchRevisionInput,
+  ): Promise<ConfigPatchProposal> {
+    return this.configPatchService.reviseConfigPatch(patchId, input);
   }
 
   async rollbackConfigHistory(

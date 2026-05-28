@@ -5,6 +5,7 @@ import {
   applyProjectPatchRequestSchema,
   assistantConfigRequestSchema,
   configPatchApplyRequestSchema,
+  configPatchReviseRequestSchema,
   createRoleRequestSchema,
   createRoomRequestSchema,
   createWorkflowArtifactRequestSchema,
@@ -23,6 +24,7 @@ import {
   requestWorkflowReviewRequestSchema,
   runRoleTurnRequestSchema,
   sendMessageRequestSchema,
+  setTrustRequestSchema,
   updateProjectSettingsRequestSchema,
   updateUserSettingsRequestSchema,
 } from "@realm/api-contract";
@@ -86,6 +88,10 @@ export function createRealmServer(options: RealmServerOptions): Hono {
   app.get("/api/policy/effective", async (context) =>
     context.json(await service.getEffectivePolicy()),
   );
+  app.post("/api/trust", async (context) => {
+    const request = setTrustRequestSchema.parse(await context.req.json());
+    return context.json(await service.setTrust(request.tier));
+  });
 
   app.get("/api/events", (context) => {
     const afterSeq = Number.parseInt(context.req.query("afterSeq") ?? "0", 10);
@@ -115,6 +121,9 @@ export function createRealmServer(options: RealmServerOptions): Hono {
   );
   app.get("/api/worlds/:worldId/roles/:roleId/memory", async (context) =>
     context.json(await service.readRoleMemory({ roleId: context.req.param("roleId") })),
+  );
+  app.get("/api/worlds/:worldId/audits", (context) =>
+    context.json(service.listAudits(context.req.param("worldId"))),
   );
   registerWorldEventRoutes(app, service);
   registerSimulationRoutes(app, service);
@@ -253,6 +262,13 @@ export function createRealmServer(options: RealmServerOptions): Hono {
     const rawBody = await context.req.text();
     const request = configPatchApplyRequestSchema.parse(rawBody ? JSON.parse(rawBody) : {});
     return context.json(await service.applyConfigPatch(context.req.param("patchId"), request));
+  });
+
+  app.post("/api/config/patches/:patchId/revise", async (context) => {
+    const request = configPatchReviseRequestSchema.parse(await context.req.json());
+    return context.json({
+      patch: await service.reviseConfigPatch(context.req.param("patchId"), request),
+    });
   });
 
   app.post("/api/config/history/:historyId/rollback", async (context) =>

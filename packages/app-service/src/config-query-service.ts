@@ -43,6 +43,10 @@ export class ConfigQueryService {
     },
   ) {}
 
+  setTrustTier(trustTier: TrustTier): void {
+    this.options.trustTier = trustTier;
+  }
+
   async getProject(): Promise<{ root: string; name: string; defaultWorldId: string }> {
     const config = await loadProjectConfig(this.root);
     return {

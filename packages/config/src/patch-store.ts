@@ -28,6 +28,13 @@ export type ConfigPatchApplyInput = {
   confirmation?: string;
 };
 
+export type ConfigPatchRevisionInput = {
+  operations: Array<{
+    path: string;
+    nextContent: string | null;
+  }>;
+};
+
 type ConfigHistoryManifest = {
   id: string;
   patchId: string;
@@ -121,6 +128,49 @@ export class FileConfigPatchStore {
     const proposalPath = this.proposalPath(patchId);
     const raw = await readFile(proposalPath, "utf8");
     return configPatchProposalSchema.parse(JSON.parse(raw));
+  }
+
+  async revise(patchId: string, input: ConfigPatchRevisionInput): Promise<ConfigPatchProposal> {
+    const proposal = await this.loadProposal(patchId);
+    const revisions = new Map<string, string | null>();
+    for (const operation of input.operations) {
+      if (revisions.has(operation.path)) {
+        throw new Error(`Duplicate config patch revision for ${operation.path}`);
+      }
+      revisions.set(operation.path, operation.nextContent);
+    }
+
+    const proposalPaths = new Set(proposal.operations.map((operation) => operation.path));
+    for (const path of revisions.keys()) {
+      if (!proposalPaths.has(path)) {
+        throw new Error(`Cannot revise unknown config patch path: ${path}`);
+      }
+    }
+
+    const revised = await this.createProposal({
+      title: proposal.title,
+      summary: proposal.summary,
+      riskLevel: proposal.riskLevel,
+      requiredCapabilities: proposal.requiredCapabilities,
+      files: proposal.operations.map((operation) => {
+        const nextContent = revisions.has(operation.path)
+          ? (revisions.get(operation.path) ?? null)
+          : operation.nextContent;
+        if (operation.action === "delete" && nextContent !== null) {
+          throw new Error(`Delete patch content must stay empty: ${operation.path}`);
+        }
+        if (operation.action !== "delete" && nextContent === null) {
+          throw new Error(`Edited patch content is required for ${operation.path}`);
+        }
+        return {
+          action: operation.action,
+          content: nextContent,
+          path: operation.path,
+        };
+      }),
+    });
+    await this.saveProposal(revised);
+    return revised;
   }
 
   async apply(patchId: string, input: ConfigPatchApplyInput = {}): Promise<ConfigPatchApplyResult> {

@@ -2,6 +2,7 @@ import { randomUUID } from "node:crypto";
 import { type ConfigAssistantPlanner, DeterministicConfigAssistantPlanner } from "@realm/assistant";
 import type {
   ConfigPatchApplyInput,
+  ConfigPatchRevisionInput,
   CreateRolePatchInput,
   CreateWorldPatchInput,
   FileConfigPatchStore,
@@ -77,6 +78,25 @@ export class ConfigPatchService {
       reason: proposal.summary,
     });
     return result;
+  }
+
+  async reviseConfigPatch(
+    patchId: string,
+    input: ConfigPatchRevisionInput,
+  ): Promise<ConfigPatchProposal> {
+    const proposal = await this.options.patchStore.loadProposal(patchId);
+    for (const capability of proposal.requiredCapabilities) {
+      this.options.assertAllowed(capability);
+    }
+    const revised = await this.options.patchStore.revise(patchId, input);
+    this.appendConfigPatchProposed(revised);
+    this.options.appendAudit({
+      actorId: OWNER_ID,
+      action: "config.patch.revised",
+      target: revised.id,
+      reason: proposal.summary,
+    });
+    return revised;
   }
 
   async rollbackConfigHistory(

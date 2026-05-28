@@ -55,6 +55,31 @@ describe("Realm server API", () => {
     expect(payload.messages.map((message) => message.content)).toEqual(["Hello realm."]);
   });
 
+  test("exposes the full audit timeline including impersonation entries", async () => {
+    const root = await mkdtemp(path.join(os.tmpdir(), "realm-server-audits-"));
+    await initProject(root, "demo");
+    const app = createRealmServer({ root, trustTier: "run-roles" });
+
+    // Send as a role (impersonation) so an audit entry is recorded.
+    await app.request("/api/rooms/main/messages", {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({
+        worldId: "cultivation",
+        displayedAuthorId: "leijun",
+        content: "Speaking as Lei Jun.",
+      }),
+    });
+
+    const response = await app.request("/api/worlds/cultivation/audits");
+    const payload = (await response.json()) as {
+      audits: Array<{ kind: string; action: string; actorId: string }>;
+    };
+
+    expect(response.status).toBe(200);
+    expect(payload.audits.some((entry) => entry.kind === "impersonation")).toBe(true);
+  });
+
   test("ignores caller-supplied operators on the public message API", async () => {
     const root = await mkdtemp(path.join(os.tmpdir(), "realm-server-message-operator-"));
     await initProject(root, "demo");
