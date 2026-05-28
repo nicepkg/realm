@@ -184,7 +184,11 @@ async function runDraftRecoverySmoke(
     showSettings,
   );
   assertIncludes(copyable ?? "", edited, "TUI draft copy details include edited content");
-  assertIncludes(copyable ?? "", saved.filePath, "TUI draft copy details include file path");
+  const copyablePayload = parseJsonPayload(copyable ?? "", "TUI draft copy details");
+  assertTrue(
+    copyablePayload.filePath === saved.filePath,
+    `TUI draft copy details include file path ${saved.filePath}`,
+  );
 
   const retryNotice = await app.handleInteractiveInput(
     `:retry-draft ${saved.record.id}`,
@@ -451,6 +455,18 @@ function assertTrue(value: boolean, label: string): void {
   if (!value) {
     throw new Error(`${label} failed`);
   }
+}
+
+function parseJsonPayload(value: string, label: string): Record<string, unknown> {
+  const payloadStart = value.indexOf("{");
+  if (payloadStart === -1) {
+    throw new Error(`${label} did not include a JSON payload:\n${value}`);
+  }
+  const parsed = JSON.parse(value.slice(payloadStart)) as unknown;
+  if (!parsed || typeof parsed !== "object" || Array.isArray(parsed)) {
+    throw new Error(`${label} payload was not an object:\n${value}`);
+  }
+  return parsed as Record<string, unknown>;
 }
 
 function shellJoin(command: string[]): string {
