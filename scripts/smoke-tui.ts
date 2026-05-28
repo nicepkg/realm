@@ -31,9 +31,13 @@ const server = Bun.spawn(
     stdout: "pipe",
   },
 );
+let serverExitCode: number | undefined;
+void server.exited.then((code) => {
+  serverExitCode = code;
+});
 
 try {
-  await waitForHttp(`${url}/api/health`);
+  await waitForHttp(`${url}/api/health`, () => serverExitCode);
   await runOneShotRender();
   await runOneShotSend();
   await runStatefulInteractionSmoke();
@@ -221,9 +225,13 @@ async function run(
   return stdout.trim();
 }
 
-async function waitForHttp(target: string): Promise<void> {
+async function waitForHttp(target: string, readExitCode?: () => number | undefined): Promise<void> {
   const startedAt = Date.now();
-  while (Date.now() - startedAt < 15_000) {
+  while (Date.now() - startedAt < 60_000) {
+    const exitCode = readExitCode?.();
+    if (exitCode !== undefined) {
+      throw new Error(`Server exited with ${exitCode} before ${target} was healthy`);
+    }
     try {
       const response = await fetch(target);
       if (response.ok) {

@@ -89,7 +89,7 @@ describe("WorldSimulationService", () => {
       intervalMs: 20,
       seed: "background-seed",
     });
-    await new Promise((resolve) => setTimeout(resolve, 45));
+    await waitForWorldTick(service);
     const stopped = service.worldSimulation.stopBackground(run.runId);
 
     expect(run.status).toBe("running");
@@ -97,6 +97,17 @@ describe("WorldSimulationService", () => {
     expect(service.listEvents().some((event) => event.type === "world.tick.triggered")).toBe(true);
   });
 });
+
+async function waitForWorldTick(service: RealmApplicationService): Promise<void> {
+  const startedAt = Date.now();
+  while (Date.now() - startedAt < 1_000) {
+    if (service.listEvents().some((event) => event.type === "world.tick.triggered")) {
+      return;
+    }
+    await new Promise((resolve) => setTimeout(resolve, 20));
+  }
+  throw new Error("Timed out waiting for background simulation tick");
+}
 
 async function writeSimulationFixture(root: string): Promise<void> {
   const layout = await initProject(root, "demo");
