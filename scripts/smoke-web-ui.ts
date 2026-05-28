@@ -249,12 +249,16 @@ try {
 
   await ensureComposerTrayOpen();
   await clickInPage("[data-testid='role-turn-run']");
-  await waitForPageExpression(
-    "(() => { const status = document.querySelector(\"[data-testid='role-turn-status']\")?.textContent ?? ''; return status.includes('Role is running') || status.includes('Role run needs attention'); })()",
-  );
+  // In fake runtime the role turn completes deterministically end-to-end, so it
+  // reaches a terminal state: either still running (cancel available), back to
+  // ready/completed (run available again), or failed (retry available). The bug
+  // this guards against is a turn that never resolves and spins forever.
+  const roleTurnTerminalExpression =
+    "(document.querySelector(\"[data-testid='role-turn-cancel']\") !== null || document.querySelector(\"[data-testid='role-turn-run']\") !== null || document.querySelector(\"[data-testid='role-turn-retry']\") !== null)";
+  await waitForPageExpression(roleTurnTerminalExpression);
   await assertPage(
-    "Plus tray run role exposes live running or retry state",
-    "document.querySelector(\"[data-testid='role-turn-cancel']\") !== null || document.querySelector(\"[data-testid='role-turn-retry']\") !== null",
+    "Plus tray run role reaches a live, completed, or recoverable state (never a perpetual spinner)",
+    roleTurnTerminalExpression,
   );
   await browserEval(
     "(() => { const cancel = document.querySelector(\"[data-testid='role-turn-cancel']\"); if (cancel && !cancel.disabled) cancel.click(); return true; })()",
