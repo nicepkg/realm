@@ -9,22 +9,60 @@ import {
   UsersRound,
 } from "lucide-react";
 import type { ReactNode } from "react";
+import { Sheet, SheetContent, SheetTitle } from "@/components/ui/sheet.tsx";
 import { useI18n } from "@/i18n/index.tsx";
 import { cn } from "@/lib/utils.ts";
 import type { RealmAppController } from "../../app/types.ts";
 import { GroupAvatarGrid, IdentityAvatar, RoomAvatar } from "./messenger-primitives.tsx";
 
+type SidebarProps = {
+  app: RealmAppController;
+  onCreateRoom: () => void;
+  onInspectRole: (roleId: string) => void;
+  onOpenGod: () => void;
+  onOpenSettings: () => void;
+  /**
+   * Invoked after the user picks a room/role/world or a tab action. Lets the
+   * mobile rail sheet close itself once navigation happens, while the desktop
+   * sidebar (which passes nothing) stays put.
+   */
+  onNavigate?: () => void;
+};
+
+/** Desktop conversation rail. Hidden below `md`; on mobile the same content is
+ * rendered inside a full-screen sheet (see {@link SidebarBody}). */
 export function MessengerSidebar({
   app,
   onCreateRoom,
   onInspectRole,
+  onOpenGod,
   onOpenSettings,
-}: {
-  app: RealmAppController;
-  onCreateRoom: () => void;
-  onInspectRole: (roleId: string) => void;
-  onOpenSettings: () => void;
-}) {
+}: SidebarProps) {
+  return (
+    <aside
+      className="hidden min-h-0 flex-col border-[#d9d9dc] border-r bg-[#f7f7f7] md:flex"
+      data-testid="conversation-sidebar"
+    >
+      <SidebarBody
+        app={app}
+        onCreateRoom={onCreateRoom}
+        onInspectRole={onInspectRole}
+        onOpenGod={onOpenGod}
+        onOpenSettings={onOpenSettings}
+      />
+    </aside>
+  );
+}
+
+/** Rail content shared by the desktop aside and the mobile sheet. */
+export function SidebarBody({
+  app,
+  onCreateRoom,
+  onInspectRole,
+  onOpenGod,
+  onOpenSettings,
+  onNavigate,
+}: SidebarProps) {
   const { t } = useI18n();
   const isChatSection = app.activeSection === "chats" || app.activeSection === "settings";
   const isReceiving = app.turnRun.status === "running";
@@ -49,10 +87,7 @@ export function MessengerSidebar({
         : t("workspace.pinnedChats");
 
   return (
-    <aside
-      className="hidden min-h-0 flex-col border-[#d9d9dc] border-r bg-[#f7f7f7] md:flex"
-      data-testid="conversation-sidebar"
-    >
+    <>
       <header className="shrink-0 border-[#d9d9dc] border-b bg-[#f2f2f2]">
         <div className="relative flex h-[86px] items-center justify-center px-4">
           <h2 className="flex max-w-[72%] items-center justify-center gap-2 truncate text-center font-semibold text-[18px] leading-6 text-[#111]">
@@ -89,19 +124,27 @@ export function MessengerSidebar({
       </header>
       <div className="min-h-0 flex-1 overflow-auto">
         {app.activeSection === "roles" ? (
-          <RoleRows app={app} onInspectRole={onInspectRole} />
+          <RoleRows app={app} onInspectRole={onInspectRole} onNavigate={onNavigate} />
         ) : null}
-        {app.activeSection === "worlds" ? <WorldRows app={app} /> : null}
+        {app.activeSection === "worlds" ? <WorldRows app={app} onNavigate={onNavigate} /> : null}
         {app.activeSection === "chats" || app.activeSection === "settings" ? (
-          <ConversationRows app={app} />
+          <ConversationRows app={app} onOpenGod={onOpenGod} onNavigate={onNavigate} />
         ) : null}
       </div>
       <SidebarTabBar app={app} onOpenSettings={onOpenSettings} />
-    </aside>
+    </>
   );
 }
 
-function ConversationRows({ app }: { app: RealmAppController }) {
+function ConversationRows({
+  app,
+  onOpenGod,
+  onNavigate,
+}: {
+  app: RealmAppController;
+  onOpenGod: () => void;
+  onNavigate?: () => void;
+}) {
   const { t } = useI18n();
   // The God channel is an audited adjudication surface, not a peer DM. Keep it
   // out of the plain chat list and present it as a distinct gated entry.
@@ -123,7 +166,13 @@ function ConversationRows({ app }: { app: RealmAppController }) {
           data-adjudication-entry="god"
           data-testid={`room-${godConversation.id}`}
           key={godConversation.id}
-          onClick={() => void app.selectRoom(godConversation.id)}
+          onClick={() => {
+            // The God channel is an adjudication surface, not a chat. Open the
+            // God/world-inspector sheet instead of selecting it as a room (which
+            // would render an empty timeline with a live composer).
+            onOpenGod();
+            onNavigate?.();
+          }}
           type="button"
         >
           <span className="flex size-[44px] items-center justify-center rounded-[6px] bg-[#efe7d4] text-[#9a7b2e]">
@@ -149,7 +198,10 @@ function ConversationRows({ app }: { app: RealmAppController }) {
           data-wechat-row="conversation"
           data-testid={`room-${conversation.id}`}
           key={conversation.id}
-          onClick={() => void app.selectRoom(conversation.id)}
+          onClick={() => {
+            void app.selectRoom(conversation.id);
+            onNavigate?.();
+          }}
           type="button"
         >
           <span className="relative">
@@ -177,9 +229,11 @@ function ConversationRows({ app }: { app: RealmAppController }) {
 function RoleRows({
   app,
   onInspectRole,
+  onNavigate,
 }: {
   app: RealmAppController;
   onInspectRole: (roleId: string) => void;
+  onNavigate?: () => void;
 }) {
   const { t } = useI18n();
   return (
@@ -192,7 +246,10 @@ function RoleRows({
           )}
           data-testid={`role-row-${role.id}`}
           key={role.id}
-          onClick={() => onInspectRole(role.id)}
+          onClick={() => {
+            onInspectRole(role.id);
+            onNavigate?.();
+          }}
           type="button"
         >
           <IdentityAvatar
@@ -216,7 +273,7 @@ function RoleRows({
   );
 }
 
-function WorldRows({ app }: { app: RealmAppController }) {
+function WorldRows({ app, onNavigate }: { app: RealmAppController; onNavigate?: () => void }) {
   const { t } = useI18n();
 
   return (
@@ -231,7 +288,10 @@ function WorldRows({ app }: { app: RealmAppController }) {
           data-testid={`world-row-${world.id}`}
           data-world-row="world"
           key={world.id}
-          onClick={() => void app.selectWorld(world.id)}
+          onClick={() => {
+            void app.selectWorld(world.id);
+            onNavigate?.();
+          }}
           type="button"
         >
           <GroupAvatarGrid
@@ -334,5 +394,49 @@ function SidebarTab({
       {icon}
       <span className="max-w-full truncate">{label}</span>
     </button>
+  );
+}
+
+/**
+ * Mobile-only full-screen conversation rail. Below `md` the desktop sidebar is
+ * hidden, so this sheet is the only way to reach the room list, role/world
+ * tabs, search, and the bottom tab bar. Selecting a room/role/world closes it
+ * (via `onNavigate`) and returns the user to the chat pane.
+ */
+export function MobileRailSheet({
+  app,
+  open,
+  onOpenChange,
+  onCreateRoom,
+  onInspectRole,
+  onOpenGod,
+  onOpenSettings,
+}: {
+  app: RealmAppController;
+  open: boolean;
+  onOpenChange: (open: boolean) => void;
+} & Pick<SidebarProps, "onCreateRoom" | "onInspectRole" | "onOpenGod" | "onOpenSettings">) {
+  const { t } = useI18n();
+  return (
+    <Sheet open={open} onOpenChange={onOpenChange}>
+      <SheetContent
+        className="flex w-full max-w-none flex-col gap-0 bg-[#f7f7f7] p-0 sm:max-w-none"
+        data-testid="mobile-rail-sheet"
+        showCloseButton={false}
+        side="left"
+      >
+        <SheetTitle className="sr-only">{t("workspace.chats")}</SheetTitle>
+        <SidebarBody
+          app={app}
+          onCreateRoom={onCreateRoom}
+          onInspectRole={(roleId) => {
+            onInspectRole(roleId);
+          }}
+          onNavigate={() => onOpenChange(false)}
+          onOpenGod={onOpenGod}
+          onOpenSettings={onOpenSettings}
+        />
+      </SheetContent>
+    </Sheet>
   );
 }

@@ -41,6 +41,10 @@ export function MessengerComposer({
   const { t } = useI18n();
   const inputRef = useRef<HTMLTextAreaElement>(null);
   const [actionTrayOpen, setActionTrayOpen] = useState(false);
+  // The God/adjudication channel is not a chat. If it is ever selected as the
+  // active room, suppress the live composer entirely and show a gated entry to
+  // the God surface instead, so operators cannot type a casual message there.
+  const isGodChannel = app.selectedRoom?.type === "god-channel";
   const [pendingIdentity, setPendingIdentity] = useState<string | undefined>();
   const pendingIdentityLabel = pendingIdentity
     ? displayNameForIdentity(pendingIdentity, app.state.roles)
@@ -65,6 +69,33 @@ export function MessengerComposer({
     }
     event.preventDefault();
     event.currentTarget.form?.requestSubmit();
+  }
+
+  if (isGodChannel) {
+    return (
+      <footer
+        className="shrink-0 border-[#d9d9dc] border-t bg-[#f7f7f7] px-5 py-4"
+        data-testid="composer"
+        data-god-channel="true"
+      >
+        <div
+          className="flex flex-wrap items-center justify-between gap-3 rounded-md bg-[#fcfbf8] px-4 py-3 text-[#5a4a1f] text-[13px]"
+          data-testid="god-channel-notice"
+        >
+          <span>{t("workspace.godRoomNotChat")}</span>
+          <Button
+            className="h-8 bg-[#efe7d4] px-3 text-[#5a4a1f] hover:bg-[#e7dcc2]"
+            data-testid="god-channel-open"
+            onClick={onOpenGod}
+            size="sm"
+            type="button"
+            variant="secondary"
+          >
+            {t("workspace.godController")}
+          </Button>
+        </div>
+      </footer>
+    );
   }
 
   return (

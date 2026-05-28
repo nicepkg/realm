@@ -116,7 +116,10 @@ export function latestDenialReason(events: RealmEvent[]): string | undefined {
     if (!event) {
       continue;
     }
-    if (event.type === "audit.created" && event.audit.action.includes("denied")) {
+    if (
+      event.type === "audit.created" &&
+      (event.audit.action.includes("denied") || event.audit.action === "turn.failed")
+    ) {
       return event.audit.reason ?? event.audit.action;
     }
     if (event.type === "tool.called" && event.toolCall.status === "denied") {

@@ -2,6 +2,7 @@ import {
   ArrowLeft,
   Command,
   Database,
+  Menu,
   MoreHorizontal,
   Settings2,
   ShieldCheck,
@@ -30,6 +31,7 @@ export function ChatHeader({
   onBackToWorlds,
   onOpenCommandPalette,
   onOpenGod,
+  onOpenRail,
   onOpenSettings,
   onOpenWorldInspector,
 }: {
@@ -37,6 +39,9 @@ export function ChatHeader({
   onBackToWorlds: () => void;
   onOpenCommandPalette: () => void;
   onOpenGod: () => void;
+  /** Open the conversation rail. On mobile this is the only way to reach the
+   * room list / tab bar; on desktop the rail is always visible so it is unused. */
+  onOpenRail: () => void;
   onOpenSettings: () => void;
   onOpenWorldInspector: () => void;
 }) {
@@ -72,9 +77,24 @@ export function ChatHeader({
         />
       ) : null}
       <header className="relative flex h-[86px] shrink-0 items-center justify-center border-[#d9d9dc] border-b bg-[#f2f2f2] px-4">
+        {/* Mobile (<md): the conversation rail is hidden, so the leading button
+         * opens it (room list first) instead of jumping back to World Manager. */}
+        <Button
+          aria-label={t("workspace.openConversations")}
+          className="absolute left-5 top-1/2 size-10 -translate-y-1/2 rounded-full text-[#1f1f21] md:hidden"
+          data-testid="chat-open-rail"
+          onClick={onOpenRail}
+          size="icon-sm"
+          type="button"
+          variant="ghost"
+        >
+          <Menu className="size-6" />
+        </Button>
+        {/* Desktop (md+): rail is always present, so the leading button is the
+         * back-to-World-Manager affordance. */}
         <Button
           aria-label={t("common.backToWorlds")}
-          className="absolute left-5 top-1/2 size-10 -translate-y-1/2 rounded-full text-[#1f1f21]"
+          className="absolute left-5 top-1/2 hidden size-10 -translate-y-1/2 rounded-full text-[#1f1f21] md:inline-flex"
           onClick={onBackToWorlds}
           size="icon-sm"
           type="button"
@@ -270,9 +290,7 @@ export function MessengerTimeline({ app }: { app: RealmAppController }) {
             description={t("manager.projectHint")}
           />
         ) : null}
-        {app.state.status === "error" ? (
-          <SystemNotice title={t("common.error")} body={app.state.error ?? t("common.error")} />
-        ) : null}
+        {app.state.status === "error" ? <ConnectionErrorBanner app={app} /> : null}
         {app.state.messages.map((message, index) => {
           const previous = app.state.messages[index - 1];
           return (
@@ -342,6 +360,36 @@ function PendingBubble({ content, status }: { content: string; status: "pending"
         </div>
       </div>
     </article>
+  );
+}
+
+/**
+ * Realm-load / connection failure surface. Unlike the previous static notice,
+ * this is recoverable: it exposes the underlying reason and a Reload action
+ * that re-fetches realm state (and reconnects the event feed) instead of
+ * leaving the UI stuck in a sticky error state.
+ */
+function ConnectionErrorBanner({ app }: { app: RealmAppController }) {
+  const { t } = useI18n();
+  return (
+    <div
+      className="mx-auto w-full max-w-[640px] space-y-2 rounded-md bg-[#fff4e5] p-3 text-[#7a4a00] text-[13px]"
+      data-testid="connection-error"
+      role="alert"
+    >
+      <div className="font-medium">{t("workspace.connectionLostTitle")}</div>
+      <div>{app.state.error ?? t("workspace.connectionLostBody")}</div>
+      <div className="flex flex-wrap gap-2">
+        <Button
+          data-testid="connection-error-reload"
+          onClick={() => void app.reload()}
+          size="sm"
+          type="button"
+        >
+          {t("common.reload")}
+        </Button>
+      </div>
+    </div>
   );
 }
 

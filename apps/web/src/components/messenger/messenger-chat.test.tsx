@@ -14,6 +14,7 @@ describe("messenger chat header", () => {
           onBackToWorlds={() => undefined}
           onOpenCommandPalette={() => undefined}
           onOpenGod={() => undefined}
+          onOpenRail={() => undefined}
           onOpenSettings={() => undefined}
           onOpenWorldInspector={() => undefined}
         />
@@ -37,6 +38,7 @@ describe("messenger chat header", () => {
           onBackToWorlds={() => undefined}
           onOpenCommandPalette={() => undefined}
           onOpenGod={() => undefined}
+          onOpenRail={() => undefined}
           onOpenSettings={() => undefined}
           onOpenWorldInspector={() => undefined}
         />
@@ -45,6 +47,24 @@ describe("messenger chat header", () => {
 
     expect(html).toContain('data-testid="context-running-state"');
     expect(html).toContain("Role is running");
+  });
+
+  test("exposes a mobile rail open button", () => {
+    const html = renderToStaticMarkup(
+      <I18nProvider>
+        <ChatHeader
+          app={mockApp({ status: "idle" })}
+          onBackToWorlds={() => undefined}
+          onOpenCommandPalette={() => undefined}
+          onOpenGod={() => undefined}
+          onOpenRail={() => undefined}
+          onOpenSettings={() => undefined}
+          onOpenWorldInspector={() => undefined}
+        />
+      </I18nProvider>,
+    );
+
+    expect(html).toContain('data-testid="chat-open-rail"');
   });
 });
 
@@ -94,19 +114,39 @@ describe("messenger timeline send states", () => {
 
     expect(html).toContain('data-testid="god-result-notice"');
   });
+
+  test("renders a recoverable connection error with a reload action", () => {
+    const html = renderToStaticMarkup(
+      <I18nProvider>
+        <MessengerTimeline app={timelineApp({ status: "error", error: "Failed to fetch" })} />
+      </I18nProvider>,
+    );
+
+    expect(html).toContain('data-testid="connection-error"');
+    expect(html).toContain('data-testid="connection-error-reload"');
+    expect(html).toContain("Failed to fetch");
+  });
 });
 
 function timelineApp(overrides: {
   pendingMessages?: Array<{ pendingId: string; content: string; status: "pending" | "failed" }>;
   sendError?: { message: string; draft: string };
   godActionResult?: unknown;
+  status?: string;
+  error?: string;
 }): RealmAppController {
   return {
-    state: { status: "ready", messages: [], roles: [], error: undefined },
+    state: {
+      status: overrides.status ?? "ready",
+      messages: [],
+      roles: [],
+      error: overrides.error,
+    },
     selectedRoom: undefined,
     pendingMessages: overrides.pendingMessages ?? [],
     sendError: overrides.sendError,
     godActionResult: overrides.godActionResult,
+    reload: () => undefined,
     retrySend: () => undefined,
     dismissSendError: () => undefined,
     sendErrorDetails: () => "{}",
