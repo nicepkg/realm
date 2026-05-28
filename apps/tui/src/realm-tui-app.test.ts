@@ -72,6 +72,34 @@ describe("RealmTuiApp interactive safety", () => {
     const app = new RealmTuiApp();
     const harness = app as unknown as {
       client: {
+        getEffectiveConfig: () => Promise<{
+          project: { defaultWorldId: string; name: string; root: string };
+          roles: TuiState["roles"];
+          worlds: NonNullable<TuiState["world"]>[];
+        }>;
+        getEffectivePolicy: () => Promise<{
+          capabilities: {
+            allow: boolean;
+            capability: "filesystem";
+            highRisk: boolean;
+            reason: string;
+          }[];
+          roleWorlds: [];
+          trustTier: "run-roles";
+          warnings: string[];
+        }>;
+        getSettings: () => Promise<{
+          project: Record<string, unknown>;
+          user: { defaultModel: string; defaultProvider: string };
+        }>;
+        getWorldState: (worldId: string) => Promise<{
+          state: Record<string, unknown>;
+          version: number;
+          worldId: string;
+        }>;
+        listEvents: () => Promise<{ events: []; lastSeq: number }>;
+        listMessages: (roomId: string) => Promise<{ messages: TuiState["messages"] }>;
+        listRooms: (worldId: string) => Promise<{ rooms: NonNullable<TuiState["room"]>[] }>;
         runRoleTurn: (
           roomId: string,
           input: { prompt?: string; roleId: string; worldId: string },
@@ -84,6 +112,47 @@ describe("RealmTuiApp interactive safety", () => {
       request = [roomId, input];
       return { message: { id: "message-1" } };
     };
+    harness.client.getEffectiveConfig = async () => ({
+      project: { defaultWorldId: "cultivation", name: "demo", root: "/tmp/demo" },
+      roles: [{ id: "leijun", displayName: "Lei Jun", model: "default", source: "config" }],
+      worlds: [
+        {
+          defaultRoomId: "main",
+          id: "cultivation",
+          mode: { time: { kind: "manual" }, type: "game" },
+          name: "Cultivation",
+          roleIds: ["leijun"],
+        },
+      ],
+    });
+    harness.client.listRooms = async () => ({
+      rooms: [
+        {
+          id: "main",
+          memberIds: ["owner", "leijun"],
+          name: "All Hands",
+          type: "group",
+          worldId: "cultivation",
+        },
+      ],
+    });
+    harness.client.listMessages = async () => ({ messages: [] });
+    harness.client.listEvents = async () => ({ events: [], lastSeq: 0 });
+    harness.client.getSettings = async () => ({
+      project: {},
+      user: { defaultModel: "default", defaultProvider: "fake" },
+    });
+    harness.client.getEffectivePolicy = async () => ({
+      capabilities: [],
+      roleWorlds: [],
+      trustTier: "run-roles",
+      warnings: [],
+    });
+    harness.client.getWorldState = async (worldId) => ({
+      state: {},
+      version: 0,
+      worldId,
+    });
     harness.state = {
       events: [],
       identity: "owner",
