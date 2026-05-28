@@ -108,12 +108,21 @@
   background: #f7f7f8;
 }
 
-.more-dot {
-  background: transparent;
-  border: 0;
-  color: #1d1d1f;
-  font: inherit;
-  padding: 0;
+/* Compact representation of the in-app "..." menu. Right-aligned, muted, and
+   non-overlapping so the preview still reads as a calm idle chat. */
+.topbar-menu {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px 10px;
+  justify-content: flex-end;
+  max-width: 60%;
+}
+
+.topbar-menu span {
+  color: var(--text-faint);
+  font-size: 10px;
+  line-height: 1.2;
+  white-space: nowrap;
 }
 
 .message-time {

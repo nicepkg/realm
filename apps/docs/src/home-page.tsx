@@ -74,9 +74,12 @@ function ProductPreview({ page }: { page: DocsPage }) {
         <header>
           <span>‹</span>
           <strong>{preview.chatTitle}</strong>
-          <button className="more-dot" type="button" aria-label="More actions">
-            •••
-          </button>
+          <nav className="topbar-menu" aria-label={preview.chatTitle}>
+            <span>{preview.command}</span>
+            <span>{preview.inspector}</span>
+            <span>{preview.god}</span>
+            <span>{preview.settings}</span>
+          </nav>
         </header>
         <div className="message-time">{preview.time}</div>
         <div className="message-row outgoing">
