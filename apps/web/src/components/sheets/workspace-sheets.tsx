@@ -21,6 +21,7 @@ import { Textarea } from "@/components/ui/textarea";
 import { useI18n } from "@/i18n/index.tsx";
 import type { GodRoleAction } from "@/state/use-realm-app-state.ts";
 import { RoleInspectorSheet } from "./role-inspector-sheet.tsx";
+import { SettingsSheet } from "./settings-sheet.tsx";
 import { WorldInspectorSheet } from "./world-inspector-sheet.tsx";
 
 export type WorkspaceSheetKind = "settings" | "god" | "role-inspector" | "world-inspector";
@@ -49,61 +50,6 @@ export function WorkspaceSheets({ app, onOpenChange, open, roleId }: WorkspaceSh
         onOpenChange={(nextOpen) => onOpenChange(nextOpen ? "role-inspector" : undefined)}
       />
     </>
-  );
-}
-
-function SettingsSheet({
-  app,
-  onOpenChange,
-  open,
-}: {
-  app: RealmAppController;
-  open: boolean;
-  onOpenChange: (open: WorkspaceSheetKind | undefined) => void;
-}) {
-  const { locale, setLocale, t } = useI18n();
-
-  return (
-    <Sheet open={open} onOpenChange={(nextOpen) => onOpenChange(nextOpen ? "settings" : undefined)}>
-      <SheetContent className="w-[420px] max-w-[92vw] border-[var(--realm-line)] bg-white shadow-[0_12px_40px_rgba(0,0,0,0.12)]">
-        <SheetHeader>
-          <SheetTitle>{t("sheet.settings.title")}</SheetTitle>
-          <SheetDescription>{t("sheet.settings.body")}</SheetDescription>
-        </SheetHeader>
-        <div className="space-y-4 px-4">
-          <section className="space-y-2">
-            <h3 className="font-medium text-[13px]">{t("workspace.localRuntime")}</h3>
-            <div className="grid grid-cols-2 gap-2 text-[12px]">
-              <InfoCell label={t("common.project")} value={app.state.projectName} />
-              <InfoCell label={t("common.world")} value={app.selectedWorld?.name ?? "-"} />
-              <InfoCell label={t("common.room")} value={app.selectedRoom?.name ?? "-"} />
-              <InfoCell label={t("common.events")} value={String(app.state.events.length)} />
-            </div>
-          </section>
-          <section className="space-y-2">
-            <h3 className="font-medium text-[13px]">{t("sheet.settings.language")}</h3>
-            <div className="flex gap-2">
-              <Button
-                onClick={() => setLocale("en")}
-                size="sm"
-                type="button"
-                variant={locale === "en" ? "default" : "secondary"}
-              >
-                {t("sheet.settings.english")}
-              </Button>
-              <Button
-                onClick={() => setLocale("zh-CN")}
-                size="sm"
-                type="button"
-                variant={locale === "zh-CN" ? "default" : "secondary"}
-              >
-                {t("sheet.settings.simplifiedChinese")}
-              </Button>
-            </div>
-          </section>
-        </div>
-      </SheetContent>
-    </Sheet>
   );
 }
 
@@ -259,14 +205,5 @@ function GodSheet({
         </div>
       </SheetContent>
     </Sheet>
-  );
-}
-
-function InfoCell({ label, value }: { label: string; value: string }) {
-  return (
-    <div className="rounded-lg bg-[#f7f7f8] p-3">
-      <div className="text-[11px] text-[var(--realm-fg-muted)]">{label}</div>
-      <div className="mt-1 truncate font-medium">{value}</div>
-    </div>
   );
 }

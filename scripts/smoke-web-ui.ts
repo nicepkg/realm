@@ -38,6 +38,7 @@ await mkdir(outputDir, { recursive: true });
 
 const projectDir = await mkdtemp(path.join(os.tmpdir(), "realm-web-project-"));
 await cp(examplePath, projectDir, { recursive: true });
+const realmHome = path.join(projectDir, ".realm-home");
 
 const port = await findAvailablePort(3897);
 const url = `http://127.0.0.1:${port}`;
@@ -45,6 +46,7 @@ const server = Bun.spawn(
   ["bun", "run", cliPath, "open", "--runtime", "fake", "--no-open", "--port", String(port)],
   {
     cwd: projectDir,
+    env: { ...process.env, REALM_HOME: realmHome },
     stderr: "pipe",
     stdout: "pipe",
   },
@@ -129,7 +131,17 @@ try {
     "document.querySelector(\"[data-testid='topbar-settings']\") !== null && document.querySelector(\"[data-testid='topbar-god']\") !== null && document.querySelector(\"[data-testid='topbar-world-inspector']\") !== null && document.querySelector(\"[data-testid='topbar-command']\") !== null",
   );
   await clickInPage("[data-testid='topbar-settings']");
-  await assertPage("WeChat top bar opens Settings", "document.body.innerText.includes('Settings')");
+  await waitForSelector("[data-testid='settings-default-model']");
+  await assertPage(
+    "WeChat top bar opens functional Settings with provider defaults and config paths",
+    "document.querySelector(\"[data-testid='settings-default-provider']\") !== null && document.querySelector(\"[data-testid='settings-provider-list']\") !== null && document.querySelectorAll(\"[data-testid='settings-path-row']\").length === 3",
+  );
+  await browser("fill", "[data-testid='settings-default-model']", "smoke-model");
+  await clickInPage("[data-testid='settings-save']");
+  await waitForPageExpression(
+    "document.querySelector(\"[data-testid='settings-save-status']\")?.textContent?.includes('Saved') === true",
+  );
+  await screenshot("settings-sheet.png");
   await browser("press", "Escape");
   await browser("wait", "200");
   await clickInPage("[data-testid='topbar-more']");
