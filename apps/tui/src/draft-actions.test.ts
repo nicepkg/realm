@@ -33,6 +33,12 @@ describe("TUI draft actions", () => {
 
     const copyable = await renderDraftCopyDetails(saved.record.id, draftsDir, dictionary);
     expect(copyable).toContain('"content": "edited message"');
-    expect(copyable).toContain(saved.filePath);
+    const payloadStart = copyable.indexOf("{");
+    const payload = JSON.parse(copyable.slice(payloadStart)) as {
+      content: string;
+      filePath: string;
+    };
+    expect(payload.content).toBe("edited message");
+    expect(payload.filePath).toBe(saved.filePath);
   });
 });
