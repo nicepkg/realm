@@ -449,10 +449,15 @@ function sendPendingWebSocketEvents(websocket: Bun.ServerWebSocket<RealmEventWeb
   }
 }
 
+/** SSE heartbeat interval. Keeps proxies and idle-timeout watchdogs from
+ * closing a quiet stream, and lets the client detect a dead connection. */
+const SSE_HEARTBEAT_MS = 5_000;
+
 function createEventStream(service: RealmApplicationService, initialSeq: number): ReadableStream {
   const encoder = new TextEncoder();
   let lastSeq = initialSeq;
-  let interval: ReturnType<typeof setInterval> | undefined;
+  let pollInterval: ReturnType<typeof setInterval> | undefined;
+  let heartbeatInterval: ReturnType<typeof setInterval> | undefined;
 
   return new ReadableStream({
     start(controller) {
@@ -467,11 +472,19 @@ function createEventStream(service: RealmApplicationService, initialSeq: number)
       };
 
       sendPending();
-      interval = setInterval(sendPending, 500);
+      pollInterval = setInterval(sendPending, 500);
+      // Comment-only heartbeat (ignored by EventSource) so the connection stays
+      // open and observably alive even when no events flow.
+      heartbeatInterval = setInterval(() => {
+        controller.enqueue(encoder.encode(": ping\n\n"));
+      }, SSE_HEARTBEAT_MS);
     },
     cancel() {
-      if (interval) {
-        clearInterval(interval);
+      if (pollInterval) {
+        clearInterval(pollInterval);
+      }
+      if (heartbeatInterval) {
+        clearInterval(heartbeatInterval);
       }
     },
   });

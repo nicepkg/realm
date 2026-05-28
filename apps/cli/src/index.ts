@@ -156,6 +156,11 @@ async function open(argv: string[]): Promise<void> {
   const server = Bun.serve({
     hostname: host,
     port,
+    // Disable Bun's default 10s idle timeout: SSE connections are long-lived
+    // and otherwise quiet between events. Without this the browser EventSource
+    // is killed every 10s, freezing the UI. The stream also emits a heartbeat
+    // comment as defense in depth (see createEventStream).
+    idleTimeout: 0,
     fetch(request, server) {
       const requestUrl = new URL(request.url);
       if (requestUrl.pathname === "/api/events/ws") {
