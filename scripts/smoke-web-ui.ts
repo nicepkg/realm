@@ -278,7 +278,7 @@ try {
   );
   await assertPage(
     "Composer keeps the WeChat bottom input grammar",
-    "(() => { const composer = document.querySelector(\"[data-testid='composer']\"); const input = document.querySelector(\"[data-testid='message-input']\"); if (!composer || !input) return false; const composerStyle = getComputedStyle(composer); const inputStyle = getComputedStyle(input); return composerStyle.backgroundColor === 'rgb(247, 247, 247)' && inputStyle.backgroundColor === 'rgb(255, 255, 255)' && inputStyle.borderRadius === '4px'; })()",
+    "(() => { const composer = document.querySelector(\"[data-testid='composer']\"); const voice = document.querySelector(\"[data-testid='composer-voice']\"); const input = document.querySelector(\"[data-testid='message-input']\"); const emoji = document.querySelector(\"[data-testid='composer-emoji']\"); const more = document.querySelector(\"[data-testid='composer-more']\"); if (!composer || !voice || !input || !emoji || !more) return false; const composerStyle = getComputedStyle(composer); const inputStyle = getComputedStyle(input); return composer.getAttribute('data-wechat-composer') === 'voice-input-emoji-plus-send' && composer.getBoundingClientRect().height >= 88 && composerStyle.backgroundColor === 'rgb(247, 247, 247)' && inputStyle.backgroundColor === 'rgb(255, 255, 255)' && inputStyle.borderRadius === '4px'; })()",
   );
 
   await ensureComposerTrayOpen();

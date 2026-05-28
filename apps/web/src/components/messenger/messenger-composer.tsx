@@ -64,7 +64,11 @@ export function MessengerComposer({
   }
 
   return (
-    <footer className="shrink-0 border-[#d9d9dc] border-t bg-[#f7f7f7]" data-testid="composer">
+    <footer
+      className="shrink-0 border-[#d9d9dc] border-t bg-[#f7f7f7]"
+      data-testid="composer"
+      data-wechat-composer="voice-input-emoji-plus-send"
+    >
       <form className="w-full" onSubmit={submit}>
         {pendingIdentity && pendingIdentityLabel ? (
           <div
@@ -102,10 +106,11 @@ export function MessengerComposer({
             </span>
           </div>
         ) : null}
-        <div className="flex min-h-[72px] w-full items-center gap-2.5 px-5 py-3">
+        <div className="flex min-h-[88px] w-full items-center gap-2.5 px-5 py-[14px]">
           <Button
             aria-label={t("workspace.voiceInput")}
             className="size-[42px] rounded-full border-2 border-[#1f1f21] bg-transparent text-[#1f1f21] shadow-none hover:bg-white"
+            data-testid="composer-voice"
             onClick={() => {
               inputRef.current?.focus();
             }}
@@ -138,6 +143,7 @@ export function MessengerComposer({
           <Button
             aria-label={t("workspace.emoji")}
             className="size-[42px] rounded-full border-2 border-[#1f1f21] text-[#1f1f21] shadow-none hover:bg-white"
+            data-testid="composer-emoji"
             onClick={() => app.setDraft(`${app.draft}${app.draft ? " " : ""}🙂`)}
             size="icon"
             type="button"
