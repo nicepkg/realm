@@ -23,6 +23,7 @@ export function VisibilityChips({
   return (
     <span
       className={cn("inline-flex min-w-0 items-center gap-1 text-[11px] text-[#6e6e73]", className)}
+      data-testid="visibility-chips"
     >
       <span className="shrink-0">{t("workspace.visibleTo")}</span>
       <span className="inline-flex min-w-0 items-center gap-1">

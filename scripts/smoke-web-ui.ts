@@ -172,6 +172,10 @@ try {
     "Incoming and outgoing bubbles use WeChat white and green colors",
     "(() => { const incoming = document.querySelector(\"article[data-author='assistant'] [data-testid='message-bubble']\"); const outgoing = document.querySelector(\"article[data-author='user'] [data-testid='message-bubble']\"); if (!incoming || !outgoing) return false; const inBg = getComputedStyle(incoming).backgroundColor; const outBg = getComputedStyle(outgoing).backgroundColor; return inBg === 'rgb(255, 255, 255)' && outBg === 'rgb(149, 236, 105)'; })()",
   );
+  await assertPage(
+    "Chat bubbles expose visible room visibility metadata",
+    "(() => { const chips = document.querySelector(\"article[data-message-id] [data-testid='message-visibility'] [data-testid='visibility-chips']\"); if (!chips) return false; const style = getComputedStyle(chips); return style.display !== 'none' && style.visibility !== 'hidden' && chips.textContent?.includes('Visible to:') === true; })()",
+  );
   await screenshot("role-takeover.png");
 
   await ensureComposerTrayOpen();

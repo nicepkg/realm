@@ -78,7 +78,13 @@ export function MessengerMessage({
               <p className="relative whitespace-pre-wrap break-words">{message.content}</p>
             </div>
           </div>
-          <div className="sr-only">
+          <div
+            className={cn(
+              "mt-1.5 flex max-w-full",
+              isOwner ? "justify-end pr-1" : "justify-start pl-1",
+            )}
+            data-testid="message-visibility"
+          >
             <VisibilityChips maxVisible={2} roleIds={visibleTo} roles={roles} />
           </div>
         </div>
