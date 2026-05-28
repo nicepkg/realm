@@ -9,6 +9,9 @@ export type TuiDictionary = {
   configPatch: string;
   context: string;
   conversations: string;
+  createRoleProposed: (id: string) => string;
+  createWorldProposed: (id: string) => string;
+  localeSwitched: (locale: string) => string;
   defaultValue: string;
   draftRoleTakeoverCannotConfirm: string;
   draftCopyTitle: (id: string) => string;
@@ -81,6 +84,7 @@ export type TuiDictionary = {
   running: string;
   roleSendCancelled: string;
   roleSwitched: (identity: string) => string;
+  roleTurnCancelHint: string;
   roleTurnCancelled: string;
   room: string;
   roomCreated: (room: string) => string;
@@ -90,10 +94,21 @@ export type TuiDictionary = {
   settingsOpened: string;
   settingsSummaryLoaded: string;
   shortcuts: string;
+  simExported: (eventCount: number, replayHash: string) => string;
+  simForked: (forkId: string, label: string) => string;
+  simNoWorld: string;
+  simPaused: (version: number) => string;
+  simResumed: (version: number) => string;
+  simStatus: (paused: boolean, tick: number, activeRuns: number) => string;
+  simTicked: (ticks: number, eventCount: number) => string;
   slashAsDescription: string;
   slashAssistantDescription: string;
+  slashCreateRoleDescription: string;
   slashCreateRoomDescription: string;
+  slashCreateWorldDescription: string;
   slashDraftsDescription: string;
+  slashLocaleDescription: string;
+  slashSimDescription: string;
   slashMemoryDescription: string;
   slashPatchDescription: string;
   slashRefreshDescription: string;
@@ -111,6 +126,8 @@ export type TuiDictionary = {
   modelDescription: string;
   traceEvent: (type: string) => string;
   traceMessage: (identity: string) => string;
+  transcriptNewer: (count: number) => string;
+  transcriptOlder: (count: number) => string;
   traceTurn: (status: string, actor: string) => string;
   traceWorldEvent: (title: string) => string;
   trustTier: string;
@@ -134,6 +151,11 @@ export const tuiDictionaries: Record<TuiLocale, TuiDictionary> = {
     configPatch: "Config patch",
     context: "Context",
     conversations: "Conversations",
+    createRoleProposed: (id) =>
+      `Role ${id} proposed. Review with :patch show, then :patch apply to create it.`,
+    createWorldProposed: (id) =>
+      `World ${id} proposed. Review with :patch show, then :patch apply to create it.`,
+    localeSwitched: (locale) => `Interface language switched to ${locale}.`,
     defaultValue: "default",
     draftRoleTakeoverCannotConfirm: "One-shot role takeover cannot confirm.",
     draftCopyTitle: (id) => `Copyable draft details for ${id}`,
@@ -228,6 +250,7 @@ export const tuiDictionaries: Record<TuiLocale, TuiDictionary> = {
     running: "Running",
     roleSendCancelled: "Role send cancelled.",
     roleSwitched: (identity) => `Speaking as ${identity}.`,
+    roleTurnCancelHint: "Ctrl+C cancels the active turn.",
     roleTurnCancelled: "Role turn cancelled.",
     room: "Room",
     roomCreated: (room) => `Room created: ${room}.`,
@@ -238,10 +261,23 @@ export const tuiDictionaries: Record<TuiLocale, TuiDictionary> = {
     settingsOpened: "Settings opened.",
     settingsSummaryLoaded: "Settings summary loaded.",
     shortcuts: "Shortcuts",
+    simExported: (eventCount, replayHash) =>
+      `Simulation exported: ${eventCount} events, replay ${replayHash}.`,
+    simForked: (forkId, label) => `Simulation forked: ${forkId} (${label}).`,
+    simNoWorld: "Cannot control the simulation without an active world.",
+    simPaused: (version) => `Simulation paused at state v${version}.`,
+    simResumed: (version) => `Simulation resumed at state v${version}.`,
+    simStatus: (paused, tick, activeRuns) =>
+      `Simulation ${paused ? "paused" : "running"} · tick ${tick} · ${activeRuns} active run(s).`,
+    simTicked: (ticks, eventCount) => `Ran ${ticks} tick(s); ${eventCount} events recorded.`,
     slashAsDescription: "switch composer identity with confirmation",
     slashAssistantDescription: "ask assistant for a config patch",
+    slashCreateRoleDescription: "propose a config patch that creates a role",
     slashCreateRoomDescription: "create a group, DM, or system room",
+    slashCreateWorldDescription: "propose a config patch that creates a world",
     slashDraftsDescription: "list failed send drafts",
+    slashLocaleDescription: "switch interface language (en | zh-CN)",
+    slashSimDescription: "drive the simulation runtime",
     slashMemoryDescription: "inspect role memory",
     slashPatchDescription: "preview/apply/reject config patch",
     slashRefreshDescription: "reload project state",
@@ -262,6 +298,8 @@ export const tuiDictionaries: Record<TuiLocale, TuiDictionary> = {
     traceMessage: (identity) => `message ${identity}`,
     traceTurn: (status, actor) => `turn ${status} ${actor}`,
     traceWorldEvent: (title) => `world event ${title}`,
+    transcriptNewer: (count) => `↓ ${count} newer (PgDn / Ctrl+N)`,
+    transcriptOlder: (count) => `↑ ${count} older (PgUp / Ctrl+P)`,
     trustTier: "Trust tier",
     useCtrlCToExit: "Use Ctrl+C to exit the Pi TUI.",
     visibleRoles: "Visible roles",
@@ -279,6 +317,11 @@ export const tuiDictionaries: Record<TuiLocale, TuiDictionary> = {
     configPatch: "配置补丁",
     context: "上下文",
     conversations: "会话",
+    createRoleProposed: (id) =>
+      `已生成角色 ${id} 的提案。先用 :patch show 查看，再用 :patch apply 创建。`,
+    createWorldProposed: (id) =>
+      `已生成世界 ${id} 的提案。先用 :patch show 查看，再用 :patch apply 创建。`,
+    localeSwitched: (locale) => `界面语言已切换为 ${locale}。`,
     defaultValue: "默认",
     draftRoleTakeoverCannotConfirm: "单次命令无法确认角色接管。",
     draftCopyTitle: (id) => `草稿 ${id} 的可复制详情`,
@@ -373,6 +416,7 @@ export const tuiDictionaries: Record<TuiLocale, TuiDictionary> = {
     running: "运行状态",
     roleSendCancelled: "角色发送已取消。",
     roleSwitched: (identity) => `已切换发送身份：${identity}。`,
+    roleTurnCancelHint: "按 Ctrl+C 取消进行中的回合。",
     roleTurnCancelled: "角色回合已取消。",
     room: "房间",
     roomCreated: (room) => `已创建房间：${room}。`,
@@ -382,10 +426,23 @@ export const tuiDictionaries: Record<TuiLocale, TuiDictionary> = {
     settingsOpened: "设置已打开。",
     settingsSummaryLoaded: "设置摘要已加载。",
     shortcuts: "快捷键",
+    simExported: (eventCount, replayHash) =>
+      `模拟已导出：${eventCount} 个事件，回放 ${replayHash}。`,
+    simForked: (forkId, label) => `模拟已分叉：${forkId}（${label}）。`,
+    simNoWorld: "没有当前世界，无法控制模拟。",
+    simPaused: (version) => `模拟已暂停，状态版本 v${version}。`,
+    simResumed: (version) => `模拟已恢复，状态版本 v${version}。`,
+    simStatus: (paused, tick, activeRuns) =>
+      `模拟${paused ? "已暂停" : "运行中"} · 第 ${tick} 步 · ${activeRuns} 个活动运行。`,
+    simTicked: (ticks, eventCount) => `已运行 ${ticks} 步；记录了 ${eventCount} 个事件。`,
     slashAsDescription: "确认后切换输入身份",
     slashAssistantDescription: "让助手生成配置补丁",
+    slashCreateRoleDescription: "生成创建角色的配置补丁提案",
     slashCreateRoomDescription: "创建群聊、私聊或系统房间",
+    slashCreateWorldDescription: "生成创建世界的配置补丁提案",
     slashDraftsDescription: "查看失败草稿",
+    slashLocaleDescription: "切换界面语言（en | zh-CN）",
+    slashSimDescription: "驱动模拟运行时",
     slashMemoryDescription: "查看角色记忆",
     slashPatchDescription: "预览/应用/拒绝配置补丁",
     slashRefreshDescription: "重新加载项目状态",
@@ -406,6 +463,8 @@ export const tuiDictionaries: Record<TuiLocale, TuiDictionary> = {
     traceMessage: (identity) => `消息 ${identity}`,
     traceTurn: (status, actor) => `回合 ${status} ${actor}`,
     traceWorldEvent: (title) => `世界事件 ${title}`,
+    transcriptNewer: (count) => `↓ 还有 ${count} 条更新（PgDn / Ctrl+N）`,
+    transcriptOlder: (count) => `↑ 还有 ${count} 条更早（PgUp / Ctrl+P）`,
     trustTier: "信任级别",
     useCtrlCToExit: "按 Ctrl+C 退出 Pi TUI。",
     visibleRoles: "可见角色",

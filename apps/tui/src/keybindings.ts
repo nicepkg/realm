@@ -9,6 +9,8 @@ export type TuiKeybindingAction =
   | "god-console"
   | "help"
   | "close-overlay"
+  | "scroll-older"
+  | "scroll-newer"
   | "exit";
 
 export type TuiKeybinding = {
@@ -24,12 +26,28 @@ export const TUI_KEYBINDINGS = [
   { action: "god-console", key: "ctrl+g" },
   { action: "help", key: "?" },
   { action: "close-overlay", key: "escape" },
+  { action: "scroll-older", key: "pageUp" },
+  { action: "scroll-newer", key: "pageDown" },
   { action: "exit", key: "ctrl+c" },
 ] as const satisfies readonly TuiKeybinding[];
 
-export function resolveTuiKeybinding(data: string): TuiKeybindingAction | undefined {
+export type ResolveKeybindingContext = {
+  /**
+   * Whether the composer currently holds text. When the editor is focused and
+   * non-empty, a bare "?" must reach the editor so the user can type a literal
+   * question mark instead of opening help.
+   */
+  editorHasText?: boolean;
+};
+
+export function resolveTuiKeybinding(
+  data: string,
+  context: ResolveKeybindingContext = {},
+): TuiKeybindingAction | undefined {
   if (data === "?") {
-    return "help";
+    // Only hijack a bare "?" as help when the composer is empty. With text in
+    // the composer, forward to the editor so the character is typed.
+    return context.editorHasText ? undefined : "help";
   }
   if (isCtrlC(data)) {
     return "exit";

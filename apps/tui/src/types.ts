@@ -6,6 +6,7 @@ import type {
   Room,
   WorldSummary,
 } from "@realm/api-contract";
+import type { TuiLocale } from "./i18n.ts";
 import type { TuiPendingIdentitySwitch } from "./identity-switch-confirmation.ts";
 import type { TuiWorldStateSnapshot } from "./state-inspection.ts";
 
@@ -61,7 +62,10 @@ export type TuiPendingRoleSend = {
 };
 
 export type TuiPendingRoleTurn = {
+  model: string;
+  permissionSummary: string;
   prompt?: string;
+  provider: string;
   roleId: string;
   roleLabel: string;
   roomId: string;
@@ -72,6 +76,14 @@ export type TuiPendingRoleTurn = {
 
 export type TuiGodRoleAction = "kill" | "mute" | "revive";
 export type TuiRoomType = "group" | "dm" | "god-channel" | "system";
+export type TuiWorldMode = "debate" | "workflow" | "game" | "simulation" | "sandbox";
+export type TuiSimAction =
+  | { kind: "status" }
+  | { kind: "tick"; ticks: number }
+  | { kind: "pause" }
+  | { kind: "resume" }
+  | { kind: "fork"; label?: string }
+  | { kind: "export" };
 
 export type TuiPendingGodAction = {
   action: TuiGodRoleAction;
@@ -95,6 +107,10 @@ export type TuiCommand =
   | { kind: "identity"; identity: string }
   | { kind: "send"; content: string }
   | { kind: "createRoom"; roomType: TuiRoomType; name: string; memberIds: string[] }
+  | { kind: "createWorld"; worldId: string; name: string; mode: TuiWorldMode }
+  | { kind: "createRole"; roleId: string; displayName: string; model: string }
+  | { kind: "sim"; action: TuiSimAction }
+  | { kind: "locale"; locale: TuiLocale }
   | { kind: "runRole"; roleId: string; prompt?: string }
   | { kind: "drafts" }
   | { kind: "draftDetails"; draftId: string }

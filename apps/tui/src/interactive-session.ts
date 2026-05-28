@@ -26,10 +26,18 @@ import { resolveTuiKeybinding } from "./keybindings.ts";
 import { buildTuiSlashCommands } from "./tui-autocomplete.ts";
 import { editorTheme, markdownTheme, selectTheme, settingsTheme } from "./tui-themes.ts";
 import type { TuiSettingsItem, TuiState } from "./types.ts";
-import { renderTui } from "./view-model.ts";
+import { clampScrollOffset, DEFAULT_TRANSCRIPT_WINDOW, renderTui } from "./view-model.ts";
+
+const TRANSCRIPT_WINDOW = DEFAULT_TRANSCRIPT_WINDOW;
 
 export type InteractiveSessionController = {
   applyPaletteItem: (value: string) => Promise<string>;
+  /**
+   * Clears any armed transient confirmation (role send, identity switch, God
+   * action, role turn). Returns true when something was actually cleared so the
+   * caller can decide whether to surface a footer notice.
+   */
+  clearTransient: () => boolean;
   handleInteractiveInput: (
     input: string,
     showHelp: () => void,
@@ -51,6 +59,11 @@ export async function runInteractiveSession(
   const body = new Markdown("", 0, 0, markdownTheme());
   const footer = new Text("", 0, 0);
   const editor = new Editor(tui, editorTheme(), { paddingX: 1 });
+  // Scrollback offset measured in messages from the newest. 0 keeps the latest
+  // pinned to the bottom; PageUp increases it to reveal older history while
+  // status/editor/footer stay on screen.
+  let scrollOffset = 0;
+  let lastMessageCount = 0;
 
   bodyBox.addChild(body);
   root.addChild(status);
@@ -64,6 +77,8 @@ export async function runInteractiveSession(
 
   const render = async (notice?: string) => {
     const state = await controller.load();
+    lastMessageCount = state.messages.length;
+    scrollOffset = clampScrollOffset(lastMessageCount, TRANSCRIPT_WINDOW, scrollOffset);
     editor.setAutocompleteProvider(
       new CombinedAutocompleteProvider(
         buildTuiSlashCommands(state, controller.locale),
@@ -71,9 +86,18 @@ export async function runInteractiveSession(
       ),
     );
     status.setText(renderStatusLine(state, controller.locale));
-    body.setText(renderTui(state, controller.locale));
+    body.setText(renderTui(state, controller.locale, { scrollOffset }));
     footer.setText(notice ?? t(controller.locale).footer);
     tui.requestRender(true);
+  };
+
+  const scrollBy = (delta: number) => {
+    const next = clampScrollOffset(lastMessageCount, TRANSCRIPT_WINDOW, scrollOffset + delta);
+    if (next === scrollOffset) {
+      return;
+    }
+    scrollOffset = next;
+    void render();
   };
 
   const showHelp = () => {
@@ -134,7 +158,7 @@ export async function runInteractiveSession(
     tui.requestRender(true);
   });
   tui.addInputListener((data) => {
-    const action = resolveTuiKeybinding(data);
+    const action = resolveTuiKeybinding(data, { editorHasText: editor.getText().length > 0 });
     if (!action) {
       return undefined;
     }
@@ -152,6 +176,20 @@ export async function runInteractiveSession(
       showHelp();
     } else if (action === "close-overlay") {
       hideOverlayIfPresent(tui);
+      // Restore composer focus so the next keystroke types into the editor
+      // (an overlay can capture focus; without this, input after closing an
+      // overlay is silently dropped).
+      tui.setFocus(editor);
+      if (controller.clearTransient()) {
+        // Re-render the footer back to the default hint so an aborted role-send
+        // or God confirmation prompt no longer lingers in the status line.
+        footer.setText(t(controller.locale).footer);
+        tui.requestRender(true);
+      }
+    } else if (action === "scroll-older") {
+      scrollBy(TRANSCRIPT_WINDOW);
+    } else if (action === "scroll-newer") {
+      scrollBy(-TRANSCRIPT_WINDOW);
     }
     return { consume: true };
   });

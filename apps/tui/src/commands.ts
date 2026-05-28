@@ -1,8 +1,15 @@
-import { type TuiLocale, t } from "./i18n.ts";
-import type { TuiCommand, TuiGodRoleAction, TuiRoomType } from "./types.ts";
+import { resolveTuiLocale, type TuiLocale, t, tuiLocales } from "./i18n.ts";
+import type {
+  TuiCommand,
+  TuiGodRoleAction,
+  TuiRoomType,
+  TuiSimAction,
+  TuiWorldMode,
+} from "./types.ts";
 
 const GOD_ROLE_ACTIONS = new Set<TuiGodRoleAction>(["kill", "mute", "revive"]);
 const ROOM_TYPES = new Set<TuiRoomType>(["group", "dm", "god-channel", "system"]);
+const WORLD_MODES = new Set<TuiWorldMode>(["debate", "workflow", "game", "simulation", "sandbox"]);
 
 export function parseTuiCommand(input: string): TuiCommand {
   const trimmed = input.trim();
@@ -64,6 +71,35 @@ export function parseTuiCommand(input: string): TuiCommand {
       };
     }
   }
+  if ((head === ":create-world" || head === "create-world") && tail.length >= 2) {
+    const modeArg = tail[2] as TuiWorldMode | undefined;
+    return {
+      kind: "createWorld",
+      worldId: tail[0] ?? "",
+      name: tail[1] ?? "",
+      mode: modeArg && WORLD_MODES.has(modeArg) ? modeArg : "sandbox",
+    };
+  }
+  if ((head === ":create-role" || head === "create-role") && tail.length >= 2) {
+    return {
+      kind: "createRole",
+      roleId: tail[0] ?? "",
+      displayName: tail[1] ?? "",
+      model: tail[2]?.trim() ? tail[2] : "default",
+    };
+  }
+  if ((head === ":sim" || head === "sim") && tail.length >= 1) {
+    const simAction = parseSimAction(tail);
+    if (simAction) {
+      return { kind: "sim", action: simAction };
+    }
+  }
+  if ((head === ":locale" || head === ":lang" || head === "locale") && rest) {
+    const normalized = resolveTuiLocale(rest);
+    if (tuiLocales.includes(normalized)) {
+      return { kind: "locale", locale: normalized };
+    }
+  }
   if ((head === ":run-role" || head === "run-role") && rest) {
     return {
       kind: "runRole",
@@ -102,6 +138,31 @@ export function parseTuiCommand(input: string): TuiCommand {
   return { kind: "send", content: trimmed.replace(/^:/, "") };
 }
 
+function parseSimAction(tail: string[]): TuiSimAction | undefined {
+  const action = tail[0]?.toLowerCase();
+  if (action === "status") {
+    return { kind: "status" };
+  }
+  if (action === "pause") {
+    return { kind: "pause" };
+  }
+  if (action === "resume") {
+    return { kind: "resume" };
+  }
+  if (action === "export") {
+    return { kind: "export" };
+  }
+  if (action === "fork") {
+    const label = tail.slice(1).join(" ").trim();
+    return { kind: "fork", ...(label ? { label } : {}) };
+  }
+  if (action === "tick") {
+    const ticks = Number.parseInt(tail[1] ?? "1", 10);
+    return { kind: "tick", ticks: Number.isFinite(ticks) && ticks > 0 ? ticks : 1 };
+  }
+  return undefined;
+}
+
 function splitCommandWords(input: string): string[] {
   return [...input.matchAll(/"([^"]*)"|'([^']*)'|(\S+)/g)].map(
     (match) => match[1] ?? match[2] ?? match[3] ?? "",
@@ -126,6 +187,13 @@ export function renderTuiHelp(locale: TuiLocale = "en"): string {
       "  :room <room-id>        切换房间",
       "  :create-room <type> <name> [members...]",
       "                         创建群聊/私聊/系统房间",
+      "  :create-world <id> <name> [mode]",
+      "                         生成创建世界的配置补丁提案",
+      "  :create-role <id> <name> [model]",
+      "                         生成创建角色的配置补丁提案",
+      "  :sim status|tick N|pause|resume|fork|export",
+      "                         模拟控制：状态/步进/暂停/恢复/分叉/导出",
+      "  :locale en|zh-CN        切换界面语言并保存",
       "  :run-role <role-id> [prompt]",
       "                         运行角色回合",
       "  :assistant <goal>      生成配置补丁提案",
@@ -163,6 +231,13 @@ export function renderTuiHelp(locale: TuiLocale = "en"): string {
     "  :room <room-id>        switch room",
     "  :create-room <type> <name> [members...]",
     "                         create a group, DM, or system room",
+    "  :create-world <id> <name> [mode]",
+    "                         propose a config patch that creates a world",
+    "  :create-role <id> <name> [model]",
+    "                         propose a config patch that creates a role",
+    "  :sim status|tick N|pause|resume|fork|export",
+    "                         drive the simulation runtime",
+    "  :locale en|zh-CN        switch interface language and persist it",
     "  :run-role <role-id> [prompt]",
     "                         run a role turn",
     "  :assistant <goal>      propose a config patch",

@@ -6,9 +6,18 @@ import type { TuiState } from "./types.ts";
 
 const DEFAULT_WIDTH = 88;
 const MIN_WIDTH = 32;
+export const DEFAULT_TRANSCRIPT_WINDOW = 12;
 
 export type RenderTuiOptions = {
   width?: number;
+  /** How many transcript rows to show at once. Defaults to 12. */
+  transcriptWindow?: number;
+  /**
+   * How many rows to skip from the newest message, enabling scrollback.
+   * 0 keeps the latest messages pinned to the bottom; larger values reveal
+   * older history while the window size stays constant.
+   */
+  scrollOffset?: number;
 };
 
 export function renderTui(
@@ -17,17 +26,33 @@ export function renderTui(
   options: RenderTuiOptions = {},
 ): string {
   const width = normalizeWidth(options.width);
+  const window = Math.max(1, options.transcriptWindow ?? DEFAULT_TRANSCRIPT_WINDOW);
+  const scrollOffset = Math.max(0, options.scrollOffset ?? 0);
   return [
     renderStatus(state, locale, width),
     divider(width),
     renderConversations(state.rooms, state.room, locale, width),
     divider(width),
-    renderMessages(state.messages, state.roles, locale, width),
+    renderMessages(state.messages, state.roles, locale, width, window, scrollOffset),
     divider(width),
     renderContext(state, locale, width),
     divider(width),
     renderShortcuts(state, locale, width),
   ].join("\n");
+}
+
+/**
+ * Clamps a desired scroll offset so it never reveals "below" the newest
+ * message or scrolls past the oldest. Shared by the interactive session so the
+ * key handler and renderer agree on bounds.
+ */
+export function clampScrollOffset(
+  messageCount: number,
+  window: number,
+  desiredOffset: number,
+): number {
+  const maxOffset = Math.max(0, messageCount - Math.max(1, window));
+  return Math.min(Math.max(0, desiredOffset), maxOffset);
 }
 
 function renderStatus(state: TuiState, locale: TuiLocale, width: number): string {
@@ -71,15 +96,26 @@ function renderMessages(
   roles: RoleSummary[],
   locale: TuiLocale,
   width: number,
+  window: number,
+  scrollOffset: number,
 ): string {
   const dict = t(locale);
   if (messages.length === 0) {
     return `${dict.messages}\n  ${dict.noMessages}`;
   }
-  return [
-    dict.messages,
-    ...messages.slice(-12).map((message) => messageRow(message, roles, width)),
-  ].join("\n");
+  const offset = clampScrollOffset(messages.length, window, scrollOffset);
+  const end = messages.length - offset;
+  const start = Math.max(0, end - window);
+  const visible = messages.slice(start, end);
+  const olderHidden = start;
+  const newerHidden = messages.length - end;
+  const header = [dict.messages];
+  if (olderHidden > 0) {
+    header.push(fit(`  ${dict.transcriptOlder(olderHidden)}`, width));
+  }
+  const lines = visible.map((message) => messageRow(message, roles, width));
+  const footer = newerHidden > 0 ? [fit(`  ${dict.transcriptNewer(newerHidden)}`, width)] : [];
+  return [...header, ...lines, ...footer].join("\n");
 }
 
 function messageRow(message: Message, roles: RoleSummary[], width: number): string {

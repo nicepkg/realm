@@ -11,6 +11,8 @@ describe("TUI keybindings", () => {
       { action: "god-console", key: "ctrl+g" },
       { action: "help", key: "?" },
       { action: "close-overlay", key: "escape" },
+      { action: "scroll-older", key: "pageUp" },
+      { action: "scroll-newer", key: "pageDown" },
       { action: "exit", key: "ctrl+c" },
     ]);
   });
@@ -25,5 +27,16 @@ describe("TUI keybindings", () => {
     expect(resolveTuiKeybinding("\u001b")).toBe("close-overlay");
     expect(resolveTuiKeybinding("\u0003")).toBe("exit");
     expect(resolveTuiKeybinding("x")).toBeUndefined();
+  });
+
+  test("maps PageUp/PageDown to scrollback actions", () => {
+    expect(resolveTuiKeybinding("[5~")).toBe("scroll-older");
+    expect(resolveTuiKeybinding("[6~")).toBe("scroll-newer");
+  });
+
+  test("forwards a bare ? to the editor when the composer holds text", () => {
+    // Empty composer: ? opens help. Non-empty: ? must reach the editor.
+    expect(resolveTuiKeybinding("?", { editorHasText: false })).toBe("help");
+    expect(resolveTuiKeybinding("?", { editorHasText: true })).toBeUndefined();
   });
 });
