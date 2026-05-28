@@ -1,23 +1,38 @@
 import { matchesKey } from "@earendil-works/pi-tui";
 import { type TuiLocale, t } from "./i18n.ts";
 import type { TuiState } from "./types.ts";
+import { renderRunState } from "./view-model.ts";
 
 export function renderStatusLine(state: TuiState, locale: TuiLocale = "en"): string {
   const dict = t(locale);
   const world = state.world?.id ?? dict.noWorld;
   const room = state.room?.id ?? dict.noRoom;
-  return `Realm | ${state.projectName} | ${dict.world}:${world} | ${dict.room}:${room} | ${dict.speaking}:${state.identity}`;
+  const provider = state.providerModel ?? dict.noValue;
+  const running = renderRunState(state.events, dict);
+  return `Realm | ${state.projectName} | ${dict.world}:${world} | ${dict.room}:${room} | ${dict.speaking}:${state.identity} | ${dict.provider}:${provider} | ${dict.running}:${running}`;
 }
 
 export function renderWhereami(state: TuiState, locale: TuiLocale = "en"): string {
   const dict = t(locale);
-  return [
+  const lines = [
     `${dict.project}: ${state.projectName}`,
     `${dict.world}: ${state.world?.name ?? dict.noValue}`,
     `${dict.room}: ${state.room?.name ?? dict.noValue}`,
     `${dict.speaking}: ${state.identity}`,
     `${dict.visibleRoles}: ${state.roles.map((role) => role.id).join(", ") || dict.noValue}`,
-  ].join(" · ");
+  ];
+  if (state.policySummary) {
+    lines.push(
+      `${dict.trustTier}: ${state.policySummary.trustTier}`,
+      dict.policyCapabilities(
+        state.policySummary.allowedCapabilities,
+        state.policySummary.deniedCapabilities,
+        state.policySummary.highRiskAllowed,
+      ),
+      dict.policyWarnings(state.policySummary.warnings.length),
+    );
+  }
+  return lines.join(" · ");
 }
 
 export function slashToCommand(input: string): string {

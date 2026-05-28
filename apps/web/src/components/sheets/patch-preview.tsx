@@ -5,19 +5,27 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Separator } from "@/components/ui/separator";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { useI18n } from "@/i18n/index.tsx";
 import type { PatchApplyResult } from "./config-action-types.ts";
+import {
+  buildRawPatchText,
+  isConflictError,
+  summarizePatchOperations,
+} from "./patch-preview-model.ts";
 
 export function PatchPreview({
   busy,
   onApplied,
   onApply,
+  onReject,
   onRollback,
   proposal,
 }: {
   busy: boolean;
   proposal?: ConfigPatchProposal;
   onApply: (confirmation?: string) => Promise<PatchApplyResult>;
+  onReject?: () => void;
   onRollback: (historyId: string) => Promise<{ historyId: string; restoredPaths: string[] }>;
   onApplied?: (proposal: ConfigPatchProposal, result: PatchApplyResult) => Promise<void> | void;
 }) {
@@ -32,6 +40,8 @@ export function PatchPreview({
   }
 
   const activeProposal = proposal;
+  const summary = summarizePatchOperations(proposal.operations);
+  const rawPatch = buildRawPatchText(proposal);
   const requiresConfirmation = Boolean(proposal.typedConfirmation);
   const canApply =
     !busy && (!proposal.typedConfirmation || confirmation === proposal.typedConfirmation);
@@ -106,8 +116,13 @@ export function PatchPreview({
       {error ? (
         <div
           className="rounded-md bg-[#fff4e5] p-2 text-[#7a4a00] text-[12px]"
-          data-testid="patch-error"
+          data-testid={isConflictError(error) ? "patch-conflict-error" : "patch-error"}
         >
+          <div className="font-medium">
+            {isConflictError(error)
+              ? t("sheet.config.conflictDetected")
+              : t("sheet.config.applyFailed")}
+          </div>
           {error}
         </div>
       ) : null}
@@ -153,30 +168,111 @@ export function PatchPreview({
             {t("sheet.config.rollback")}
           </Button>
         ) : null}
+        {!applyResult && onReject ? (
+          <Button
+            data-testid="config-patch-reject"
+            onClick={onReject}
+            type="button"
+            variant="ghost"
+          >
+            {t("sheet.config.reject")}
+          </Button>
+        ) : null}
       </div>
       <Separator />
-      <div className="space-y-2">
-        {proposal.operations.map((operation) => (
-          <div className="rounded-md bg-white p-2 text-[12px]" key={operation.path}>
-            <div className="flex items-center justify-between gap-2">
-              <span className="truncate font-medium">{operation.path}</span>
-              <Badge className="border-transparent bg-[#f0f0f2] text-[var(--realm-fg-muted)]">
-                {operation.action}
-              </Badge>
-            </div>
-            <div className="mt-1 text-[11px] text-[var(--realm-fg-faint)]">
-              {operation.previousHash
-                ? `${t("sheet.config.previousHash")}: ${operation.previousHash.slice(0, 10)}`
-                : t("sheet.config.newFile")}{" "}
-              {operation.nextHash ? `-> ${operation.nextHash.slice(0, 10)}` : ""}
-            </div>
-            <pre className="mt-2 max-h-36 overflow-auto whitespace-pre-wrap text-[11px] text-[var(--realm-fg-muted)]">
-              {operation.nextContent ?? ""}
-            </pre>
+      <Tabs defaultValue="semantic" className="space-y-2" data-testid="config-patch-tabs">
+        <TabsList className="bg-white" variant="line">
+          <TabsTrigger data-testid="config-patch-tab-semantic" value="semantic">
+            {t("sheet.config.semantic")}
+          </TabsTrigger>
+          <TabsTrigger data-testid="config-patch-tab-files" value="files">
+            {t("sheet.config.files")}
+          </TabsTrigger>
+          <TabsTrigger data-testid="config-patch-tab-raw" value="raw">
+            {t("sheet.config.rawDiff")}
+          </TabsTrigger>
+        </TabsList>
+        <TabsContent className="space-y-2" value="semantic">
+          <div
+            className="grid grid-cols-2 gap-2 rounded-md bg-white p-2 text-[12px]"
+            data-testid="config-patch-semantic"
+          >
+            <InfoMetric label={t("sheet.config.filesChanged")} value={String(summary.total)} />
+            <InfoMetric
+              label={t("sheet.config.validation")}
+              value={t("sheet.config.validationReady")}
+            />
+            <InfoMetric label={t("sheet.config.creates")} value={String(summary.create)} />
+            <InfoMetric label={t("sheet.config.updates")} value={String(summary.update)} />
+            <InfoMetric label={t("sheet.config.deletes")} value={String(summary.delete)} />
+            <InfoMetric
+              label={t("sheet.config.conflictStatus")}
+              value={t("sheet.config.conflictCheckedAtApply")}
+            />
           </div>
-        ))}
-      </div>
+          <section className="rounded-md bg-white p-2 text-[12px]">
+            <div className="font-medium">{t("sheet.config.requiredCapabilities")}</div>
+            <div className="mt-2 flex flex-wrap gap-1.5">
+              {proposal.requiredCapabilities.length > 0 ? (
+                proposal.requiredCapabilities.map((capability) => (
+                  <Badge
+                    className="border-transparent bg-[#f0f0f2] text-[var(--realm-fg-muted)]"
+                    key={capability}
+                  >
+                    {capability}
+                  </Badge>
+                ))
+              ) : (
+                <span className="text-[var(--realm-fg-muted)]">
+                  {t("sheet.config.noCapabilities")}
+                </span>
+              )}
+            </div>
+          </section>
+        </TabsContent>
+        <TabsContent className="space-y-2" value="files">
+          {proposal.operations.map((operation) => (
+            <div className="rounded-md bg-white p-2 text-[12px]" key={operation.path}>
+              <div className="flex items-center justify-between gap-2">
+                <span className="truncate font-medium">{operation.path}</span>
+                <Badge className="border-transparent bg-[#f0f0f2] text-[var(--realm-fg-muted)]">
+                  {operation.action}
+                </Badge>
+              </div>
+              <div className="mt-1 text-[11px] text-[var(--realm-fg-faint)]">
+                {operation.previousHash
+                  ? `${t("sheet.config.previousHash")}: ${operation.previousHash.slice(0, 10)}`
+                  : t("sheet.config.newFile")}{" "}
+                {operation.nextHash ? `-> ${operation.nextHash.slice(0, 10)}` : ""}
+              </div>
+              <pre className="mt-2 max-h-36 overflow-auto whitespace-pre-wrap text-[11px] text-[var(--realm-fg-muted)]">
+                {operation.nextContent ?? ""}
+              </pre>
+            </div>
+          ))}
+        </TabsContent>
+        <TabsContent value="raw">
+          <pre
+            className="max-h-72 overflow-auto rounded-md bg-[#1f1f21] p-3 text-[11px] text-white"
+            data-testid="config-patch-raw-diff"
+          >
+            {rawPatch}
+          </pre>
+          <div className="mt-2 text-[11px] text-[var(--realm-fg-muted)]">
+            {t("sheet.config.rawDiffHelp")}
+          </div>
+        </TabsContent>
+      </Tabs>
     </section>
+  );
+}
+
+function InfoMetric({ label, value }: { label: string; value: string }) {
+  return (
+    <div className="min-w-0 rounded-[6px] bg-[#f7f7f8] px-2 py-1.5">
+      <div className="truncate text-[11px] text-[var(--realm-fg-muted)]">{label}</div>
+      <div className="truncate font-medium text-[var(--realm-fg)]">{value}</div>
+    </div>
   );
 }
 

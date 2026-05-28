@@ -15,4 +15,15 @@ describe("TUI i18n", () => {
     expect(resolveTuiLocale("en")).toBe("en");
     expect(t("zh-CN").messageSent).toContain("消息");
   });
+
+  test("keeps interpolation function arity aligned across locales", () => {
+    for (const key of Object.keys(tuiDictionaries.en) as Array<keyof typeof tuiDictionaries.en>) {
+      const enValue = tuiDictionaries.en[key];
+      const zhValue = tuiDictionaries["zh-CN"][key];
+      expect(typeof zhValue, key).toBe(typeof enValue);
+      if (typeof enValue === "function" && typeof zhValue === "function") {
+        expect(zhValue.length, key).toBe(enValue.length);
+      }
+    }
+  });
 });

@@ -4,14 +4,13 @@ import {
   type ConfigActionSheetKind,
   ConfigActionSheets,
 } from "@/components/sheets/config-action-sheets.tsx";
-import { WorkspaceSheets } from "@/components/sheets/workspace-sheets.tsx";
+import { type WorkspaceSheetKind, WorkspaceSheets } from "@/components/sheets/workspace-sheets.tsx";
 import { TooltipProvider } from "@/components/ui/tooltip";
 import { useRealmAppState } from "@/state/use-realm-app-state.ts";
 import { WorldManagerPage } from "./world-manager-page.tsx";
 import { WorldWorkspacePage } from "./world-workspace-page.tsx";
 
 type AppMode = "manager" | "workspace";
-type WorkspaceSheetKind = "settings" | "god";
 
 export function AppShell() {
   const app = useRealmAppState();
@@ -19,6 +18,7 @@ export function AppShell() {
   const [commandOpen, setCommandOpen] = useState(false);
   const [actionSheet, setActionSheet] = useState<ConfigActionSheetKind | undefined>();
   const [workspaceSheet, setWorkspaceSheet] = useState<WorkspaceSheetKind | undefined>();
+  const [inspectedRoleId, setInspectedRoleId] = useState<string | undefined>();
 
   useEffect(() => {
     const onKeyDown = (event: KeyboardEvent) => {
@@ -43,6 +43,13 @@ export function AppShell() {
     setWorkspaceSheet(sheet);
   };
 
+  const inspectRole = (roleId: string) => {
+    app.setRunRoleId(roleId);
+    app.setActiveSection("roles");
+    setInspectedRoleId(roleId);
+    openWorkspaceSheet("role-inspector");
+  };
+
   return (
     <TooltipProvider>
       {mode === "manager" ? (
@@ -62,7 +69,9 @@ export function AppShell() {
           onBackToWorlds={() => setMode("manager")}
           onCreateRoom={() => setActionSheet("create-room")}
           onOpenGod={() => setWorkspaceSheet("god")}
+          onOpenWorldInspector={() => setWorkspaceSheet("world-inspector")}
           onOpenSettings={() => setWorkspaceSheet("settings")}
+          onInspectRole={inspectRole}
           onOpenCommandPalette={() => setCommandOpen(true)}
         />
       )}
@@ -72,7 +81,12 @@ export function AppShell() {
         onOpenChange={setActionSheet}
         onWorldCreated={() => setMode("workspace")}
       />
-      <WorkspaceSheets app={app} open={workspaceSheet} onOpenChange={setWorkspaceSheet} />
+      <WorkspaceSheets
+        app={app}
+        roleId={inspectedRoleId}
+        open={workspaceSheet}
+        onOpenChange={setWorkspaceSheet}
+      />
       <RealmCommandPalette
         app={app}
         mode={mode}
@@ -86,7 +100,9 @@ export function AppShell() {
         onCreateWorld={() => setActionSheet("create-world")}
         onEnterWorkspace={enterWorkspace}
         onOpenGod={() => openWorkspaceSheet("god")}
+        onOpenWorldInspector={() => openWorkspaceSheet("world-inspector")}
         onOpenChange={setCommandOpen}
+        onInspectRole={inspectRole}
         onOpenSettings={() => openWorkspaceSheet("settings")}
       />
     </TooltipProvider>

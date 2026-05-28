@@ -1,5 +1,6 @@
 import { type ChildProcessWithoutNullStreams, spawn } from "node:child_process";
 import { randomUUID } from "node:crypto";
+import type { TurnRuntime } from "@realm/core";
 import { AsyncEventQueue } from "./async-event-queue.ts";
 import { mapPiRpcRecordToBridgeEvents } from "./event-mapper.ts";
 import { JsonlDecoder, type PiRpcRecord, parsePiRpcJsonLine, serializeJsonLine } from "./jsonl.ts";
@@ -46,6 +47,18 @@ export class SubprocessPiBridge implements PiBridge {
     this.binary = options.binary ?? process.env.REALM_PI_BIN ?? "pi";
     this.commandTimeoutMs = options.commandTimeoutMs ?? 30_000;
     this.spawnProcess = options.spawnProcess ?? defaultSpawner;
+  }
+
+  adapterMetadata(): TurnRuntime {
+    return {
+      adapterKind: "subprocess",
+      binary: this.binary,
+      fallback: {
+        adapterKind: "subprocess",
+        reason: "Subprocess bridge is the active adapter.",
+        status: "available",
+      },
+    };
   }
 
   async startSession(input: PiSessionStartInput): Promise<PiSessionHandle> {

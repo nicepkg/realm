@@ -85,6 +85,15 @@ describe("core contracts", () => {
         actorId: "leijun",
         status: "completed",
         model: "gpt-5",
+        runtime: {
+          adapterKind: "package",
+          fallback: {
+            adapterKind: "subprocess",
+            status: "not-used",
+          },
+          packageName: "@earendil-works/pi-agent-core",
+          packageVersion: "0.1.0",
+        },
         usage: {
           input: 10,
           output: 5,
@@ -96,7 +105,10 @@ describe("core contracts", () => {
       },
     });
 
-    expect(event.type).toBe("turn.completed");
+    if (event.type !== "turn.completed") {
+      throw new Error(`Expected turn.completed, got ${event.type}`);
+    }
+    expect(event.turn.runtime?.adapterKind).toBe("package");
   });
 
   test("accepts workflow artifact and approval events", () => {

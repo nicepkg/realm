@@ -85,6 +85,27 @@ describe("realm web view model", () => {
     expect(turnStatusLabel("running")).toBe("role running");
   });
 
+  test("localizes system identity labels in conversation previews", () => {
+    const roles: RoleSummary[] = [
+      { id: "leijun", displayName: "雷军", model: "default", source: "config" },
+    ];
+    const room: Room = {
+      id: "main",
+      memberIds: ["owner", "leijun"],
+      name: "全员群",
+      type: "world-main",
+      worldId: "cultivation",
+    };
+    const rows = buildConversationRows(
+      [room],
+      [message("m1", "main", "owner", "你好", "2026-05-28T00:00:00.000Z")],
+      roles,
+      { god: "上帝", owner: "Boss" },
+    );
+
+    expect(rows[0]?.lastMessage).toBe("Boss: 你好");
+  });
+
   test("detects and describes trace events", () => {
     const event: RealmEvent = {
       type: "turn.delta",
@@ -192,6 +213,12 @@ describe("realm web view model", () => {
         actorId: "leijun",
         status: "completed",
         model: "gpt-5",
+        runtime: {
+          adapterKind: "package",
+          fallback: { adapterKind: "subprocess", status: "not-used" },
+          packageName: "@earendil-works/pi-agent-core",
+          packageVersion: "1.2.3",
+        },
         usage: {
           input: 10,
           output: 5,
@@ -205,7 +232,7 @@ describe("realm web view model", () => {
 
     expect(describeTraceEvent(event)).toEqual({
       title: "Turn completed: leijun",
-      body: "Model: gpt-5 | Usage: 18 tokens (in 10, out 5, cache 2/1, $0.000033)",
+      body: "Model: gpt-5 | Runtime: package (@earendil-works/pi-agent-core 1.2.3), fallback not-used | Usage: 18 tokens (in 10, out 5, cache 2/1, $0.000033)",
     });
   });
 

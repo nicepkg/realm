@@ -8,6 +8,7 @@ import type {
 } from "@realm/api-contract";
 import { RealmHttpClient } from "@realm/client-sdk";
 import { type FormEvent, useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { useI18n } from "@/i18n/index.tsx";
 import { connectEventFeed } from "@/state/event-feed.ts";
 import { buildConversationRows, isTraceEvent } from "@/view-models/realm-view-model.ts";
 
@@ -39,6 +40,10 @@ type AppState = {
   error?: string;
 };
 
+type LoadRealmOptions = {
+  resetIdentity?: boolean;
+};
+
 const initialState: AppState = {
   conversationMessages: [],
   events: [],
@@ -53,6 +58,7 @@ const initialState: AppState = {
 const idleTurnRun: TurnRunState = { status: "idle" };
 
 export function useRealmAppState() {
+  const { t } = useI18n();
   const client = useMemo(() => new RealmHttpClient(), []);
   const [state, setState] = useState<AppState>(initialState);
   const [activeSection, setActiveSection] = useState<AppSection>("chats");
@@ -70,7 +76,7 @@ export function useRealmAppState() {
   const reloadTimerRef = useRef<ReturnType<typeof setTimeout> | undefined>(undefined);
 
   const loadRealm = useCallback(
-    async (preferredWorldId?: string, preferredRoomId?: string) => {
+    async (preferredWorldId?: string, preferredRoomId?: string, options: LoadRealmOptions = {}) => {
       try {
         const effective = await client.getEffectiveConfig();
         const world =
@@ -117,7 +123,9 @@ export function useRealmAppState() {
         });
         setSelectedWorldId(world?.id);
         setSelectedRoomId(room?.id);
-        setIdentity((current) => (nextIdentities.includes(current) ? current : "owner"));
+        setIdentity((current) =>
+          resolveIdentityAfterRealmLoad(current, nextIdentities, options.resetIdentity),
+        );
         setRunRoleId((current) =>
           effective.roles.some((role) => role.id === current)
             ? current
@@ -160,8 +168,12 @@ export function useRealmAppState() {
     state.rooms[0];
   const identities = ["owner", ...state.roles.map((role) => role.id)];
   const conversations = useMemo(
-    () => buildConversationRows(state.rooms, state.conversationMessages, state.roles),
-    [state.rooms, state.conversationMessages, state.roles],
+    () =>
+      buildConversationRows(state.rooms, state.conversationMessages, state.roles, {
+        god: t("common.god"),
+        owner: t("common.boss"),
+      }),
+    [state.rooms, state.conversationMessages, state.roles, t],
   );
   const selectedRole = state.roles.find((role) => role.id === runRoleId) ?? state.roles[0];
   const traceEvents = state.events.filter(isTraceEvent).slice(-8);
@@ -234,12 +246,15 @@ export function useRealmAppState() {
   async function selectWorld(worldId: string) {
     setSelectedWorldId(worldId);
     setSelectedRoomId(undefined);
-    setIdentity("owner");
-    await loadRealm(worldId, undefined);
+    setDraft("");
+    setTurnRun(idleTurnRun);
+    setActiveSection("chats");
+    await loadRealm(worldId, undefined, { resetIdentity: true });
   }
 
   async function selectRoom(roomId: string) {
     setSelectedRoomId(roomId);
+    setActiveSection("chats");
     await loadRealm(selectedWorld?.id, roomId);
   }
 
@@ -375,4 +390,15 @@ export function useRealmAppState() {
     turnRun,
     turnStatus: turnRun.status,
   };
+}
+
+export function resolveIdentityAfterRealmLoad(
+  currentIdentity: string,
+  availableIdentities: string[],
+  resetIdentity = false,
+): string {
+  if (resetIdentity) {
+    return "owner";
+  }
+  return availableIdentities.includes(currentIdentity) ? currentIdentity : "owner";
 }

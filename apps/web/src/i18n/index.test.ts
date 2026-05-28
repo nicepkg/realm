@@ -14,4 +14,16 @@ describe("Web i18n", () => {
       }
     }
   });
+
+  test("keeps interpolation placeholders aligned across locales", () => {
+    for (const key of Object.keys(dictionaries.en) as Array<keyof typeof dictionaries.en>) {
+      expect(placeholders(dictionaries["zh-CN"][key]), key).toEqual(
+        placeholders(dictionaries.en[key]),
+      );
+    }
+  });
 });
+
+function placeholders(value: string): string[] {
+  return [...value.matchAll(/\{[a-zA-Z0-9_.-]+\}/g)].map(([match]) => match).sort();
+}

@@ -1,4 +1,5 @@
 import { randomUUID } from "node:crypto";
+import type { TurnRuntime } from "@realm/core";
 import { AsyncEventQueue } from "./async-event-queue.ts";
 import type {
   PiBridge,
@@ -17,6 +18,10 @@ type FakePiSession = {
 
 export class FakePiBridge implements PiBridge {
   private readonly sessions = new Map<string, FakePiSession>();
+
+  adapterMetadata(): TurnRuntime {
+    return { adapterKind: "fake" };
+  }
 
   async startSession(input: PiSessionStartInput): Promise<PiSessionHandle> {
     const id = `fake-pi-${randomUUID()}`;

@@ -200,6 +200,7 @@ export class FakeVerticalSliceRuntime {
       actorId: input.actorId,
       status: "completed",
       model: "fake",
+      runtime: { adapterKind: "fake" },
     };
 
     this.eventStore.append({
@@ -279,6 +280,7 @@ export class PiRoleTurnRunner {
   async run(input: PiRoleTurnInput): Promise<PiRoleTurnResult> {
     const turnId = input.turnId ?? makeId("turn", randomUUID());
     const correlationId = makeId("corr", randomUUID());
+    const runtime = this.bridge.adapterMetadata?.();
     const turn: TurnSummary = {
       id: turnId,
       worldId: input.worldId,
@@ -286,6 +288,7 @@ export class PiRoleTurnRunner {
       actorId: input.roleId,
       status: "running",
       model: input.model,
+      runtime,
     };
     this.eventStore.append({
       eventId: makeId("event:turn:started", randomUUID()),

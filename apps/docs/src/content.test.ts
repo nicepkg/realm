@@ -20,7 +20,9 @@ describe("docs content", () => {
       expect(ids.has("pi-integration")).toBe(true);
       expect(ids.has("identity-safety")).toBe(true);
       expect(ids.has("api-sdk")).toBe(true);
+      expect(navIds.has("release-install")).toBe(true);
       expect(navIds.has("templates")).toBe(true);
+      expect(navIds.has("github")).toBe(false);
       expect(page.sections.length).toBeGreaterThanOrEqual(8);
     }
   });

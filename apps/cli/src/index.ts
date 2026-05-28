@@ -96,6 +96,7 @@ async function doctor(argv: string[]): Promise<void> {
   const config = await loadProjectConfig(root).catch(() => undefined);
   const trust = await readProjectTrust(root);
   const piPackageStatus = await checkPiPackageImports();
+  const piFallbackAvailable = await commandExists("pi");
   const localConfigStatus = await describeLocalConfig(layout);
 
   console.log(`Project root: ${root}`);
@@ -105,14 +106,15 @@ async function doctor(argv: string[]): Promise<void> {
   console.log(`Default world: ${config?.defaults.world ?? "unknown"}`);
   console.log(`Project trust: ${trust?.tier ?? "untrusted/read-only"}`);
   console.log(
-    `State gitignored: ${(await gitignoreContains(root, ".agents/state/")) ? "ok" : "missing"}`,
+    `State gitignored: ${(await gitignoreContainsRuntimeDir(root, ".agents/state")) ? "ok" : "missing"}`,
   );
-  console.log("Pi adapter: package (default)");
-  console.log(`Pi packages: ${piPackageStatus}`);
+  console.log("Pi adapter: package-first (default role runtime)");
+  console.log(`Pi package runtime: ${piPackageStatus}`);
+  console.log(
+    `Pi subprocess fallback: ${piFallbackAvailable ? "available" : "unavailable"} (optional diagnostic path, never required for normal role turns)`,
+  );
   if (argv.includes("--fallback")) {
-    console.log(
-      `Pi CLI fallback: ${(await commandExists("pi")) ? "available" : "unavailable (optional)"}`,
-    );
+    console.log("Pi fallback check: use only for RPC diagnostics or compatibility smoke tests.");
   }
 }
 
@@ -326,10 +328,14 @@ async function packageVersion(packageName: string): Promise<string> {
   return "unknown";
 }
 
-async function gitignoreContains(root: string, entry: string): Promise<boolean> {
+async function gitignoreContainsRuntimeDir(root: string, entry: string): Promise<boolean> {
   try {
     const content = await Bun.file(path.join(root, ".gitignore")).text();
-    return content.split(/\r?\n/).includes(entry);
+    const lines = content
+      .split(/\r?\n/)
+      .map((line) => line.trim())
+      .filter((line) => line && !line.startsWith("#"));
+    return lines.includes(entry) || lines.includes(`${entry}/`) || lines.includes(`${entry}/*`);
   } catch {
     return false;
   }

@@ -61,6 +61,7 @@ describe("PiRoleTurnRunner", () => {
       "message.created",
       "turn.completed",
     ]);
+    expect(result.turn.runtime).toEqual({ adapterKind: "fake" });
   });
 
   test("attaches Pi usage to completed turns", async () => {
@@ -83,6 +84,36 @@ describe("PiRoleTurnRunner", () => {
 
     expect(result.turn.model).toBe("gpt-5");
     expect(result.turn.usage).toMatchObject({ input: 10, output: 5, totalTokens: 15 });
+  });
+
+  test("records Pi adapter metadata on turn trace events", async () => {
+    const eventStore = new InMemoryEventStore();
+    const runner = new PiRoleTurnRunner(
+      new MetadataPiBridge(),
+      eventStore,
+      fakeClock(new Date("2026-05-26T00:00:00.000Z")),
+    );
+
+    await runner.run({
+      worldId: "cultivation",
+      roomId: "main",
+      roleId: "leijun",
+      prompt: "Hello",
+      cwd: "/tmp/project",
+      sessionDir: "/tmp/project/.agents/state/pi-sessions/cultivation/main/leijun",
+      systemPrompt: "You are Lei Jun.",
+      timeoutMs: 500,
+    });
+
+    const turns = eventStore
+      .list()
+      .filter((event) => event.type === "turn.started" || event.type === "turn.completed");
+    expect(turns.every((event) => event.turn.runtime?.adapterKind === "package")).toBe(true);
+    expect(turns.at(-1)?.turn.runtime).toMatchObject({
+      fallback: { status: "not-used" },
+      packageName: "@earendil-works/pi-agent-core",
+      packageVersion: "1.2.3",
+    });
   });
 
   test("emits turn.failed as a distinct event type", async () => {
@@ -140,6 +171,21 @@ class ErrorPiBridge implements PiBridge {
   async abort(_sessionId: string): Promise<void> {}
 
   async dispose(_sessionId: string): Promise<void> {}
+}
+
+class MetadataPiBridge extends UsagePiBridge {
+  adapterMetadata() {
+    return {
+      adapterKind: "package" as const,
+      fallback: {
+        adapterKind: "subprocess" as const,
+        reason: "Package bridge is active.",
+        status: "not-used" as const,
+      },
+      packageName: "@earendil-works/pi-agent-core",
+      packageVersion: "1.2.3",
+    };
+  }
 }
 
 async function* errorEvents(sessionDir: string): AsyncIterable<PiBridgeEvent> {

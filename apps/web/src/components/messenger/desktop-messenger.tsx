@@ -1,11 +1,10 @@
-import { ImpersonationBanner } from "@/components/messenger/impersonation-banner.tsx";
+import { Wifi } from "lucide-react";
 import {
   ChatHeader,
   MessengerComposer,
   MessengerTimeline,
 } from "@/components/messenger/messenger-chat.tsx";
 import { MessengerSidebar } from "@/components/messenger/messenger-sidebar.tsx";
-import { RoleTurnStrip } from "@/components/messenger/role-turn-strip.tsx";
 import { useI18n } from "@/i18n/index.tsx";
 import type { RealmAppController } from "../../app/types.ts";
 
@@ -14,7 +13,9 @@ type DesktopMessengerProps = {
   onBackToWorlds: () => void;
   onCreateRoom: () => void;
   onOpenGod: () => void;
+  onOpenWorldInspector: () => void;
   onOpenCommandPalette: () => void;
+  onInspectRole: (roleId: string) => void;
   onOpenSettings: () => void;
 };
 
@@ -23,7 +24,9 @@ export function DesktopMessenger({
   onBackToWorlds,
   onCreateRoom,
   onOpenGod,
+  onOpenWorldInspector,
   onOpenCommandPalette,
+  onInspectRole,
   onOpenSettings,
 }: DesktopMessengerProps) {
   const { t } = useI18n();
@@ -33,26 +36,24 @@ export function DesktopMessenger({
       <section className="flex h-full min-h-0 flex-col" data-testid="realm-shell">
         <WechatStatusBar app={app} />
         <section className="grid min-h-0 flex-1 grid-cols-1 overflow-hidden md:grid-cols-[minmax(360px,33.333vw)_minmax(0,1fr)]">
-          <MessengerSidebar app={app} onCreateRoom={onCreateRoom} onOpenSettings={onOpenSettings} />
+          <MessengerSidebar
+            app={app}
+            onCreateRoom={onCreateRoom}
+            onInspectRole={onInspectRole}
+            onOpenSettings={onOpenSettings}
+          />
           <section className="relative flex min-w-0 flex-col bg-[#ededee]" data-testid="chat-panel">
             <ChatHeader
               app={app}
               onBackToWorlds={onBackToWorlds}
               onOpenCommandPalette={onOpenCommandPalette}
             />
-            <RoleTurnStrip app={app} onOpenGod={onOpenGod} onOpenSettings={onOpenSettings} />
-            <ImpersonationBanner
-              identity={app.identity}
-              roles={app.state.roles}
-              room={app.selectedRoom}
-              world={app.selectedWorld}
-              onExit={() => app.setIdentity("owner")}
-            />
             <MessengerTimeline app={app} />
             <MessengerComposer
               app={app}
               onOpenCommandPalette={onOpenCommandPalette}
               onOpenGod={onOpenGod}
+              onOpenWorldInspector={onOpenWorldInspector}
               onOpenSettings={onOpenSettings}
             />
           </section>
@@ -66,7 +67,7 @@ export function DesktopMessenger({
 function WechatStatusBar({ app }: { app: RealmAppController }) {
   const now = new Date();
   const weekday = now.toLocaleDateString("zh-CN", { weekday: "short" });
-  const monthDay = now.toLocaleDateString("zh-CN", { day: "numeric", month: "numeric" });
+  const dateLabel = `${now.getMonth() + 1}月${now.getDate()}日${weekday}`;
   const time = now.toLocaleTimeString("zh-CN", {
     hour: "2-digit",
     hour12: false,
@@ -80,14 +81,11 @@ function WechatStatusBar({ app }: { app: RealmAppController }) {
     >
       <div className="flex min-w-0 items-center gap-3 px-5 md:px-6">
         <span>{time}</span>
-        <span className="hidden truncate sm:inline">
-          {monthDay}
-          {weekday}
-        </span>
+        <span className="hidden truncate sm:inline">{dateLabel}</span>
         <span className="sr-only">{app.state.projectName}</span>
       </div>
       <div className="flex items-center justify-end gap-2 px-5 md:px-6">
-        <span aria-hidden="true" className="h-2 w-4 rounded-full border-2 border-[#111]" />
+        <Wifi aria-hidden="true" className="size-[17px]" />
         <span className="tabular-nums">93%</span>
         <span
           aria-hidden="true"

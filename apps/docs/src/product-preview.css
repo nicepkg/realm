@@ -74,16 +74,22 @@
 }
 
 .group-avatar {
-  align-content: center;
+  align-items: center;
   background: #d9dcdf;
   border-radius: 4px;
-  display: grid;
-  gap: 2px;
-  grid-template-columns: repeat(3, 1fr);
+  display: flex;
+  flex-direction: column;
+  gap: 1.5px;
   height: 44px;
   justify-content: center;
   padding: 3px;
   width: 44px;
+}
+
+.group-avatar-row {
+  display: flex;
+  gap: 1.5px;
+  justify-content: center;
 }
 
 .group-avatar i {
@@ -91,9 +97,11 @@
   background: var(--realm-primary);
   border-radius: 3px;
   display: inline-flex;
-  font-size: 9px;
+  font-size: 12px;
   font-style: normal;
+  height: 18px;
   justify-content: center;
+  width: 18px;
 }
 
 .chat-preview {

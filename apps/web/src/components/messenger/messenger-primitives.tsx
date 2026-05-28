@@ -8,32 +8,29 @@ type AvatarPerson = {
 };
 
 const AVATAR_SIZE_CLASS: Record<AvatarSize, string> = {
-  lg: "size-[48px] rounded-[5px] text-[22px]",
-  md: "size-10 rounded-[5px] text-[18px]",
-  sm: "size-[34px] rounded-[5px] text-[15px]",
+  lg: "size-[52px] rounded-[4px] text-[25px]",
+  md: "size-[44px] rounded-[4px] text-[21px]",
+  sm: "size-[36px] rounded-[4px] text-[16px]",
 };
 
 const GROUP_SIZE_CLASS: Record<AvatarSize, string> = {
-  lg: "size-[48px] rounded-[5px] p-[2px]",
-  md: "size-10 rounded-[5px] p-[2px]",
-  sm: "size-[34px] rounded-[5px] p-[2px]",
+  lg: "size-[52px] rounded-[4px] p-[2px]",
+  md: "size-[44px] rounded-[4px] p-[2px]",
+  sm: "size-[36px] rounded-[4px] p-[2px]",
 };
 
-const GROUP_CELL_SIZE_CLASS: Record<AvatarSize, Record<1 | 2 | 3, string>> = {
+const GROUP_CELL_SIZE_CLASS: Record<AvatarSize, Record<"dense" | "sparse", string>> = {
   lg: {
-    1: "size-[30px] text-[17px]",
-    2: "size-[20px] text-[12px]",
-    3: "size-[13px] text-[8px]",
+    dense: "size-[15px] text-[9px]",
+    sparse: "size-[23px] text-[12px]",
   },
   md: {
-    1: "size-[25px] text-[14px]",
-    2: "size-[16px] text-[10px]",
-    3: "size-[11px] text-[7px]",
+    dense: "size-[12px] text-[8px]",
+    sparse: "size-[19px] text-[10px]",
   },
   sm: {
-    1: "size-[20px] text-[11px]",
-    2: "size-[13px] text-[8px]",
-    3: "size-[9px] text-[6px]",
+    dense: "size-[9px] text-[7px]",
+    sparse: "size-[15px] text-[8px]",
   },
 };
 
@@ -170,9 +167,11 @@ export function IdentityAvatar({
     <span
       data-avatar-seed={identity ?? displayLabel}
       data-avatar-glyph={profile.glyph}
+      data-avatar-kind="fallback"
       data-testid="identity-avatar"
+      data-wechat-avatar="person"
       className={cn(
-        "relative flex shrink-0 items-center justify-center overflow-hidden border border-white/35 font-semibold leading-none shadow-[inset_0_0_0_1px_rgba(0,0,0,0.06)]",
+        "relative flex shrink-0 items-center justify-center overflow-hidden font-semibold leading-none shadow-[inset_0_0_0_1px_rgba(0,0,0,0.05)]",
         AVATAR_SIZE_CLASS[size],
         className,
       )}
@@ -185,14 +184,11 @@ export function IdentityAvatar({
     >
       <span
         aria-hidden="true"
-        className="absolute -right-1 -bottom-1 size-[18px] rounded-full opacity-45"
+        className="absolute -right-1 -bottom-1 size-[18px] rounded-full opacity-35"
         style={{ backgroundColor: profile.accent }}
       />
-      <span aria-hidden="true" className="relative z-10 drop-shadow-[0_1px_1px_rgba(0,0,0,0.18)]">
+      <span aria-hidden="true" className="relative z-10 drop-shadow-[0_1px_1px_rgba(0,0,0,0.16)]">
         {profile.glyph}
-      </span>
-      <span aria-hidden="true" className="absolute top-0.5 left-1 text-[8px] font-bold opacity-45">
-        {profile.initials}
       </span>
       <span className="sr-only">{displayLabel}</span>
     </span>
@@ -210,36 +206,44 @@ export function GroupAvatarGrid({
   members: AvatarPerson[];
   size?: AvatarSize;
 }) {
-  const visibleMembers = groupVisualMembers(label, members);
-  const rows = groupRowsForMembers(visibleMembers);
+  const rows = groupRowsForMembers(groupVisualMembers(label, members));
+  const density = rows.some((row) => row.length >= 3) ? "dense" : "sparse";
 
   return (
     <span
       aria-label={label}
       className={cn(
-        "flex shrink-0 flex-col items-center justify-center gap-[2px] overflow-hidden bg-[#d8dadd]",
+        "flex shrink-0 flex-col items-center justify-center gap-[1.5px] overflow-hidden bg-[#d8dadd]",
         GROUP_SIZE_CLASS[size],
         className,
       )}
       data-testid="group-avatar-grid"
+      data-wechat-avatar="group"
+      data-wechat-grid="member-collage"
       role="img"
       title={label}
     >
       {rows.map((row) => (
         <span
-          className="flex justify-center gap-[2px]"
-          key={row.map((member) => member.id).join(":")}
+          aria-hidden="true"
+          className="flex justify-center gap-[1.5px]"
+          data-testid="group-avatar-row"
+          key={`${label}:row:${row.map((member) => member.id || member.label).join("|")}`}
         >
           {row.map((member) => {
-            const profile = avatarProfileForIdentity(member.id || member.label);
+            const seed = member.label || member.id;
+            const profile = avatarProfileForIdentity(seed);
             return (
               <span
                 className={cn(
-                  "relative flex items-center justify-center overflow-hidden rounded-[3px] font-semibold leading-none shadow-[inset_0_0_0_1px_rgba(0,0,0,0.05)]",
-                  GROUP_CELL_SIZE_CLASS[size][3],
+                  "relative flex items-center justify-center overflow-hidden rounded-[1.5px] font-semibold leading-none shadow-[inset_0_0_0_1px_rgba(0,0,0,0.04)]",
+                  GROUP_CELL_SIZE_CLASS[size][density],
                 )}
-                data-avatar-seed={member.id || member.label}
+                data-avatar-seed={seed}
+                data-avatar-glyph={profile.glyph}
+                data-avatar-kind="fallback"
                 data-testid="group-avatar-cell"
+                data-wechat-avatar="group-member"
                 key={member.id || member.label}
                 style={{
                   backgroundColor: profile.background,
@@ -250,7 +254,7 @@ export function GroupAvatarGrid({
               >
                 <span
                   aria-hidden="true"
-                  className="absolute -right-1 -bottom-1 size-[7px] rounded-full opacity-50"
+                  className="absolute -right-1 -bottom-1 size-[7px] rounded-full opacity-45"
                   style={{ backgroundColor: profile.accent }}
                 />
                 <span aria-hidden="true" className="relative z-10">
@@ -320,15 +324,7 @@ export function avatarProfileForIdentity(seed: string) {
 }
 
 export function groupVisualMembers(label: string, members: AvatarPerson[]): AvatarPerson[] {
-  const realMembers = members.length > 0 ? members.slice(0, 9) : [{ id: label, label }];
-  if (realMembers.length >= 9) {
-    return realMembers;
-  }
-  const fillers = Array.from({ length: 9 - realMembers.length }, (_, index) => ({
-    id: `${label}:avatar-fill:${index + 1}`,
-    label: `${label} ${index + 1}`,
-  }));
-  return [...realMembers, ...fillers];
+  return members.length > 0 ? members.slice(0, 9) : [{ id: label, label }];
 }
 
 export function groupRowsForMembers(members: AvatarPerson[]): AvatarPerson[][] {

@@ -11,8 +11,15 @@ export type TuiDictionary = {
   conversations: string;
   defaultValue: string;
   draftRoleTakeoverCannotConfirm: string;
+  draftCopyTitle: (id: string) => string;
+  draftCreatedAt: string;
+  draftDetailsTitle: (id: string) => string;
+  draftEditSaved: (id: string) => string;
+  draftError: string;
   draftListEmpty: string;
+  draftListActions: (id: string) => string;
   draftListTitle: string;
+  draftPath: string;
   draftRetryMissing: (id: string) => string;
   draftRetrySent: (id: string) => string;
   draftSaved: (id: string, filePath: string) => string;
@@ -25,6 +32,7 @@ export type TuiDictionary = {
   helpOpened: string;
   identity: string;
   identityDescription: string;
+  idle: string;
   latestTrace: string;
   memory: string;
   memoryEmpty: string;
@@ -62,10 +70,14 @@ export type TuiDictionary = {
   patchRejected: string;
   patchRisk: string;
   patchSummary: string;
+  policy: string;
+  policyCapabilities: (allowed: number, denied: number, highRisk: number) => string;
+  policyWarnings: (count: number) => string;
   project: string;
   provider: string;
   providerDescription: string;
   reloaded: string;
+  running: string;
   roleSendCancelled: string;
   roleSwitched: (identity: string) => string;
   room: string;
@@ -94,6 +106,7 @@ export type TuiDictionary = {
   traceMessage: (identity: string) => string;
   traceTurn: (status: string, actor: string) => string;
   traceWorldEvent: (title: string) => string;
+  trustTier: string;
   useCtrlCToExit: string;
   visibleRoles: string;
   world: string;
@@ -116,12 +129,20 @@ export const tuiDictionaries: Record<TuiLocale, TuiDictionary> = {
     conversations: "Conversations",
     defaultValue: "default",
     draftRoleTakeoverCannotConfirm: "One-shot role takeover cannot confirm.",
+    draftCopyTitle: (id) => `Copyable draft details for ${id}`,
+    draftCreatedAt: "Created at",
+    draftDetailsTitle: (id) => `Draft ${id}`,
+    draftEditSaved: (id) => `Draft ${id} updated. Use :retry-draft ${id} to send it.`,
+    draftError: "Failure",
     draftListEmpty: "No failed drafts saved.",
+    draftListActions: (id) =>
+      `Actions: :draft ${id} · :edit-draft ${id} <message> · :copy-draft ${id} · :retry-draft ${id}`,
     draftListTitle: "Failed drafts",
+    draftPath: "File",
     draftRetryMissing: (id) => `Draft ${id} was not found.`,
     draftRetrySent: (id) => `Draft ${id} sent and removed.`,
     draftSaved: (id, filePath) =>
-      `Send failed. Draft ${id} saved at ${filePath}. Use :drafts, :retry-draft ${id}, or edit the JSON file.`,
+      `Send failed. Draft ${id} saved at ${filePath}. Use :draft ${id}, :edit-draft ${id} <message>, :copy-draft ${id}, or :retry-draft ${id}.`,
     eventsRecorded: "Events recorded",
     footer: "Ctrl+K commands · Esc close · ? help · Ctrl+C exit",
     godActionApplied: (action, target) => `God ${action} applied to ${target}.`,
@@ -149,6 +170,7 @@ export const tuiDictionaries: Record<TuiLocale, TuiDictionary> = {
     helpOpened: "Help opened.",
     identity: "Identity",
     identityDescription: "Current participant account used by the composer.",
+    idle: "idle",
     latestTrace: "Latest trace",
     memory: "Memory",
     memoryEmpty: "No memory recorded.",
@@ -187,10 +209,15 @@ export const tuiDictionaries: Record<TuiLocale, TuiDictionary> = {
     patchRejected: "Config patch rejected.",
     patchRisk: "Risk",
     patchSummary: "Summary",
+    policy: "Policy",
+    policyCapabilities: (allowed, denied, highRisk) =>
+      `Capabilities: ${allowed} allowed, ${denied} denied, ${highRisk} high-risk allowed`,
+    policyWarnings: (count) => `${count} policy warning${count === 1 ? "" : "s"}`,
     project: "Project",
     provider: "Provider",
     providerDescription: "Default provider used by Realm role turns.",
     reloaded: "Reloaded.",
+    running: "Running",
     roleSendCancelled: "Role send cancelled.",
     roleSwitched: (identity) => `Speaking as ${identity}.`,
     room: "Room",
@@ -220,6 +247,7 @@ export const tuiDictionaries: Record<TuiLocale, TuiDictionary> = {
     traceMessage: (identity) => `message ${identity}`,
     traceTurn: (status, actor) => `turn ${status} ${actor}`,
     traceWorldEvent: (title) => `world event ${title}`,
+    trustTier: "Trust tier",
     useCtrlCToExit: "Use Ctrl+C to exit the Pi TUI.",
     visibleRoles: "Visible roles",
     world: "World",
@@ -238,12 +266,20 @@ export const tuiDictionaries: Record<TuiLocale, TuiDictionary> = {
     conversations: "会话",
     defaultValue: "默认",
     draftRoleTakeoverCannotConfirm: "单次命令无法确认角色接管。",
+    draftCopyTitle: (id) => `草稿 ${id} 的可复制详情`,
+    draftCreatedAt: "创建时间",
+    draftDetailsTitle: (id) => `草稿 ${id}`,
+    draftEditSaved: (id) => `草稿 ${id} 已更新。使用 :retry-draft ${id} 发送。`,
+    draftError: "失败原因",
     draftListEmpty: "没有保存的失败草稿。",
+    draftListActions: (id) =>
+      `操作：:draft ${id} · :edit-draft ${id} <消息> · :copy-draft ${id} · :retry-draft ${id}`,
     draftListTitle: "失败草稿",
+    draftPath: "文件",
     draftRetryMissing: (id) => `草稿 ${id} 不存在。`,
     draftRetrySent: (id) => `草稿 ${id} 已发送并移除。`,
     draftSaved: (id, filePath) =>
-      `发送失败。草稿 ${id} 已保存到 ${filePath}。可用 :drafts、:retry-draft ${id}，或直接编辑 JSON 文件。`,
+      `发送失败。草稿 ${id} 已保存到 ${filePath}。可用 :draft ${id}、:edit-draft ${id} <消息>、:copy-draft ${id} 或 :retry-draft ${id}。`,
     eventsRecorded: "已记录事件",
     footer: "Ctrl+K 命令 · Esc 关闭 · ? 帮助 · Ctrl+C 退出",
     godActionApplied: (action, target) => `上帝动作 ${action} 已应用到 ${target}。`,
@@ -271,6 +307,7 @@ export const tuiDictionaries: Record<TuiLocale, TuiDictionary> = {
     helpOpened: "帮助已打开。",
     identity: "身份",
     identityDescription: "输入区当前使用的参与者账号。",
+    idle: "空闲",
     latestTrace: "最新 trace",
     memory: "记忆",
     memoryEmpty: "暂无记忆记录。",
@@ -309,10 +346,15 @@ export const tuiDictionaries: Record<TuiLocale, TuiDictionary> = {
     patchRejected: "配置补丁已拒绝。",
     patchRisk: "风险",
     patchSummary: "摘要",
+    policy: "策略",
+    policyCapabilities: (allowed, denied, highRisk) =>
+      `能力：允许 ${allowed}，拒绝 ${denied}，高风险允许 ${highRisk}`,
+    policyWarnings: (count) => `${count} 条策略警告`,
     project: "项目",
     provider: "Provider",
     providerDescription: "Realm 角色回合默认使用的 Provider。",
     reloaded: "已刷新。",
+    running: "运行状态",
     roleSendCancelled: "角色发送已取消。",
     roleSwitched: (identity) => `已切换发送身份：${identity}。`,
     room: "房间",
@@ -342,6 +384,7 @@ export const tuiDictionaries: Record<TuiLocale, TuiDictionary> = {
     traceMessage: (identity) => `消息 ${identity}`,
     traceTurn: (status, actor) => `回合 ${status} ${actor}`,
     traceWorldEvent: (title) => `世界事件 ${title}`,
+    trustTier: "信任级别",
     useCtrlCToExit: "按 Ctrl+C 退出 Pi TUI。",
     visibleRoles: "可见角色",
     world: "世界",

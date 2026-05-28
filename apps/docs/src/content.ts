@@ -1,82 +1,7 @@
-export type Locale = "en" | "zh-CN";
+import type { DocsPage, Locale } from "./content-types.ts";
 
-export type TextPair = {
-  label: string;
-  value: string;
-};
-
-export type DocSection = {
-  id: string;
-  eyebrow: string;
-  title: string;
-  body: string;
-  bullets: string[];
-  code?: string;
-};
-
-export type DocsPage = {
-  locale: Locale;
-  languageLabel: string;
-  switchLabel: string;
-  nav: TextPair[];
-  hero: {
-    title: string;
-    promise: string;
-    installLabel: string;
-    installCommand: string;
-    primaryAction: string;
-    secondaryAction: string;
-    proof: string[];
-  };
-  preview: {
-    managerTitle: string;
-    managerAction: string;
-    worldName: string;
-    worldMeta: string;
-    chatTitle: string;
-    time: string;
-    incomingAuthor: string;
-    incoming: string;
-    outgoing: string;
-    composer: string;
-    settings: string;
-    god: string;
-  };
-  quickStart: {
-    title: string;
-    intro: string;
-    steps: TextPair[];
-  };
-  concepts: {
-    title: string;
-    intro: string;
-    nodes: TextPair[];
-  };
-  tui: {
-    title: string;
-    intro: string;
-    lines: string[];
-  };
-  trust: {
-    title: string;
-    intro: string;
-    bullets: string[];
-  };
-  examples: {
-    title: string;
-    intro: string;
-    items: TextPair[];
-  };
-  sections: DocSection[];
-  cta: {
-    title: string;
-    body: string;
-    install: string;
-    github: string;
-  };
-};
-
-export const locales = ["en", "zh-CN"] as const;
+export type { DocSection, DocsPage, Locale, TextPair } from "./content-types.ts";
+export { locales } from "./content-types.ts";
 
 export const pages: Record<Locale, DocsPage> = {
   en: {
@@ -88,13 +13,13 @@ export const pages: Record<Locale, DocsPage> = {
       { label: "Concepts", value: "concepts" },
       { label: "Web UI", value: "web-ui" },
       { label: "TUI", value: "tui" },
+      { label: "Install", value: "release-install" },
       { label: "Config", value: "configuration" },
       { label: "Pi", value: "pi-integration" },
       { label: "Safety", value: "identity-safety" },
       { label: "Templates", value: "templates" },
       { label: "API", value: "api-sdk" },
       { label: "Contributing", value: "contributing" },
-      { label: "GitHub", value: "github" },
     ],
     hero: {
       title: "Realm",
@@ -192,6 +117,7 @@ export const pages: Record<Locale, DocsPage> = {
           "Package: npm i -g @nicepkg/realm",
           "Binary: bun run build:binary && ./dist/bin/realm doctor",
           "Docs: bun run build:docs, then deploy with Wrangler when Cloudflare credentials are present.",
+          "CI should prove Linux, macOS, Windows, docs, binary smoke, package smoke and Web structure checks before a release is trusted.",
         ],
         code: "bun install\nbun run build\nbun run build:docs\nbun run build:binary\n./dist/bin/realm init --template cultivation\n./dist/bin/realm open --runtime fake",
       },
@@ -204,6 +130,8 @@ export const pages: Record<Locale, DocsPage> = {
           ".agents/config.yaml is the project entry point.",
           "config.local.yaml, state and logs are local-only.",
           "Config patches carry intent, affected files, risk and recovery context.",
+          "High-risk patches require the exact typed confirmation returned by policy.",
+          "Apply checks file hashes again so stale previews cannot overwrite newer config.",
         ],
         code: ".agents/\n  config.yaml\n  roles/<role>/role.yaml\n  worlds/<world>/world.yaml\n  worlds/<world>/state.schema.yaml\n  state/ # gitignored\n  logs/  # gitignored",
       },
@@ -216,7 +144,10 @@ export const pages: Record<Locale, DocsPage> = {
           "No permanent industrial-control dashboard in the first viewport.",
           "Settings, God controller, patch preview and trace views are progressive surfaces.",
           "Identity takeover names displayed author, real operator, world and room.",
+          "The conversation list uses deterministic person avatars and real-member group collages so every room reads like a real chat.",
+          "Config review exposes semantic summary, raw diff, conflict status, reject, apply and rollback in one sheet.",
         ],
+        code: "realm open --runtime fake\n# Create World -> Preview Patch -> Apply Patch\n# Chat -> + -> Run Role / Settings / God Controller",
       },
       {
         id: "tui",
@@ -227,6 +158,8 @@ export const pages: Record<Locale, DocsPage> = {
           "Ctrl+K command palette, Ctrl+W worlds, Ctrl+L rooms, Ctrl+R roles.",
           "Ctrl+G opens a guarded God Console with typed confirmation syntax.",
           "One-shot role sends cannot bypass role takeover confirmation.",
+          "Failed sends preserve drafts under the user-local draft store.",
+          "State, memory and config patch commands render readable previews before writes.",
         ],
         code: 'realm tui --base-url http://127.0.0.1:3737 --once\nrealm tui --base-url http://127.0.0.1:3737\n:god mute leijun "story pause"',
       },
@@ -239,7 +172,10 @@ export const pages: Record<Locale, DocsPage> = {
           "Role turns use scoped tools generated from Realm policy.",
           "Trace events record model, usage, tool calls and failures.",
           "Doctor output distinguishes package runtime from subprocess fallback.",
+          "Package metadata is recorded on turn events for audit and support.",
+          "Explicit provider env input is hermetic and does not merge ambient API keys.",
         ],
+        code: "realm doctor --fallback\nrealm open --runtime package\nbun run smoke:real-providers --provider google --timeout-ms 120000",
       },
       {
         id: "identity-safety",
@@ -250,7 +186,10 @@ export const pages: Record<Locale, DocsPage> = {
           "Boss/owner is the default composer identity.",
           "Role takeover uses confirmation and a persistent banner.",
           "God is not a normal chat identity.",
+          "Switching worlds resets the speaking identity back to Boss.",
+          "Public message APIs ignore caller-supplied real operators and audit the owner.",
         ],
+        code: "Boss -> + -> Lei Jun -> Confirm role takeover\nWorld switch -> identity resets to Boss\nGod action -> typed target role confirmation",
       },
       {
         id: "api-sdk",
@@ -261,7 +200,10 @@ export const pages: Record<Locale, DocsPage> = {
           "Zod contracts define messages, events, patches, settings and simulation.",
           "Client SDK wraps role turns, settings, God actions and workflow endpoints.",
           "Service packages enforce policy and trust independent of UI.",
+          "Web and TUI share the same client SDK instead of duplicating domain rules.",
+          "Server-sent events and WebSocket streams expose the same event model.",
         ],
+        code: "const client = new RealmHttpClient({ baseUrl });\nawait client.sendMessage({ worldId, roomId, content });\nawait client.startRoleTurn(worldId, roomId, roleId);",
       },
       {
         id: "contributing",
@@ -272,7 +214,10 @@ export const pages: Record<Locale, DocsPage> = {
           "bun run check:deps catches ghost dependencies.",
           "CI builds Web, docs, CLI binary and tests.",
           "Changes use conventional commits and keep package dependencies explicit.",
+          "Source files stay below 500 lines or get split before more features land.",
+          "Agent Browser screenshots are part of UI acceptance, not optional polish.",
         ],
+        code: "bun run lint\nbun run check\nbun run build\nbun run smoke:web-ui\nbun run smoke:docs-ui",
       },
     ],
     cta: {
@@ -291,13 +236,13 @@ export const pages: Record<Locale, DocsPage> = {
       { label: "核心概念", value: "concepts" },
       { label: "Web UI", value: "web-ui" },
       { label: "TUI", value: "tui" },
+      { label: "安装", value: "release-install" },
       { label: "配置", value: "configuration" },
       { label: "Pi", value: "pi-integration" },
       { label: "身份安全", value: "identity-safety" },
       { label: "模板", value: "templates" },
       { label: "API", value: "api-sdk" },
       { label: "贡献", value: "contributing" },
-      { label: "GitHub", value: "github" },
     ],
     hero: {
       title: "Realm",
@@ -387,6 +332,7 @@ export const pages: Record<Locale, DocsPage> = {
           "包安装：npm i -g @nicepkg/realm",
           "二进制：bun run build:binary && ./dist/bin/realm doctor",
           "文档：bun run build:docs；有 Cloudflare 凭证时再用 Wrangler 部署。",
+          "发布前要证明 Linux、macOS、Windows、docs、binary smoke、package smoke 和 Web 结构检查都通过。",
         ],
         code: "bun install\nbun run build\nbun run build:docs\nbun run build:binary\n./dist/bin/realm init --template cultivation\n./dist/bin/realm open --runtime fake",
       },
@@ -399,6 +345,8 @@ export const pages: Record<Locale, DocsPage> = {
           ".agents/config.yaml 是项目入口。",
           "config.local.yaml、state 和 logs 只留在本机。",
           "配置 patch 带意图、影响文件、风险和恢复上下文。",
+          "高风险 patch 必须输入 policy 返回的精确确认文本。",
+          "应用前会重新检查文件哈希，避免旧预览覆盖新配置。",
         ],
         code: ".agents/\n  config.yaml\n  roles/<role>/role.yaml\n  worlds/<world>/world.yaml\n  worlds/<world>/state.schema.yaml\n  state/ # gitignored\n  logs/  # gitignored",
       },
@@ -411,7 +359,10 @@ export const pages: Record<Locale, DocsPage> = {
           "首屏不能是工业控制面板。",
           "设置、上帝控制器、补丁预览和 trace 都是渐进式界面。",
           "身份接管必须说清显示作者、真实操作者、世界和房间。",
+          "会话列表使用确定性个人头像和真实成员群头像拼图，让每个房间都像真实聊天。",
+          "配置审查在一个 sheet 里给出语义摘要、raw diff、冲突状态、拒绝、应用和回滚。",
         ],
+        code: "realm open --runtime fake\n# 创建世界 -> 预览补丁 -> 应用补丁\n# 聊天 -> + -> 运行角色 / 设置 / 上帝控制器",
       },
       {
         id: "tui",
@@ -422,6 +373,8 @@ export const pages: Record<Locale, DocsPage> = {
           "Ctrl+K 命令面板，Ctrl+W 世界，Ctrl+L 房间，Ctrl+R 角色。",
           "Ctrl+G 打开带精确确认语法的上帝控制台。",
           "一次性 role send 不能绕过身份接管确认。",
+          "发送失败会把草稿保存在用户本地。",
+          "状态、记忆和配置 patch 命令会先渲染可读预览，再允许写入。",
         ],
         code: 'realm tui --base-url http://127.0.0.1:3737 --once\nrealm tui --base-url http://127.0.0.1:3737\n:god mute leijun "story pause"',
       },
@@ -434,7 +387,10 @@ export const pages: Record<Locale, DocsPage> = {
           "角色 turn 使用 Realm policy 生成的受控工具。",
           "Trace 记录模型、用量、工具调用和失败原因。",
           "doctor 输出区分包运行时和 subprocess fallback。",
+          "角色事件会记录包运行时元数据，便于审计和排障。",
+          "显式 provider env 是 hermetic 的，不会混入环境变量里的 API key。",
         ],
+        code: "realm doctor --fallback\nrealm open --runtime package\nbun run smoke:real-providers --provider google --timeout-ms 120000",
       },
       {
         id: "identity-safety",
@@ -445,7 +401,10 @@ export const pages: Record<Locale, DocsPage> = {
           "Boss/owner 是默认输入身份。",
           "接管角色需要确认，并显示持续 banner。",
           "上帝不是普通聊天身份。",
+          "切换世界会把发言身份重置回 Boss。",
+          "公开 message API 会忽略调用方传入的真实操作者，并按 owner 审计。",
         ],
+        code: "Boss -> + -> 雷军 -> 确认角色接管\n切换世界 -> 身份重置为 Boss\n上帝动作 -> 输入目标角色 id 确认",
       },
       {
         id: "api-sdk",
@@ -456,7 +415,10 @@ export const pages: Record<Locale, DocsPage> = {
           "Zod 合同定义消息、事件、patch、设置和模拟。",
           "Client SDK 封装角色 turn、设置、上帝动作和工作流端点。",
           "Service packages 在 UI 之外强制执行 policy 和 trust。",
+          "Web 和 TUI 共享同一个 client SDK，不重复实现领域规则。",
+          "SSE 和 WebSocket 暴露同一个事件模型。",
         ],
+        code: "const client = new RealmHttpClient({ baseUrl });\nawait client.sendMessage({ worldId, roomId, content });\nawait client.startRoleTurn(worldId, roomId, roleId);",
       },
       {
         id: "contributing",
@@ -467,7 +429,10 @@ export const pages: Record<Locale, DocsPage> = {
           "bun run check:deps 防止幽灵依赖。",
           "CI 构建 Web、docs、CLI binary 并运行测试。",
           "改动使用 conventional commits，并保持 package 依赖显式。",
+          "源码文件保持 500 行以内，继续扩展前先拆模块。",
+          "Agent Browser 截图是 UI 验收的一部分，不是可选润色。",
         ],
+        code: "bun run lint\nbun run check\nbun run build\nbun run smoke:web-ui\nbun run smoke:docs-ui",
       },
     ],
     cta: {

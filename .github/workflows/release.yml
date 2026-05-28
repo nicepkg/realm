@@ -73,6 +73,12 @@ jobs:
       - run: bun test
       - run: bun run build:docs
       - run: bun run build
+      - name: Install Agent Browser
+        run: |
+          npm install -g agent-browser@0.27.0
+          agent-browser install --with-deps
+      - run: bun run smoke:web-ui
+      - run: bun run smoke:docs-ui
       - run: bun run smoke:package
       - run: mkdir release
       - run: npm pack --pack-destination release

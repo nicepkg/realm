@@ -1,7 +1,7 @@
 import type { ChildProcessWithoutNullStreams } from "node:child_process";
 import type { StreamFn } from "@earendil-works/pi-agent-core";
 import type { Api, Model } from "@earendil-works/pi-ai";
-import type { ModelUsage } from "@realm/core";
+import type { ModelUsage, TurnRuntime } from "@realm/core";
 
 export type PiSessionStartInput = {
   worldId: string;
@@ -83,6 +83,7 @@ export type PiSessionHandle = {
 };
 
 export interface PiBridge {
+  adapterMetadata?(): TurnRuntime;
   startSession(input: PiSessionStartInput): Promise<PiSessionHandle>;
   sendPrompt(sessionId: string, input: PiPromptInput): Promise<void>;
   abort(sessionId: string): Promise<void>;

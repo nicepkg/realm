@@ -20,20 +20,34 @@ import {
 import { Textarea } from "@/components/ui/textarea";
 import { useI18n } from "@/i18n/index.tsx";
 import type { GodRoleAction } from "@/state/use-realm-app-state.ts";
+import { RoleInspectorSheet } from "./role-inspector-sheet.tsx";
+import { WorldInspectorSheet } from "./world-inspector-sheet.tsx";
 
-type WorkspaceSheetKind = "settings" | "god";
+export type WorkspaceSheetKind = "settings" | "god" | "role-inspector" | "world-inspector";
 
 type WorkspaceSheetsProps = {
   app: RealmAppController;
   open: WorkspaceSheetKind | undefined;
+  roleId?: string;
   onOpenChange: (open: WorkspaceSheetKind | undefined) => void;
 };
 
-export function WorkspaceSheets({ app, onOpenChange, open }: WorkspaceSheetsProps) {
+export function WorkspaceSheets({ app, onOpenChange, open, roleId }: WorkspaceSheetsProps) {
   return (
     <>
       <SettingsSheet app={app} open={open === "settings"} onOpenChange={onOpenChange} />
       <GodSheet app={app} open={open === "god"} onOpenChange={onOpenChange} />
+      <WorldInspectorSheet
+        app={app}
+        open={open === "world-inspector"}
+        onOpenChange={(nextOpen) => onOpenChange(nextOpen ? "world-inspector" : undefined)}
+      />
+      <RoleInspectorSheet
+        app={app}
+        roleId={roleId}
+        open={open === "role-inspector"}
+        onOpenChange={(nextOpen) => onOpenChange(nextOpen ? "role-inspector" : undefined)}
+      />
     </>
   );
 }

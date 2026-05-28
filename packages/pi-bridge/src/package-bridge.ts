@@ -1,6 +1,10 @@
 import { randomUUID } from "node:crypto";
+import { readFileSync } from "node:fs";
+import path from "node:path";
+import { fileURLToPath } from "node:url";
 import { Agent } from "@earendil-works/pi-agent-core";
 import { type Api, getModel, getModels, type Model } from "@earendil-works/pi-ai";
+import type { TurnRuntime } from "@realm/core";
 import { AsyncEventQueue } from "./async-event-queue.ts";
 import { mapAgentEventToBridgeEvents } from "./event-mapper.ts";
 import { buildRealmAgentTools } from "./realm-agent-tools.ts";
@@ -24,8 +28,23 @@ type PackagePiSession = {
 
 export class PackagePiBridge implements PiBridge {
   private readonly sessions = new Map<string, PackagePiSession>();
+  private readonly packageName = "@earendil-works/pi-agent-core";
+  private readonly packageVersion = packageVersionFor("@earendil-works/pi-agent-core");
 
   constructor(private readonly options: PiPackageBridgeOptions = {}) {}
+
+  adapterMetadata(): TurnRuntime {
+    return {
+      adapterKind: "package",
+      fallback: {
+        adapterKind: "subprocess",
+        reason: "Package bridge is active; subprocess is diagnostic fallback only.",
+        status: "not-used",
+      },
+      packageName: this.packageName,
+      packageVersion: this.packageVersion,
+    };
+  }
 
   async startSession(input: PiSessionStartInput): Promise<PiSessionHandle> {
     const id = `pi-sdk-${randomUUID()}`;
@@ -130,6 +149,26 @@ export class PackagePiBridge implements PiBridge {
     }
     return session;
   }
+}
+
+function packageVersionFor(packageName: string): string {
+  let current = path.dirname(fileURLToPath(import.meta.resolve(packageName)));
+  while (current !== path.dirname(current)) {
+    const packageJsonPath = path.join(current, "package.json");
+    try {
+      const packageJson = JSON.parse(readFileSync(packageJsonPath, "utf8")) as {
+        name?: string;
+        version?: string;
+      };
+      if (packageJson.name === packageName) {
+        return packageJson.version ?? "unknown";
+      }
+    } catch {
+      // Keep walking; package entry points can resolve below the package root.
+    }
+    current = path.dirname(current);
+  }
+  return "unknown";
 }
 
 function firstModelIdForProvider(provider: string): string | undefined {

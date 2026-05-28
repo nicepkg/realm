@@ -2,7 +2,13 @@ import { describe, expect, test } from "bun:test";
 import { mkdtemp } from "node:fs/promises";
 import os from "node:os";
 import path from "node:path";
-import { deleteDraft, listDrafts, loadDraft, saveFailedDraft } from "./draft-store.ts";
+import {
+  deleteDraft,
+  listDrafts,
+  loadDraft,
+  saveFailedDraft,
+  updateDraftContent,
+} from "./draft-store.ts";
 
 describe("TUI draft store", () => {
   test("persists, lists, loads, and deletes failed send drafts", async () => {
@@ -28,6 +34,12 @@ describe("TUI draft store", () => {
 
     const loaded = await loadDraft(saved.record.id, draftsDir);
     expect(loaded?.record.content).toBe("message body");
+
+    const updated = await updateDraftContent(saved.record.id, "edited message body", draftsDir);
+    expect(updated?.record.content).toBe("edited message body");
+    expect((await loadDraft(saved.record.id, draftsDir))?.record.content).toBe(
+      "edited message body",
+    );
 
     await deleteDraft(saved.record.id, draftsDir);
     expect(await listDrafts(draftsDir)).toEqual([]);

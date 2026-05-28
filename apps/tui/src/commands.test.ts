@@ -22,6 +22,19 @@ describe("TUI commands", () => {
       model: "gpt-5.2",
     });
     expect(parseTuiCommand(":drafts")).toEqual({ kind: "drafts" });
+    expect(parseTuiCommand(":draft draft-1")).toEqual({
+      kind: "draftDetails",
+      draftId: "draft-1",
+    });
+    expect(parseTuiCommand(":edit-draft draft-1 patched body")).toEqual({
+      content: "patched body",
+      kind: "editDraft",
+      draftId: "draft-1",
+    });
+    expect(parseTuiCommand(":copy-draft draft-1")).toEqual({
+      kind: "copyDraft",
+      draftId: "draft-1",
+    });
     expect(parseTuiCommand(":retry-draft draft-1")).toEqual({
       kind: "retryDraft",
       draftId: "draft-1",
@@ -46,6 +59,7 @@ describe("TUI commands", () => {
     expect(renderTuiHelp()).toContain(":god <action> <role> <reason>");
     expect(renderTuiHelp()).toContain(":model <provider> <id>");
     expect(renderTuiHelp()).toContain(":retry-draft <id>");
+    expect(renderTuiHelp()).toContain(":edit-draft <id> <msg>");
     expect(renderTuiHelp()).toContain(":patch show|apply|reject");
     expect(renderTuiHelp()).toContain(":state [json-pointer]");
     expect(renderTuiHelp("zh-CN")).toContain("失败草稿");

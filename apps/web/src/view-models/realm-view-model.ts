@@ -17,6 +17,16 @@ export type ConversationRow = {
   timestamp: string;
 };
 
+export type IdentityLabels = {
+  god?: string;
+  owner?: string;
+};
+
+const defaultIdentityLabels = {
+  god: "God",
+  owner: "Boss",
+} satisfies Required<IdentityLabels>;
+
 export type TraceEvent = Extract<
   RealmEvent,
   {
@@ -37,6 +47,7 @@ export function buildConversationRows(
   rooms: Room[],
   messages: Message[],
   roles: RoleSummary[],
+  labels: IdentityLabels = defaultIdentityLabels,
 ): ConversationRow[] {
   const latestByRoom = new Map<string, Message>();
   for (const message of messages) {
@@ -50,7 +61,7 @@ export function buildConversationRows(
       const latest = latestByRoom.get(room.id);
       const participantNames = room.memberIds
         .slice(0, 3)
-        .map((id) => displayNameForIdentity(id, roles))
+        .map((id) => displayNameForIdentity(id, roles, labels))
         .join(", ");
       return {
         index,
@@ -62,7 +73,7 @@ export function buildConversationRows(
           subtitle: participantNames || roomTypeLabel(room.type),
           badge: roomTypeLabel(room.type),
           lastMessage: latest
-            ? `${displayNameForIdentity(latest.displayedAuthorId, roles)}: ${latest.content}`
+            ? `${displayNameForIdentity(latest.displayedAuthorId, roles, labels)}: ${latest.content}`
             : "",
           timestamp: latest ? formatConversationTime(latest.createdAt) : "",
         },
@@ -83,12 +94,16 @@ export function buildConversationRows(
     .map((entry) => entry.row);
 }
 
-export function displayNameForIdentity(identity: string, roles: RoleSummary[]): string {
+export function displayNameForIdentity(
+  identity: string,
+  roles: RoleSummary[],
+  labels: IdentityLabels = defaultIdentityLabels,
+): string {
   if (identity === "owner") {
-    return "Boss";
+    return labels.owner ?? defaultIdentityLabels.owner;
   }
   if (identity === "god") {
-    return "God";
+    return labels.god ?? defaultIdentityLabels.god;
   }
   return roles.find((role) => role.id === identity)?.displayName ?? identity;
 }
@@ -214,10 +229,20 @@ type TraceTurn = Extract<TraceEvent, { type: "turn.started" }>["turn"];
 
 function describeTurn(turn: TraceTurn): string {
   const details = [turn.model ? `Model: ${turn.model}` : "Model: default"];
+  if (turn.runtime) {
+    details.push(formatRuntime(turn.runtime));
+  }
   if (turn.usage) {
     details.push(formatUsage(turn.usage));
   }
   return details.join(" | ");
+}
+
+function formatRuntime(runtime: NonNullable<TraceTurn["runtime"]>): string {
+  const version = runtime.packageVersion ? ` ${runtime.packageVersion}` : "";
+  const packageName = runtime.packageName ? ` (${runtime.packageName}${version})` : "";
+  const fallback = runtime.fallback ? `, fallback ${runtime.fallback.status}` : "";
+  return `Runtime: ${runtime.adapterKind}${packageName}${fallback}`;
 }
 
 function formatUsage(usage: NonNullable<TraceTurn["usage"]>): string {

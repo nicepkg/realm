@@ -1,5 +1,14 @@
 import type { RoleSummary } from "@realm/api-contract";
-import { AudioLines, CirclePlus, Command, Mic, Settings, ShieldCheck, Smile } from "lucide-react";
+import {
+  AudioLines,
+  CirclePlus,
+  Command,
+  Database,
+  Mic,
+  Settings,
+  ShieldCheck,
+  Smile,
+} from "lucide-react";
 import {
   type FormEvent,
   type KeyboardEvent,
@@ -14,17 +23,20 @@ import { cn } from "@/lib/utils.ts";
 import { displayNameForIdentity } from "@/view-models/realm-view-model.ts";
 import type { RealmAppController } from "../../app/types.ts";
 import { IdentityAvatar } from "./messenger-primitives.tsx";
+import { RoleTurnActionGroup } from "./role-turn-action.tsx";
 
 export function MessengerComposer({
   app,
   onOpenGod,
   onOpenCommandPalette,
   onOpenSettings,
+  onOpenWorldInspector,
 }: {
   app: RealmAppController;
   onOpenGod: () => void;
   onOpenCommandPalette: () => void;
   onOpenSettings: () => void;
+  onOpenWorldInspector: () => void;
 }) {
   const { t } = useI18n();
   const inputRef = useRef<HTMLTextAreaElement>(null);
@@ -93,10 +105,10 @@ export function MessengerComposer({
             </span>
           </div>
         ) : null}
-        <div className="flex min-h-[66px] w-full items-end gap-2.5 px-4 py-3">
+        <div className="flex min-h-[72px] w-full items-end gap-3 px-4 py-3">
           <Button
             aria-label={t("workspace.voiceInput")}
-            className="size-9 rounded-full border-2 border-[#1f1f21] bg-transparent text-[#1f1f21] hover:bg-white"
+            className="size-10 rounded-full border-2 border-[#1f1f21] bg-transparent text-[#1f1f21] shadow-none hover:bg-white"
             onClick={() => {
               inputRef.current?.focus();
             }}
@@ -104,12 +116,12 @@ export function MessengerComposer({
             type="button"
             variant="ghost"
           >
-            <AudioLines className="size-[19px]" />
+            <AudioLines className="size-5" />
           </Button>
           <div className="relative min-w-0 flex-1">
             <textarea
               aria-label={t("workspace.messageInput")}
-              className="max-h-32 min-h-10 w-full resize-none rounded-[4px] border-0 bg-white px-3.5 py-2.5 pr-10 text-[16px] leading-5 shadow-none outline-none placeholder:text-[#b0b0b3] focus-visible:!outline-none focus-visible:!ring-0"
+              className="max-h-32 min-h-[42px] w-full resize-none rounded-[4px] border-0 bg-white px-3.5 py-[11px] pr-10 text-[16px] leading-5 shadow-none outline-none placeholder:text-[#b0b0b3] focus-visible:!outline-none focus-visible:!ring-0"
               data-testid="message-input"
               disabled={!app.selectedRoom}
               name="message"
@@ -128,19 +140,19 @@ export function MessengerComposer({
           </div>
           <Button
             aria-label={t("workspace.emoji")}
-            className="size-9 rounded-full border-2 border-[#1f1f21] text-[#1f1f21] hover:bg-white"
+            className="size-10 rounded-full border-2 border-[#1f1f21] text-[#1f1f21] shadow-none hover:bg-white"
             onClick={() => app.setDraft(`${app.draft}${app.draft ? " " : ""}🙂`)}
             size="icon"
             type="button"
             variant="ghost"
           >
-            <Smile className="size-[19px]" />
+            <Smile className="size-5" />
           </Button>
           <Button
             aria-label={t("workspace.moreActions")}
             className={cn(
-              "size-9 rounded-full border-2 border-[#1f1f21] text-[#1f1f21] hover:bg-white",
-              canSend && "hidden sm:inline-flex",
+              "size-10 rounded-full border-2 border-[#1f1f21] text-[#1f1f21] shadow-none hover:bg-white",
+              canSend && "hidden",
             )}
             data-testid="composer-more"
             onClick={() => setActionTrayOpen((open) => !open)}
@@ -148,15 +160,16 @@ export function MessengerComposer({
             type="button"
             variant="ghost"
           >
-            <CirclePlus className="size-[19px]" />
+            <CirclePlus className="size-5" />
           </Button>
           <Button
             className={cn(
-              "h-9 rounded-[4px] px-4 text-[14px] shadow-none",
+              "h-10 rounded-[4px] px-4 text-[14px] shadow-none",
               canSend
                 ? "bg-[var(--realm-green)] text-white hover:bg-[var(--realm-green-strong)]"
                 : "hidden",
             )}
+            data-testid="composer-send"
             disabled={!canSend}
             type="submit"
           >
@@ -173,6 +186,10 @@ export function MessengerComposer({
             onOpenGod={() => {
               setActionTrayOpen(false);
               onOpenGod();
+            }}
+            onOpenWorldInspector={() => {
+              setActionTrayOpen(false);
+              onOpenWorldInspector();
             }}
             onOpenSettings={() => {
               setActionTrayOpen(false);
@@ -192,6 +209,7 @@ function ComposerActionTray({
   onOpenCommandPalette,
   onOpenGod,
   onOpenSettings,
+  onOpenWorldInspector,
   setActionTrayOpen,
   setPendingIdentity,
 }: {
@@ -199,6 +217,7 @@ function ComposerActionTray({
   onOpenCommandPalette: () => void;
   onOpenGod: () => void;
   onOpenSettings: () => void;
+  onOpenWorldInspector: () => void;
   setActionTrayOpen: (open: boolean) => void;
   setPendingIdentity: (identity: string | undefined) => void;
 }) {
@@ -236,6 +255,7 @@ function ComposerActionTray({
           }}
         />
       ))}
+      <RoleTurnActionGroup app={app} />
       <ComposerActionButton
         icon={<Command className="size-6" />}
         label={t("common.command")}
@@ -247,6 +267,12 @@ function ComposerActionTray({
         label={t("workspace.godController")}
         onClick={onOpenGod}
         testId="operator-god"
+      />
+      <ComposerActionButton
+        icon={<Database className="size-6" />}
+        label={t("inspector.world")}
+        onClick={onOpenWorldInspector}
+        testId="operator-world-inspector"
       />
       <ComposerActionButton
         icon={<Settings className="size-6" />}
@@ -275,6 +301,7 @@ function IdentityButton({
 }) {
   return (
     <button
+      aria-current={active ? "true" : undefined}
       className={cn(
         "flex min-w-0 flex-col items-center gap-1.5 text-[#555] text-[12px] transition",
         active && "text-[#087a43]",

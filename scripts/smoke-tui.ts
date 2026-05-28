@@ -4,6 +4,7 @@ import { access, cp, mkdir, mkdtemp, rm, writeFile } from "node:fs/promises";
 import net from "node:net";
 import os from "node:os";
 import path from "node:path";
+import { loadDraft, saveFailedDraft } from "../apps/tui/src/draft-store.ts";
 import { RealmTuiApp } from "../apps/tui/src/index.ts";
 import { RealmHttpClient } from "../packages/client-sdk/src/index.ts";
 
@@ -58,7 +59,16 @@ try {
 async function runOneShotRender(): Promise<void> {
   const output = await runCli(["tui", "--base-url", url, "--once", "--locale", "en"]);
   assertIncludes(output, "Realm TUI", "TUI one-shot render");
+  assertIncludes(output, "Provider:", "TUI one-shot provider status");
+  assertIncludes(output, "Running:", "TUI one-shot running status");
   assertIncludes(output, "Conversations", "TUI one-shot conversation list");
+  assertIncludes(output, "Policy", "TUI one-shot policy summary");
+  assertIncludes(output, "Capabilities:", "TUI one-shot capability summary");
+  assertTrue(!output.includes("undefined"), "TUI one-shot render has no undefined placeholders");
+  assertTrue(
+    output.split("\n").every((line) => stripAnsi(line).length <= 88),
+    "TUI one-shot render fits the default terminal width",
+  );
 }
 
 async function runOneShotSend(): Promise<void> {
@@ -129,26 +139,101 @@ async function runStatefulInteractionSmoke(): Promise<void> {
   assertIncludes(stateNotice ?? "", "World state", "TUI state inspection");
   const rendered = await app.render();
   assertIncludes(rendered, "World state v", "TUI render includes state inspection context");
+
+  await runDraftRecoverySmoke(app, showHelp, showSettings);
+}
+
+async function runDraftRecoverySmoke(
+  app: RealmTuiApp,
+  showHelp: () => void,
+  showSettings: () => Promise<void>,
+): Promise<void> {
+  const original = `failed draft original ${Date.now()}`;
+  const edited = `failed draft edited ${Date.now()}`;
+  const saved = await saveFailedDraft(
+    {
+      content: original,
+      error: "smoke simulated provider failure",
+      identity: "owner",
+      roomId: "main",
+      roomName: "All Hands",
+      worldId: "cultivation",
+      worldName: "Cultivation Sim",
+    },
+    draftsDir,
+  );
+
+  const details = await app.handleInteractiveInput(
+    `:draft ${saved.record.id}`,
+    showHelp,
+    showSettings,
+  );
+  assertIncludes(details ?? "", original, "TUI draft details show failed content");
+  assertIncludes(details ?? "", ":edit-draft", "TUI draft details show edit action");
+
+  const editedNotice = await app.handleInteractiveInput(
+    `:edit-draft ${saved.record.id} ${edited}`,
+    showHelp,
+    showSettings,
+  );
+  assertIncludes(editedNotice ?? "", "updated", "TUI draft edit notice");
+
+  const copyable = await app.handleInteractiveInput(
+    `:copy-draft ${saved.record.id}`,
+    showHelp,
+    showSettings,
+  );
+  assertIncludes(copyable ?? "", edited, "TUI draft copy details include edited content");
+  assertIncludes(copyable ?? "", saved.filePath, "TUI draft copy details include file path");
+
+  const retryNotice = await app.handleInteractiveInput(
+    `:retry-draft ${saved.record.id}`,
+    showHelp,
+    showSettings,
+  );
+  assertIncludes(retryNotice ?? "", "sent", "TUI draft retry notice");
+  await assertMessagePersisted(edited, "owner");
+  assertTrue(!(await loadDraft(saved.record.id, draftsDir)), "TUI draft retry removes draft");
 }
 
 async function runPtyLaunchSmoke(): Promise<void> {
-  if (os.platform() === "win32" || !(await commandExists("script"))) {
+  const interactiveCommand = ["bun", "run", cliPath, "tui", "--base-url", url, "--locale", "en"];
+  if (os.platform() === "win32") {
     console.log("TUI PTY launch smoke skipped: portable `script` command unavailable.");
     return;
   }
-  const output = await runWithPty([
-    "bun",
-    "run",
-    cliPath,
-    "tui",
-    "--base-url",
-    url,
-    "--locale",
-    "en",
-  ]);
+  if (await commandExists("expect")) {
+    const output = await runWithExpectPty(interactiveCommand);
+    assertIncludes(output, "Realm", "TUI PTY launch");
+    return;
+  }
+  if (
+    !(await commandExists("script")) ||
+    !(await canRunScriptPty(["printf", "realm-pty-probe"], "realm-pty-probe")) ||
+    !(await canRunScriptPty([...interactiveCommand, "--once"], "Realm TUI"))
+  ) {
+    console.log("TUI PTY launch smoke skipped: portable `script` command unavailable.");
+    return;
+  }
+  const output = await runWithScriptPty(interactiveCommand);
   if (output) {
     assertIncludes(output, "Realm", "TUI PTY launch");
   }
+}
+
+async function canRunScriptPty(command: string[], expected: string): Promise<boolean> {
+  const proc = Bun.spawn(scriptCommand(command), {
+    cwd: projectDir,
+    env: { ...process.env, REALM_HOME: realmHome },
+    stderr: "pipe",
+    stdout: "pipe",
+  });
+  const [stdout, stderr, exitCode] = await Promise.all([
+    new Response(proc.stdout).text(),
+    new Response(proc.stderr).text(),
+    proc.exited,
+  ]);
+  return exitCode === 0 && stripAnsi(`${stdout}${stderr}`).includes(expected);
 }
 
 async function assertMessagePersisted(content: string, displayedAuthorId: string): Promise<void> {
@@ -167,12 +252,49 @@ async function runCli(args: string[]): Promise<string> {
   });
 }
 
-async function runWithPty(command: string[]): Promise<string | undefined> {
-  const args =
-    os.platform() === "darwin"
-      ? ["-q", "/dev/null", ...command]
-      : ["-q", "-c", shellJoin(command), "/dev/null"];
-  const child = spawnNode("script", args, {
+async function runWithExpectPty(command: string[]): Promise<string> {
+  const scriptDir = await mkdtemp(path.join(os.tmpdir(), "realm-tui-expect-"));
+  const scriptPath = path.join(scriptDir, "pty.exp");
+  try {
+    await writeFile(
+      scriptPath,
+      `
+set timeout 6
+log_user 1
+spawn -noecho {*}$argv
+expect {
+  -re "Realm" {}
+  timeout { puts stderr "Timed out waiting for Realm"; exit 2 }
+  eof { puts stderr "Exited before Realm"; exit 3 }
+}
+send "?"
+after 250
+send "\\033"
+after 250
+send "\\003"
+after 150
+send "\\003"
+expect {
+  eof {}
+  timeout { close; wait; exit 0 }
+}
+set result [wait]
+set code [lindex $result 3]
+if {$code != 0 && $code != 130} { exit $code }
+`,
+      "utf8",
+    );
+    return await run(["expect", scriptPath, ...command], {
+      cwd: projectDir,
+      env: { ...process.env, REALM_HOME: realmHome },
+    });
+  } finally {
+    await rm(scriptDir, { force: true, recursive: true });
+  }
+}
+
+async function runWithScriptPty(command: string[]): Promise<string> {
+  const child = spawnNode("script", scriptCommand(command).slice(1), {
     cwd: projectDir,
     env: { ...process.env, REALM_HOME: realmHome },
     stdio: ["pipe", "pipe", "pipe"],
@@ -187,8 +309,7 @@ async function runWithPty(command: string[]): Promise<string | undefined> {
   const rendered = await waitForText(() => output, "Realm", 6000);
   if (!rendered) {
     child.kill("SIGTERM");
-    console.log("TUI PTY launch smoke skipped: PTY output was not observable in this shell.");
-    return undefined;
+    throw new Error(`TUI PTY launch did not render observable output:\n${stripAnsi(output)}`);
   }
   child.stdin.write("?");
   await sleep(250);
@@ -205,6 +326,12 @@ async function runWithPty(command: string[]): Promise<string | undefined> {
     throw new Error(`TUI PTY launch exited with ${exitCode}:\n${stripAnsi(output).slice(-1200)}`);
   }
   return stripAnsi(output);
+}
+
+function scriptCommand(command: string[]): string[] {
+  return os.platform() === "darwin"
+    ? ["script", "-q", "/dev/null", ...command]
+    : ["script", "-q", "-c", shellJoin(command), "/dev/null"];
 }
 
 async function run(

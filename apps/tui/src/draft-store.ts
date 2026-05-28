@@ -72,6 +72,20 @@ export async function deleteDraft(id: string, draftsDir?: string): Promise<void>
   await rm(path.join(resolveDraftsDir(draftsDir), `${safeDraftId(id)}.json`), { force: true });
 }
 
+export async function updateDraftContent(
+  id: string,
+  content: string,
+  draftsDir?: string,
+): Promise<SavedTuiDraft | undefined> {
+  const draft = await loadDraft(id, draftsDir);
+  if (!draft) {
+    return undefined;
+  }
+  const updated: TuiDraftRecord = { ...draft.record, content };
+  await writeFile(draft.filePath, `${JSON.stringify(updated, null, 2)}\n`, "utf8");
+  return { filePath: draft.filePath, record: updated };
+}
+
 export function resolveDraftsDir(draftsDir?: string): string {
   if (draftsDir) {
     return draftsDir;

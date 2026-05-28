@@ -15,6 +15,14 @@ export type TuiConfigPatchApplyResult = {
   changedPaths: string[];
 };
 
+export type TuiPolicySummary = {
+  allowedCapabilities: number;
+  deniedCapabilities: number;
+  highRiskAllowed: number;
+  trustTier: string;
+  warnings: string[];
+};
+
 export type TuiState = {
   projectName: string;
   worlds: WorldSummary[];
@@ -25,6 +33,8 @@ export type TuiState = {
   messages: Message[];
   events: RealmEvent[];
   identity: string;
+  policySummary?: TuiPolicySummary;
+  providerModel?: string;
   worldState?: TuiWorldStateSnapshot;
   stateInspection?: string;
   memoryInspection?: string;
@@ -73,6 +83,9 @@ export type TuiCommand =
   | { kind: "identity"; identity: string }
   | { kind: "send"; content: string }
   | { kind: "drafts" }
+  | { kind: "draftDetails"; draftId: string }
+  | { kind: "editDraft"; draftId: string; content: string }
+  | { kind: "copyDraft"; draftId: string }
   | { kind: "retryDraft"; draftId: string }
   | { kind: "state"; path?: string }
   | { kind: "memory"; roleId: string }

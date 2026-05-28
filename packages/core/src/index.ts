@@ -1,4 +1,7 @@
 import { z } from "zod";
+import { turnRuntimeSchema } from "./runtime-metadata.ts";
+
+export * from "./runtime-metadata.ts";
 
 export const idSchema = z
   .string()
@@ -6,16 +9,6 @@ export const idSchema = z
   .regex(/^[a-zA-Z0-9][a-zA-Z0-9._:-]*$/);
 
 export const isoDateSchema = z.string().datetime({ offset: true });
-
-export type Brand<T, B extends string> = T & { readonly __brand: B };
-
-export type ProjectId = Brand<string, "ProjectId">;
-export type WorldId = Brand<string, "WorldId">;
-export type RoomId = Brand<string, "RoomId">;
-export type RoleId = Brand<string, "RoleId">;
-export type TurnId = Brand<string, "TurnId">;
-export type EventId = Brand<string, "EventId">;
-export type PrincipalId = Brand<string, "PrincipalId">;
 
 export const capabilitySchema = z.enum([
   "message.send",
@@ -125,8 +118,6 @@ export const modelUsageCostSchema = z.object({
   total: z.number().nonnegative(),
 });
 
-export type ModelUsageCost = z.infer<typeof modelUsageCostSchema>;
-
 export const modelUsageSchema = z.object({
   input: z.number().int().nonnegative(),
   output: z.number().int().nonnegative(),
@@ -145,6 +136,7 @@ export const turnSummarySchema = z.object({
   actorId: idSchema,
   status: z.enum(["queued", "running", "completed", "failed", "cancelled"]),
   model: z.string().optional(),
+  runtime: turnRuntimeSchema.optional(),
   usage: modelUsageSchema.optional(),
 });
 

@@ -39,35 +39,33 @@ export function ConfigRollbackNotice({
 
   return (
     <aside
-      className="fixed right-4 bottom-[calc(env(safe-area-inset-bottom)+76px)] left-4 z-40 rounded-full bg-white/95 px-2.5 py-1.5 shadow-[0_8px_22px_rgba(0,0,0,0.12)] md:left-auto md:w-[min(360px,calc(100vw-32px))] md:rounded-[8px] md:px-3 md:py-2"
+      className="fixed top-[128px] right-0 z-40 hidden rounded-l-full bg-white/95 py-1.5 pr-4 pl-3 shadow-[0_8px_22px_rgba(0,0,0,0.12)] md:block"
       data-testid="config-rollback-notice"
     >
       <div className="flex min-w-0 items-center gap-2">
-        <span className="flex size-7 shrink-0 items-center justify-center rounded-full bg-[#e6f7ee] text-[var(--realm-green-text)] md:size-8">
-          <RotateCcw className="size-3.5 md:size-4" />
+        <span className="flex size-8 shrink-0 items-center justify-center rounded-full bg-[#e6f7ee] text-[var(--realm-green-text)]">
+          <RotateCcw className="size-4" />
         </span>
-        <div className="min-w-0 flex-1">
-          <div className="truncate font-semibold text-[12px] text-[var(--realm-fg)] md:text-[13px]">
-            {t("sheet.config.lastApplied")} · {activePatch.title}
+        <div className="sr-only">
+          <div>
+            {t("sheet.config.lastApplied")}: {activePatch.title}
           </div>
-          <div
-            className="hidden truncate text-[11px] text-[var(--realm-fg-muted)] md:block"
-            title={activePatch.changedPaths.join(", ")}
-          >
+          <div title={activePatch.changedPaths.join(", ")}>
             {t("sheet.config.changedPaths")}: {activePatch.changedPaths.join(", ")}
           </div>
         </div>
         <Button
-          className="h-7 rounded-full px-2 text-[12px] md:h-8 md:rounded-[5px] md:text-[13px]"
+          className="h-8 rounded-full bg-white px-2.5 text-[13px] text-[var(--realm-green-text)] shadow-none hover:bg-[#f4fbf7]"
           disabled={busy || Boolean(restoredPaths)}
           onClick={() => void rollback()}
           type="button"
+          variant="ghost"
         >
           {t("sheet.config.rollback")}
         </Button>
         <Button
           aria-label={t("sheet.config.dismiss")}
-          className="size-7 rounded-full md:size-8"
+          className="size-8 rounded-full"
           onClick={onDismiss}
           size="icon-xs"
           type="button"
@@ -77,11 +75,13 @@ export function ConfigRollbackNotice({
         </Button>
       </div>
       {error ? (
-        <div className="mt-2 rounded-md bg-[#fff4e5] p-2 text-[#7a4a00] text-[12px]">{error}</div>
+        <div className="mt-2 max-w-[260px] rounded-md bg-[#fff4e5] p-2 text-[#7a4a00] text-[12px]">
+          {error}
+        </div>
       ) : null}
       {restoredPaths ? (
         <div
-          className="mt-2 rounded-md bg-[#e6f7ee] p-2 text-[#087a43] text-[12px]"
+          className="mt-2 max-w-[260px] rounded-md bg-[#e6f7ee] p-2 text-[#087a43] text-[12px]"
           data-testid="config-rollback-notice-result"
         >
           {t("sheet.config.rollbackDone")}: {restoredPaths.join(", ")}

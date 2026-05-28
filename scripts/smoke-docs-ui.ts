@@ -11,11 +11,6 @@ const cdpPort = readFlag("--cdp-port") ?? process.env.REALM_CDP_PORT;
 const session = `realm-docs-smoke-${Date.now()}`;
 const outputDir = path.join(os.tmpdir(), session);
 
-if (!cdpPort) {
-  console.error("Set REALM_CDP_PORT or pass --cdp-port from the dedicated /chrome-cdp instance.");
-  process.exit(1);
-}
-
 await ensureCommand("agent-browser");
 await buildDocs();
 await access(path.join(docsDist, "index.html"), constants.R_OK);
@@ -30,7 +25,9 @@ const server = Bun.serve({
 });
 
 try {
-  await browser("connect", cdpPort);
+  if (cdpPort) {
+    await browser("connect", cdpPort);
+  }
   await browser("set", "viewport", "1440", "1000");
   await browser("open", url);
   await browser("wait", ".docs-shell");
@@ -43,18 +40,41 @@ try {
     "document.querySelector('.product-preview')?.textContent?.includes('Create World') === true",
   );
   await assertPage(
-    "Docs home product preview uses WeChat-style nine-grid group avatar",
-    "document.querySelectorAll('.group-avatar i').length === 9",
+    "Docs home product preview uses a real-member WeChat group avatar collage",
+    "document.querySelector('.group-avatar')?.getAttribute('data-wechat-grid') === 'member-collage' && document.querySelectorAll('.group-avatar-row').length === 2 && document.querySelectorAll('.group-avatar i').length === 3",
   );
   await assertPage(
     "Docs home surfaces verification signals",
     "document.querySelector('.proof-band')?.textContent?.includes('Agent Browser') === true",
   );
   await assertPage(
+    "Docs nav exposes release install without a fake GitHub topic route",
+    "(() => { const links = Array.from(document.querySelectorAll('a')).map((link) => link.getAttribute('href') ?? ''); return links.some((href) => href === '/en/release-install') && links.every((href) => href !== '/en/github' && href !== '/zh-CN/github'); })()",
+  );
+  await assertPage(
     "Docs home has no horizontal overflow",
     "document.documentElement.scrollWidth <= document.documentElement.clientWidth",
   );
   await screenshot("docs-home-en.png");
+
+  await browser("open", `${url}/en/web-ui`);
+  await browser("wait", "[data-testid='docs-topic-page']");
+  await assertPage(
+    "English docs topic route renders a shareable Web UI page",
+    "location.pathname === '/en/web-ui' && document.querySelector('[data-testid=\"docs-topic-page\"]')?.textContent?.includes('Create world first') === true",
+  );
+  await assertPage(
+    "English docs topic route has no horizontal overflow",
+    "document.documentElement.scrollWidth <= document.documentElement.clientWidth",
+  );
+  await screenshot("docs-topic-web-ui-en.png");
+
+  await browser("open", `${url}/en/release-install`);
+  await browser("wait", "[data-testid='docs-topic-page']");
+  await assertPage(
+    "English release install topic route renders a shareable install page",
+    "location.pathname === '/en/release-install' && document.querySelector('[data-testid=\"docs-topic-page\"]')?.textContent?.includes('Use npm') === true",
+  );
 
   await browser("open", `${url}/zh-CN`);
   await browser("wait", ".docs-shell");
@@ -68,11 +88,19 @@ try {
   );
   await screenshot("docs-home-zh-CN.png");
 
+  await browser("open", `${url}/zh-CN/pi-integration`);
+  await browser("wait", "[data-testid='docs-topic-page']");
+  await assertPage(
+    "Chinese docs topic route renders a shareable Pi integration page",
+    "location.pathname === '/zh-CN/pi-integration' && document.querySelector('[data-testid=\"docs-topic-page\"]')?.textContent?.includes('角色回合走包优先') === true",
+  );
+  await screenshot("docs-topic-pi-zh-CN.png");
+
   await browser("click", ".language-button");
   await browser("wait", "300");
   await assertPage(
-    "Language switch persists English route",
-    "location.pathname === '/' && localStorage.getItem('realm-docs-locale') === 'en'",
+    "Language switch persists English topic route",
+    "location.pathname === '/en/pi-integration' && localStorage.getItem('realm-docs-locale') === 'en'",
   );
 
   await browser("set", "viewport", "390", "844");

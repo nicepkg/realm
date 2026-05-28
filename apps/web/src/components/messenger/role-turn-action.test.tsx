@@ -3,10 +3,10 @@ import type { RoleSummary, Room, WorldSummary } from "@realm/api-contract";
 import { renderToStaticMarkup } from "react-dom/server";
 import type { RealmAppController } from "@/app/types.ts";
 import { I18nProvider } from "@/i18n/index.tsx";
-import { formatElapsedSeconds, RoleTurnStrip } from "./role-turn-strip.tsx";
+import { formatElapsedSeconds, RoleTurnActionGroup } from "./role-turn-action.tsx";
 
-describe("role turn strip", () => {
-  test("formats elapsed runtime for visible role-turn feedback", () => {
+describe("role turn action", () => {
+  test("formats elapsed runtime for role-turn feedback", () => {
     expect(formatElapsedSeconds("2026-05-28T00:00:00.000Z", Date.UTC(2026, 4, 28, 0, 1, 5))).toBe(
       "1:05",
     );
@@ -14,26 +14,23 @@ describe("role turn strip", () => {
     expect(formatElapsedSeconds("bad-date")).toBe("0:00");
   });
 
-  test("renders retry and error context after a failed role turn", () => {
+  test("renders retry and error context inside the WeChat plus tray action", () => {
     const html = renderToStaticMarkup(
       <I18nProvider>
-        <RoleTurnStrip
+        <RoleTurnActionGroup
           app={mockApp({
             error: "provider rejected request",
             status: "error",
           })}
-          onOpenGod={() => undefined}
-          onOpenSettings={() => undefined}
         />
       </I18nProvider>,
     );
 
-    expect(html).toContain('data-testid="role-turn-strip"');
     expect(html).toContain("Role run needs attention");
     expect(html).toContain("provider rejected request");
     expect(html).toContain('data-testid="role-turn-retry"');
-    expect(html).toContain('data-testid="topbar-settings"');
-    expect(html).toContain('data-testid="topbar-god"');
+    expect(html).toContain('data-testid="role-turn-dismiss"');
+    expect(html).not.toContain('data-testid="role-turn-strip"');
   });
 });
 

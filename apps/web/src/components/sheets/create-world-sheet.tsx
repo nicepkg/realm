@@ -169,6 +169,7 @@ export function CreateWorldSheet({
           proposal={proposal}
           onApplied={finishWorldCreation}
           onApply={applyProposal}
+          onReject={() => setProposal(undefined)}
           onRollback={(historyId) => app.client.rollbackConfig(historyId)}
         />
       </SheetContent>

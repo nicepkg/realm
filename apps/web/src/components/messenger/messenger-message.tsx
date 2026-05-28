@@ -1,4 +1,5 @@
 import type { Message as RealmMessage, RoleSummary, Room } from "@realm/api-contract";
+import { Clipboard, Eye } from "lucide-react";
 import { VisibilityChips } from "@/components/messenger/visibility-chips.tsx";
 import { useI18n } from "@/i18n/index.tsx";
 import { cn } from "@/lib/utils.ts";
@@ -30,16 +31,17 @@ export function MessengerMessage({
   return (
     <>
       {showTimestamp ? (
-        <time className="mx-auto my-2 rounded-full px-2 py-0.5 text-[12px] text-[#9a9a9d] tabular-nums">
+        <time className="mx-auto my-2.5 px-2 py-0.5 text-[12px] text-[#9a9a9d] tabular-nums">
           {formatTimelineTimestamp(message.createdAt, locale)}
         </time>
       ) : null}
       <article
         className={cn(
-          "group/message flex w-full items-start gap-3",
+          "group/message flex w-full items-start gap-2.5 px-0.5",
           isOwner ? "justify-end" : "justify-start",
         )}
         data-author={from}
+        data-has-avatar="true"
         data-message-id={message.id}
       >
         {!isOwner ? (
@@ -52,7 +54,7 @@ export function MessengerMessage({
         ) : null}
         <div
           className={cn(
-            "min-w-0 max-w-[76%] md:max-w-[55%] xl:max-w-[52%]",
+            "min-w-0 max-w-[74%] md:max-w-[58%] xl:max-w-[54%]",
             isOwner && "text-right",
           )}
         >
@@ -60,15 +62,17 @@ export function MessengerMessage({
             <div className="sr-only">
               <span className="truncate">{author}</span>
               {message.realOperatorId ? (
-                <span className="sr-only">via {message.realOperatorId}</span>
+                <span className="sr-only">
+                  {t("common.via")} {message.realOperatorId}
+                </span>
               ) : null}
             </div>
           ) : null}
           <div className="relative inline-block max-w-full">
             <div
               className={cn(
-                "relative inline-block max-w-full rounded-[4px] px-[14px] py-[8px] text-left text-[16px] leading-[1.45]",
-                "before:absolute before:top-[14px] before:h-0 before:w-0 before:border-y-[5px] before:border-y-transparent",
+                "relative inline-block min-h-[40px] max-w-full rounded-[4px] px-[14px] py-[8px] text-left text-[16px] leading-[1.45] shadow-[0_1px_0_rgba(0,0,0,0.02)]",
+                "before:absolute before:top-[13px] before:h-0 before:w-0 before:border-y-[5px] before:border-y-transparent",
                 isOwner
                   ? "bg-[var(--realm-bubble-outgoing)] text-[#10210a] before:right-[-7px] before:border-l-[7px] before:border-l-[var(--realm-bubble-outgoing)]"
                   : "bg-white text-[var(--realm-fg)] before:left-[-7px] before:border-r-[7px] before:border-r-white",
@@ -76,16 +80,14 @@ export function MessengerMessage({
               data-testid="message-bubble"
             >
               <p className="relative whitespace-pre-wrap break-words">{message.content}</p>
+              <MessageBubbleTools
+                align={isOwner ? "right" : "left"}
+                content={message.content}
+                copyLabel={t("message.copy")}
+                roleIds={visibleTo}
+                roles={roles}
+              />
             </div>
-          </div>
-          <div
-            className={cn(
-              "mt-1.5 flex max-w-full",
-              isOwner ? "justify-end pr-1" : "justify-start pl-1",
-            )}
-            data-testid="message-visibility"
-          >
-            <VisibilityChips maxVisible={2} roleIds={visibleTo} roles={roles} />
           </div>
         </div>
         {isOwner ? (
@@ -93,6 +95,46 @@ export function MessengerMessage({
         ) : null}
       </article>
     </>
+  );
+}
+
+function MessageBubbleTools({
+  align,
+  content,
+  copyLabel,
+  roleIds,
+  roles,
+}: {
+  align: "left" | "right";
+  content: string;
+  copyLabel: string;
+  roleIds: string[];
+  roles: RoleSummary[];
+}) {
+  return (
+    <div
+      className={cn(
+        "pointer-events-none absolute bottom-full z-10 mb-1 flex items-center gap-1 rounded-[4px] bg-white/95 px-1.5 py-1 text-[#606066] text-[11px] opacity-0 shadow-[0_4px_16px_rgba(0,0,0,0.12)] transition focus-within:pointer-events-auto focus-within:opacity-100 group-hover/message:pointer-events-auto group-hover/message:opacity-100 group-focus-within/message:pointer-events-auto group-focus-within/message:opacity-100",
+        align === "right" ? "right-0" : "left-0",
+      )}
+      data-testid="message-bubble-tools"
+    >
+      <button
+        aria-label={copyLabel}
+        className="flex size-6 items-center justify-center rounded-[3px] hover:bg-[#f1f1f2] focus-visible:outline-2 focus-visible:outline-[#07c160] focus-visible:outline-offset-1"
+        onClick={() => void navigator.clipboard?.writeText(content)}
+        type="button"
+      >
+        <Clipboard className="size-3.5" />
+      </button>
+      <span
+        className="flex items-center gap-1 border-[#eeeeef] border-l pl-1"
+        data-testid="message-visibility"
+      >
+        <Eye className="size-3.5" />
+        <VisibilityChips maxVisible={2} roleIds={roleIds} roles={roles} />
+      </span>
+    </div>
   );
 }
 

@@ -45,6 +45,17 @@ describe("FakePiBridge", () => {
 });
 
 describe("PackagePiBridge", () => {
+  test("reports package-first adapter metadata for turn traces", () => {
+    const bridge = new PackagePiBridge();
+
+    expect(bridge.adapterMetadata()).toMatchObject({
+      adapterKind: "package",
+      fallback: { adapterKind: "subprocess", status: "not-used" },
+      packageName: "@earendil-works/pi-agent-core",
+    });
+    expect(typeof bridge.adapterMetadata().packageVersion).toBe("string");
+  });
+
   test("builds package-first Realm tools from injected extension scope", async () => {
     const requests: Array<{ url: string; body: Record<string, unknown> }> = [];
     const originalFetch = globalThis.fetch;
@@ -147,6 +158,20 @@ describe("Pi RPC JSONL helpers", () => {
 });
 
 describe("Pi subprocess adapter", () => {
+  test("reports subprocess adapter metadata for diagnostic traces", () => {
+    const bridge = new SubprocessPiBridge({ binary: "/usr/local/bin/pi" });
+
+    expect(bridge.adapterMetadata()).toEqual({
+      adapterKind: "subprocess",
+      binary: "/usr/local/bin/pi",
+      fallback: {
+        adapterKind: "subprocess",
+        reason: "Subprocess bridge is the active adapter.",
+        status: "available",
+      },
+    });
+  });
+
   test("builds a locked-down Pi RPC command line", () => {
     const args = buildPiRpcArgs(
       {

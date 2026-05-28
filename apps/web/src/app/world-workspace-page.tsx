@@ -6,14 +6,18 @@ export function WorldWorkspacePage({
   onBackToWorlds,
   onCreateRoom,
   onOpenGod,
+  onOpenWorldInspector,
   onOpenCommandPalette,
+  onInspectRole,
   onOpenSettings,
 }: {
   app: RealmAppController;
   onBackToWorlds: () => void;
   onCreateRoom: () => void;
   onOpenGod: () => void;
+  onOpenWorldInspector: () => void;
   onOpenCommandPalette: () => void;
+  onInspectRole: (roleId: string) => void;
   onOpenSettings: () => void;
 }) {
   return (
@@ -22,7 +26,9 @@ export function WorldWorkspacePage({
       onBackToWorlds={onBackToWorlds}
       onCreateRoom={onCreateRoom}
       onOpenGod={onOpenGod}
+      onOpenWorldInspector={onOpenWorldInspector}
       onOpenCommandPalette={onOpenCommandPalette}
+      onInspectRole={onInspectRole}
       onOpenSettings={onOpenSettings}
     />
   );

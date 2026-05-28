@@ -21,6 +21,7 @@ import {
   buildWorldItems,
   type TuiPickerItem,
 } from "./interactive-items.ts";
+import { hideOverlayIfPresent, replaceOverlay } from "./interactive-overlays.ts";
 import { resolveTuiKeybinding } from "./keybindings.ts";
 import { buildTuiSlashCommands } from "./tui-autocomplete.ts";
 import { editorTheme, markdownTheme, selectTheme, settingsTheme } from "./tui-themes.ts";
@@ -76,13 +77,11 @@ export async function runInteractiveSession(
   };
 
   const showHelp = () => {
-    hideOverlayIfPresent(tui);
     const help = new Markdown(renderTuiHelp(controller.locale), 1, 1, markdownTheme());
-    tui.showOverlay(help, { anchor: "center", maxHeight: "70%", width: "70%" });
+    replaceOverlay(tui, help, { anchor: "center", maxHeight: "70%", width: "70%" });
   };
 
   const showSettings = async () => {
-    hideOverlayIfPresent(tui);
     const list = new SettingsList(
       await controller.loadSettingsItems(),
       8,
@@ -90,11 +89,10 @@ export async function runInteractiveSession(
       () => {},
       () => tui.hideOverlay(),
     );
-    tui.showOverlay(list, { anchor: "center", maxHeight: "70%", width: "70%" });
+    replaceOverlay(tui, list, { anchor: "center", maxHeight: "70%", width: "70%" });
   };
 
   const showGodConsole = async () => {
-    hideOverlayIfPresent(tui);
     const dict = t(controller.locale);
     const state = await controller.load();
     const roleLines =
@@ -103,18 +101,17 @@ export async function runInteractiveSession(
         : `- ${dict.noRolesLoaded}`;
     const consoleBody = dict.godConsoleBody(roleLines);
     const overlay = new Markdown(consoleBody, 1, 1, markdownTheme());
-    tui.showOverlay(overlay, { anchor: "center", maxHeight: "70%", width: "70%" });
+    replaceOverlay(tui, overlay, { anchor: "center", maxHeight: "70%", width: "70%" });
   };
 
   const showPicker = (items: TuiPickerItem[]) => {
-    hideOverlayIfPresent(tui);
     const list = new SelectList(items, 10, selectTheme());
     list.onCancel = () => tui.hideOverlay();
     list.onSelect = (item) => {
       tui.hideOverlay();
       void controller.applyPaletteItem(item.value).then((notice) => render(notice));
     };
-    tui.showOverlay(list, { anchor: "center", maxHeight: "70%", width: "76%" });
+    replaceOverlay(tui, list, { anchor: "center", maxHeight: "70%", width: "76%" });
   };
 
   const showCommandPalette = async () =>
@@ -169,15 +166,6 @@ export async function runInteractiveSession(
     };
     tui.start();
   });
-}
-
-function hideOverlayIfPresent(tui: TUI): void {
-  try {
-    tui.hideOverlay();
-    tui.requestRender(true);
-  } catch {
-    // Some pi-tui versions throw when no overlay is mounted.
-  }
 }
 
 function installCtrlCStop(tui: TUI, onFirstPress: (notice: string) => void): () => void {

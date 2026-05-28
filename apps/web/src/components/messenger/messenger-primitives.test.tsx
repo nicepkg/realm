@@ -42,7 +42,7 @@ describe("messenger avatar primitives", () => {
     expect(rows.every((row) => row.length <= 3)).toBe(true);
   });
 
-  test("pads group avatars to a stable WeChat nine-grid when configured members are sparse", () => {
+  test("keeps sparse group avatars as real WeChat member collages", () => {
     const visualMembers = groupVisualMembers("All Hands", [
       { id: "owner", label: "Boss" },
       { id: "leijun", label: "Lei Jun" },
@@ -51,8 +51,8 @@ describe("messenger avatar primitives", () => {
     ]);
     const rows = groupRowsForMembers(visualMembers);
 
-    expect(visualMembers).toHaveLength(9);
-    expect(rows.map((row) => row.length)).toEqual([3, 3, 3]);
+    expect(visualMembers).toHaveLength(4);
+    expect(rows.map((row) => row.length)).toEqual([2, 2]);
     expect(visualMembers.slice(0, 4).map((member) => member.id)).toEqual([
       "owner",
       "leijun",

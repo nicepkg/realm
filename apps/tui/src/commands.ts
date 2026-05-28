@@ -37,6 +37,15 @@ export function parseTuiCommand(input: string): TuiCommand {
   if (head === ":drafts" || head === "drafts") {
     return { kind: "drafts" };
   }
+  if ((head === ":draft" || head === "draft") && rest) {
+    return { kind: "draftDetails", draftId: rest };
+  }
+  if ((head === ":copy-draft" || head === "copy-draft") && rest) {
+    return { kind: "copyDraft", draftId: rest };
+  }
+  if ((head === ":edit-draft" || head === "edit-draft") && tail.length >= 2) {
+    return { kind: "editDraft", draftId: tail[0] ?? "", content: tail.slice(1).join(" ") };
+  }
   if ((head === ":retry-draft" || head === "retry-draft") && rest) {
     return { kind: "retryDraft", draftId: rest };
   }
@@ -94,6 +103,9 @@ export function renderTuiHelp(locale: TuiLocale = "en"): string {
       "  :god <action> <role> <reason>",
       "                         受保护的上帝动作；需输入角色 id 确认",
       "  :drafts                查看失败草稿",
+      "  :draft <id>            查看草稿详情",
+      "  :edit-draft <id> <msg>  修改草稿内容",
+      "  :copy-draft <id>        输出可复制草稿详情",
       "  :retry-draft <id>      重试并删除草稿",
       "  :settings              显示设置摘要",
       "  :model <provider> <id>  更新默认模型设置",
@@ -123,6 +135,9 @@ export function renderTuiHelp(locale: TuiLocale = "en"): string {
     "  :god <action> <role> <reason>",
     "                         guarded God action; type role id to confirm",
     "  :drafts                list failed drafts",
+    "  :draft <id>            show draft details",
+    "  :edit-draft <id> <msg>  edit draft content",
+    "  :copy-draft <id>        print copyable draft details",
     "  :retry-draft <id>      retry and remove a draft",
     "  :settings              show settings summary",
     "  :model <provider> <id>  update default model settings",

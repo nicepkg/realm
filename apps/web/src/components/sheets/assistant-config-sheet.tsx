@@ -125,6 +125,7 @@ export function AssistantConfigSheet({
           proposal={proposal}
           onApplied={onPatchApplied}
           onApply={applyProposal}
+          onReject={() => setProposal(undefined)}
           onRollback={(historyId) => app.client.rollbackConfig(historyId)}
         />
       </SheetContent>

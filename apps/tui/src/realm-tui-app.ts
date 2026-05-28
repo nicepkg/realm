@@ -2,7 +2,13 @@ import { stdout as output } from "node:process";
 import { RealmHttpClient } from "@realm/client-sdk";
 import { parseTuiCommand, renderTuiHelp } from "./commands.ts";
 import { renderConfigPatchPreview, typedConfirmationMatches } from "./config-patch-preview.ts";
-import { renderDraftList, retryDraft } from "./draft-actions.ts";
+import {
+  editDraft,
+  renderDraftCopyDetails,
+  renderDraftDetails,
+  renderDraftList,
+  retryDraft,
+} from "./draft-actions.ts";
 import {
   createGodActionConfirmation,
   decideGodActionConfirmation,
@@ -16,6 +22,7 @@ import {
 } from "./identity-switch-confirmation.ts";
 import { renderWhereami, slashToCommand } from "./interactive-helpers.ts";
 import { runInteractiveSession } from "./interactive-session.ts";
+import { loadTuiState } from "./realm-tui-state-loader.ts";
 import {
   createRoleSendConfirmation,
   decideRoleSendConfirmation,
@@ -235,6 +242,15 @@ export class RealmTuiApp {
     if (command.kind === "drafts") {
       return renderDraftList(this.options.draftsDir, this.dictionary);
     }
+    if (command.kind === "draftDetails") {
+      return renderDraftDetails(command.draftId, this.options.draftsDir, this.dictionary);
+    }
+    if (command.kind === "editDraft") {
+      return editDraft(command.draftId, command.content, this.options.draftsDir, this.dictionary);
+    }
+    if (command.kind === "copyDraft") {
+      return renderDraftCopyDetails(command.draftId, this.options.draftsDir, this.dictionary);
+    }
     if (command.kind === "retryDraft") {
       try {
         const notice = await retryDraft(
@@ -341,45 +357,13 @@ export class RealmTuiApp {
     if (this.state && !roomOverride) {
       return this.state;
     }
-    const effective = await this.client.getEffectiveConfig();
-    const world =
-      effective.worlds.find((candidate) => candidate.id === this.selectedWorldId) ??
-      effective.worlds.find((candidate) => candidate.id === effective.project.defaultWorldId) ??
-      effective.worlds[0];
-    const rooms = world ? (await this.client.listRooms(world.id)).rooms : [];
-    const room =
-      rooms.find(
-        (candidate) =>
-          candidate.id === (roomOverride ?? this.selectedRoomId ?? this.options.roomId),
-      ) ??
-      rooms.find((candidate) => candidate.id === world?.defaultRoomId) ??
-      rooms[0];
-    const messages = room ? (await this.client.listMessages(room.id)).messages : [];
-    const events = (await this.client.listEvents()).events;
-    const previous = this.state;
-    const worldState = world ? await this.client.getWorldState(world.id) : undefined;
-    this.state = {
-      projectName: effective.project.name,
-      worlds: effective.worlds,
-      world,
-      rooms,
-      room,
-      roles: effective.roles,
-      messages,
-      events,
-      identity: this.options.identity ?? this.state?.identity ?? "owner",
-      worldState: worldState
-        ? {
-            state: worldState.state,
-            version: worldState.version,
-          }
-        : undefined,
-      settingsSummary: this.state?.settingsSummary,
-      assistantProposal: this.state?.assistantProposal,
-      lastPatchApply: previous?.lastPatchApply,
-      memoryInspection: previous?.memoryInspection,
-      stateInspection: previous?.stateInspection,
-    };
+    this.state = await loadTuiState(this.client, {
+      options: this.options,
+      previous: this.state,
+      roomOverride,
+      selectedRoomId: this.selectedRoomId,
+      selectedWorldId: this.selectedWorldId,
+    });
     return this.state;
   }
 

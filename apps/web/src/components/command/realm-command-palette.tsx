@@ -2,6 +2,7 @@ import {
   ArrowLeft,
   Bot,
   ContactRound,
+  Database,
   MessageCircle,
   MessageCirclePlus,
   Play,
@@ -35,6 +36,8 @@ type RealmCommandPaletteProps = {
   onCreateRoom: () => void;
   onCreateWorld: () => void;
   onOpenGod: () => void;
+  onOpenWorldInspector: () => void;
+  onInspectRole: (roleId: string) => void;
   onOpenSettings: () => void;
 };
 
@@ -47,7 +50,9 @@ export function RealmCommandPalette({
   onCreateWorld,
   onEnterWorkspace,
   onOpenGod,
+  onOpenWorldInspector,
   onOpenChange,
+  onInspectRole,
   onOpenSettings,
   open,
 }: RealmCommandPaletteProps) {
@@ -179,6 +184,14 @@ export function RealmCommandPalette({
             <ShieldCheck className="size-4" />
             <span>{t("command.openGod")}</span>
           </CommandItem>
+          <CommandItem
+            data-testid="command-open-world-inspector"
+            value="open world state event inspector"
+            onSelect={() => runCommand(onOpenWorldInspector)}
+          >
+            <Database className="size-4" />
+            <span>{t("command.openInspector")}</span>
+          </CommandItem>
         </CommandGroup>
 
         <CommandSeparator />
@@ -261,15 +274,10 @@ export function RealmCommandPalette({
         <CommandGroup heading={t("command.group.roles")}>
           {app.state.roles.map((role) => (
             <CommandItem
+              data-testid={`command-inspect-role-${role.id}`}
               key={role.id}
-              value={`role ${role.id} ${role.displayName} ${role.model}`}
-              onSelect={() =>
-                runCommand(() => {
-                  app.setRunRoleId(role.id);
-                  app.setActiveSection("roles");
-                  onEnterWorkspace(app.selectedWorld?.id);
-                })
-              }
+              value={`inspect role ${role.id} ${role.displayName} ${role.model}`}
+              onSelect={() => runCommand(() => onInspectRole(role.id))}
             >
               <Bot className="size-4" />
               <span className="min-w-0 flex-1 truncate">{role.displayName}</span>

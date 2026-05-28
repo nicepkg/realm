@@ -30,6 +30,7 @@
     "build:binary": "bun run build && bun run scripts/build-binary.ts",
     "build:docs": "bun run --cwd apps/docs build",
     "check": "bun run check:deps && bun run check:files && bun run check:web-structure && bun run typecheck && bun test",
+    "check:commits": "bun run scripts/check-conventional-commits.ts",
     "check:deps": "bun run scripts/check-dependencies.ts",
     "check:files": "bun run scripts/check-file-sizes.ts",
     "check:web-structure": "bun run scripts/check-web-structure.ts",
