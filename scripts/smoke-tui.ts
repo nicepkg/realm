@@ -1,6 +1,6 @@
 import { spawn as spawnNode } from "node:child_process";
 import { constants } from "node:fs";
-import { access, cp, mkdir, mkdtemp, rm } from "node:fs/promises";
+import { access, cp, mkdir, mkdtemp, rm, writeFile } from "node:fs/promises";
 import net from "node:net";
 import os from "node:os";
 import path from "node:path";
@@ -17,8 +17,10 @@ await access(examplePath, constants.R_OK);
 const projectDir = await mkdtemp(path.join(os.tmpdir(), "realm-tui-project-"));
 const realmHome = await mkdtemp(path.join(os.tmpdir(), "realm-tui-home-"));
 const draftsDir = await mkdtemp(path.join(os.tmpdir(), "realm-tui-drafts-"));
+const webDistDir = await mkdtemp(path.join(os.tmpdir(), "realm-tui-web-"));
 await cp(examplePath, projectDir, { recursive: true });
 await mkdir(realmHome, { recursive: true });
+await writeFile(path.join(webDistDir, "index.html"), "<!doctype html><title>Realm TUI</title>");
 
 const port = await findAvailablePort(3997);
 const url = `http://127.0.0.1:${port}`;
@@ -26,7 +28,7 @@ const server = Bun.spawn(
   ["bun", "run", cliPath, "open", "--runtime", "fake", "--no-open", "--port", String(port)],
   {
     cwd: projectDir,
-    env: { ...process.env, REALM_HOME: realmHome },
+    env: { ...process.env, REALM_HOME: realmHome, REALM_WEB_DIST_DIR: webDistDir },
     stderr: "pipe",
     stdout: "pipe",
   },
@@ -50,6 +52,7 @@ try {
   await rm(projectDir, { force: true, recursive: true });
   await rm(realmHome, { force: true, recursive: true });
   await rm(draftsDir, { force: true, recursive: true });
+  await rm(webDistDir, { force: true, recursive: true });
 }
 
 async function runOneShotRender(): Promise<void> {
