@@ -316,7 +316,7 @@ try {
   const roleMessage = `role smoke ${Date.now()}`;
   await browser("fill", "[data-testid='message-input']", roleMessage);
   await browser("press", "Enter");
-  await browser("wait", "500");
+  await waitForPageExpression(`document.body.innerText.includes(${JSON.stringify(roleMessage)})`);
   await assertPage(
     "Role takeover sends a visible audited message",
     `document.body.innerText.includes(${JSON.stringify(roleMessage)})`,
