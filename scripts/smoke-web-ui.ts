@@ -118,8 +118,8 @@ try {
     "(() => { const grid = document.querySelector(\"[data-testid='group-avatar-grid']\"); if (!grid) return false; const cells = grid.querySelectorAll(\"[data-testid='group-avatar-cell']\").length; const rows = grid.querySelectorAll(\"[data-testid='group-avatar-row']\").length; return grid.getAttribute('data-wechat-grid') === 'member-collage' && grid.getAttribute('data-wechat-grid-shape') === 'nine-grid' && rows >= 2 && rows <= 3 && cells >= 4 && cells <= 9; })()",
   );
   await assertPage(
-    "WeChat avatars use configured role faces first and deterministic person fallbacks when missing",
-    "(() => { const grid = document.querySelector(\"[data-testid='group-avatar-grid']\"); if (!grid) return false; const configured = grid.querySelectorAll(\"[data-avatar-kind='emoji'], [data-avatar-kind='image']\").length; const fallback = grid.querySelectorAll(\"[data-avatar-kind='fallback']\").length; return configured >= 3 && fallback >= 1; })()",
+    "WeChat avatars render clean monogram initials (or configured images), never emoji/gradient confetti",
+    "(() => { const grid = document.querySelector(\"[data-testid='group-avatar-grid']\"); if (!grid) return false; const cells = Array.from(grid.querySelectorAll(\"[data-testid='group-avatar-cell']\")); if (cells.length < 4) return false; return cells.every((cell) => { const kind = cell.getAttribute('data-avatar-kind'); if (kind === 'image') return true; return kind === 'monogram' && Boolean(cell.textContent?.trim()); }); })()",
   );
   await assertPage(
     "WeChat top bar keeps room chrome and assistive project/world/identity/running metadata",
@@ -276,10 +276,24 @@ try {
     "Config patch preview shows semantic review and apply-time conflict status",
     "document.querySelector(\"[data-testid='config-patch-semantic']\")?.textContent?.includes('Checked again when applying') === true",
   );
+  await clickInPage("[data-testid='config-patch-tab-files']");
+  await browser(
+    "fill",
+    "[data-testid='config-patch-edit-content']",
+    "version: 1\nid: qa\ndisplayName: QA Smoke\nmodel: default\nprofile:\n  summary: Regression reviewer.\n",
+  );
+  await clickInPage("[data-testid='config-patch-revise']");
+  await waitForPageExpression(
+    "document.querySelector(\"[data-testid='config-patch-edit-content']\")?.value?.includes('QA Smoke') === true",
+  );
+  await assertPage(
+    "Config assistant supports editing a patch and revalidating a new preview",
+    "document.querySelector(\"[data-testid='config-patch-edit-content']\")?.value?.includes('QA Smoke') === true",
+  );
   await clickInPage("[data-testid='config-patch-tab-raw']");
   await assertPage(
     "Config patch preview exposes raw diff",
-    "document.querySelector(\"[data-testid='config-patch-raw-diff']\")?.textContent?.includes('diff --realm') === true",
+    "document.querySelector(\"[data-testid='config-patch-raw-diff']\")?.textContent?.includes('QA Smoke') === true",
   );
   await screenshot("assistant-config-preview.png");
   const qaRolePath = path.join(projectDir, ".agents", "roles", "qa", "role.yaml");
@@ -293,7 +307,7 @@ try {
   await waitForSelector("[data-testid='patch-conflict-resolution']");
   await assertPage(
     "Config patch conflict shows the stale file and proposed diff before any write",
-    "(() => { const panel = document.querySelector(\"[data-testid='patch-conflict-resolution']\"); const diff = document.querySelector(\"[data-testid='patch-conflict-diff']\"); return panel?.textContent?.includes('.agents/roles/qa/role.yaml') === true && diff?.textContent?.includes('diff --realm .agents/roles/qa/role.yaml') === true; })()",
+    "(() => { const panel = document.querySelector(\"[data-testid='patch-conflict-resolution']\"); const diff = document.querySelector(\"[data-testid='patch-conflict-diff']\"); return panel?.textContent?.includes('.agents/roles/qa/role.yaml') === true && diff?.textContent?.includes('diff --realm .agents/roles/qa/role.yaml') === true && diff?.textContent?.includes('QA Smoke') === true; })()",
   );
   await screenshot("assistant-config-conflict.png");
   await browser("press", "Escape");

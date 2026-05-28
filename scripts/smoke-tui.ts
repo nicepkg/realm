@@ -1,16 +1,30 @@
-import { spawn as spawnNode } from "node:child_process";
 import { constants } from "node:fs";
-import { access, cp, mkdir, mkdtemp, rm, writeFile } from "node:fs/promises";
-import net from "node:net";
+import { access, cp, mkdir, mkdtemp, readFile, rm, writeFile } from "node:fs/promises";
 import os from "node:os";
 import path from "node:path";
 import { loadDraft, saveFailedDraft } from "../apps/tui/src/draft-store.ts";
 import { RealmTuiApp } from "../apps/tui/src/index.ts";
+import { resolveTuiKeybinding } from "../apps/tui/src/keybindings.ts";
 import { RealmHttpClient } from "../packages/client-sdk/src/index.ts";
+import {
+  assertIncludes,
+  assertTrue,
+  drain,
+  findAvailablePort,
+  parseJsonPayload,
+  run,
+  stripAnsi,
+  waitForHttp,
+} from "./smoke-tui-helpers.ts";
+import { runPtyLaunchSmoke } from "./smoke-tui-pty.ts";
 
 const repoRoot = process.cwd();
 const cliPath = path.join(repoRoot, "apps", "cli", "src", "index.ts");
 const examplePath = path.join(repoRoot, "examples", "cultivation-sim");
+
+// Expect bodies for the PTY smoke. The TUI repaints with full-screen clears
+// (CSI 2J/3J), so only the FINAL frame survives in the captured stream — each
+// body therefore ends on the single frame whose contents we assert.
 
 await access(cliPath, constants.R_OK);
 await access(examplePath, constants.R_OK);
@@ -44,7 +58,9 @@ try {
   await runOneShotRender();
   await runOneShotSend();
   await runStatefulInteractionSmoke();
-  await runPtyLaunchSmoke();
+  await runNewCommandsSmoke();
+  await runScrollbackSmoke();
+  await runPtyLaunchSmoke({ cliPath, projectDir, realmHome, url });
   console.log("TUI smoke passed.");
 } finally {
   server.kill();
@@ -114,6 +130,22 @@ async function runStatefulInteractionSmoke(): Promise<void> {
   const helpNotice = await app.handleInteractiveInput("/help", showHelp, showSettings);
   assertIncludes(helpNotice ?? "", "Help", "TUI help shortcut notice");
   assertTrue(helpOpened, "TUI help callback opened");
+
+  // Bare "?" opens help only when the composer is empty; with text it forwards
+  // to the editor so a literal "?" can be typed (global hijack is gated).
+  assertTrue(
+    resolveTuiKeybinding("?", { editorHasText: false }) === "help",
+    "TUI bare ? opens help on empty composer",
+  );
+  assertTrue(
+    resolveTuiKeybinding("?", { editorHasText: true }) === undefined,
+    "TUI bare ? forwards to editor when composer has text",
+  );
+
+  // Picker selection: applyPaletteItem is exactly what the Ctrl+K SelectList
+  // onSelect calls. Selecting the whereami item returns the current context.
+  const pickerNotice = await app.applyPaletteItem("whereami");
+  assertIncludes(pickerNotice ?? "", "Cultivation", "TUI command palette selection applies");
 
   const settingsNotice = await app.handleInteractiveInput("/settings", showHelp, showSettings);
   assertIncludes(settingsNotice ?? "", "Settings", "TUI settings shortcut notice");
@@ -200,44 +232,82 @@ async function runDraftRecoverySmoke(
   assertTrue(!(await loadDraft(saved.record.id, draftsDir)), "TUI draft retry removes draft");
 }
 
-async function runPtyLaunchSmoke(): Promise<void> {
-  const interactiveCommand = ["bun", "run", cliPath, "tui", "--base-url", url, "--locale", "en"];
-  if (os.platform() === "win32") {
-    console.log("TUI PTY launch smoke skipped: portable `script` command unavailable.");
-    return;
-  }
-  if (await commandExists("expect")) {
-    const output = await runWithExpectPty(interactiveCommand);
-    assertIncludes(output, "Realm", "TUI PTY launch");
-    return;
-  }
-  if (
-    !(await commandExists("script")) ||
-    !(await canRunScriptPty(["printf", "realm-pty-probe"], "realm-pty-probe")) ||
-    !(await canRunScriptPty([...interactiveCommand, "--once"], "Realm TUI"))
-  ) {
-    console.log("TUI PTY launch smoke skipped: portable `script` command unavailable.");
-    return;
-  }
-  const output = await runWithScriptPty(interactiveCommand);
-  if (output) {
-    assertIncludes(output, "Realm", "TUI PTY launch");
+async function runNewCommandsSmoke(): Promise<void> {
+  // Persisted locale lands under the temp REALM_HOME so it is cleaned up.
+  const previousRealmHome = process.env.REALM_HOME;
+  process.env.REALM_HOME = realmHome;
+  try {
+    const app = new RealmTuiApp({ baseUrl: url, draftsDir, locale: "en" });
+    const noop = () => {};
+    const noopAsync = async () => {};
+
+    // :locale switches the interface language live and persists it.
+    const localeNotice = await app.handleInteractiveInput(":locale zh-CN", noop, noopAsync);
+    assertIncludes(localeNotice ?? "", "界面语言", "TUI :locale switch notice");
+    const zhRender = await app.render();
+    assertIncludes(zhRender, "会话", "TUI render flips to Chinese after :locale");
+    const persisted = await readFile(path.join(realmHome, "tui-locale"), "utf8");
+    assertIncludes(persisted.trim(), "zh-CN", "TUI locale persisted to ~/.realm");
+    // Switch back so later assertions read English copy.
+    await app.handleInteractiveInput(":locale en", noop, noopAsync);
+
+    // :sim status reports the simulation runtime for the active world.
+    const simStatus = await app.handleInteractiveInput(":sim status", noop, noopAsync);
+    assertIncludes(simStatus ?? "", "Simulation", "TUI :sim status notice");
+    const simTick = await app.handleInteractiveInput(":sim tick 1", noop, noopAsync);
+    assertIncludes(simTick ?? "", "tick", "TUI :sim tick notice");
+
+    // :create-world / :create-role propose a config patch (review-before-apply).
+    const worldProposal = await app.handleInteractiveInput(
+      ":create-world smoke-world Smoke World sandbox",
+      noop,
+      noopAsync,
+    );
+    assertIncludes(worldProposal ?? "", "smoke-world", "TUI :create-world proposal notice");
+    const roleProposal = await app.handleInteractiveInput(
+      ":create-role smoke-role Smoke Role",
+      noop,
+      noopAsync,
+    );
+    assertIncludes(roleProposal ?? "", "smoke-role", "TUI :create-role proposal notice");
+
+    // :run-role gates on confirmation, surfacing model/provider/permissions and
+    // the Ctrl+C cancel line. The fake server has no live provider for arbitrary
+    // role turns, so we assert the observable gate (which proves the running
+    // path is wired) and cancel instead of confirming.
+    const runGate = await app.handleInteractiveInput(":run-role leijun ping", noop, noopAsync);
+    assertIncludes(runGate ?? "", "Run Lei Jun", "TUI :run-role confirmation gate");
+    assertIncludes(runGate ?? "", "Model:", "TUI :run-role shows model/provider");
+    assertIncludes(runGate ?? "", "Ctrl+C cancels", "TUI :run-role shows cancel line");
+    const runCancelled = await app.handleInteractiveInput("n", noop, noopAsync);
+    assertIncludes(runCancelled ?? "", "cancelled", "TUI :run-role cancels cleanly");
+  } finally {
+    if (previousRealmHome === undefined) {
+      delete process.env.REALM_HOME;
+    } else {
+      process.env.REALM_HOME = previousRealmHome;
+    }
   }
 }
 
-async function canRunScriptPty(command: string[], expected: string): Promise<boolean> {
-  const proc = Bun.spawn(scriptCommand(command), {
-    cwd: projectDir,
-    env: { ...process.env, REALM_HOME: realmHome },
-    stderr: "pipe",
-    stdout: "pipe",
-  });
-  const [stdout, stderr, exitCode] = await Promise.all([
-    new Response(proc.stdout).text(),
-    new Response(proc.stderr).text(),
-    proc.exited,
-  ]);
-  return exitCode === 0 && stripAnsi(`${stdout}${stderr}`).includes(expected);
+async function runScrollbackSmoke(): Promise<void> {
+  // Push more than one transcript window of messages, then assert the render
+  // keeps status/editor context lines visible while showing an older-history
+  // indicator (scrollback) rather than dropping the surrounding chrome.
+  const app = new RealmTuiApp({ baseUrl: url, draftsDir, locale: "en" });
+  const noop = () => {};
+  const noopAsync = async () => {};
+  for (let index = 0; index < 16; index += 1) {
+    await app.handleInteractiveInput(
+      `:send scrollback probe ${index} ${Date.now()}`,
+      noop,
+      noopAsync,
+    );
+  }
+  const rendered = await app.render();
+  assertIncludes(rendered, "older", "TUI render shows scrollback older-history indicator");
+  assertIncludes(rendered, "Conversations", "TUI render keeps conversation chrome with scrollback");
+  assertIncludes(rendered, "Shortcuts", "TUI render keeps shortcuts footer with scrollback");
 }
 
 async function assertMessagePersisted(content: string, displayedAuthorId: string): Promise<void> {
@@ -254,244 +324,4 @@ async function runCli(args: string[]): Promise<string> {
     cwd: projectDir,
     env: { ...process.env, REALM_HOME: realmHome },
   });
-}
-
-async function runWithExpectPty(command: string[]): Promise<string> {
-  const scriptDir = await mkdtemp(path.join(os.tmpdir(), "realm-tui-expect-"));
-  const scriptPath = path.join(scriptDir, "pty.exp");
-  try {
-    await writeFile(
-      scriptPath,
-      `
-set timeout 6
-log_user 1
-spawn -noecho {*}$argv
-expect {
-  -re "Realm" {}
-  timeout { puts stderr "Timed out waiting for Realm"; exit 2 }
-  eof { puts stderr "Exited before Realm"; exit 3 }
-}
-send "?"
-after 250
-send "\\033"
-after 250
-send "\\003"
-after 150
-send "\\003"
-expect {
-  eof {}
-  timeout { close; wait; exit 0 }
-}
-set result [wait]
-set code [lindex $result 3]
-if {$code != 0 && $code != 130} { exit $code }
-`,
-      "utf8",
-    );
-    return await run(["expect", scriptPath, ...command], {
-      cwd: projectDir,
-      env: { ...process.env, REALM_HOME: realmHome },
-    });
-  } finally {
-    await rm(scriptDir, { force: true, recursive: true });
-  }
-}
-
-async function runWithScriptPty(command: string[]): Promise<string> {
-  const child = spawnNode("script", scriptCommand(command).slice(1), {
-    cwd: projectDir,
-    env: { ...process.env, REALM_HOME: realmHome },
-    stdio: ["pipe", "pipe", "pipe"],
-  });
-  let output = "";
-  child.stdout.on("data", (chunk) => {
-    output += chunk.toString("utf8");
-  });
-  child.stderr.on("data", (chunk) => {
-    output += chunk.toString("utf8");
-  });
-  const rendered = await waitForText(() => output, "Realm", 6000);
-  if (!rendered) {
-    child.kill("SIGTERM");
-    throw new Error(`TUI PTY launch did not render observable output:\n${stripAnsi(output)}`);
-  }
-  child.stdin.write("?");
-  await sleep(250);
-  child.stdin.write("\x1b");
-  await sleep(250);
-  child.stdin.write("\x03");
-  await sleep(150);
-  child.stdin.write("\x03");
-  const exitCode = await waitForChildExit(child, 4000).catch(() => {
-    child.kill("SIGTERM");
-    return 0;
-  });
-  if (exitCode !== 0 && exitCode !== 130) {
-    throw new Error(`TUI PTY launch exited with ${exitCode}:\n${stripAnsi(output).slice(-1200)}`);
-  }
-  return stripAnsi(output);
-}
-
-function scriptCommand(command: string[]): string[] {
-  return os.platform() === "darwin"
-    ? ["script", "-q", "/dev/null", ...command]
-    : ["script", "-q", "-c", shellJoin(command), "/dev/null"];
-}
-
-async function run(
-  command: string[],
-  options: { cwd?: string; env?: NodeJS.ProcessEnv } = {},
-): Promise<string> {
-  const proc = Bun.spawn(command, {
-    cwd: options.cwd,
-    env: options.env,
-    stderr: "pipe",
-    stdout: "pipe",
-  });
-  const [stdout, stderr, exitCode] = await Promise.all([
-    new Response(proc.stdout).text(),
-    new Response(proc.stderr).text(),
-    proc.exited,
-  ]);
-  if (exitCode !== 0) {
-    throw new Error(`${command.join(" ")} failed:\n${stderr || stdout}`);
-  }
-  return stdout.trim();
-}
-
-async function waitForHttp(target: string, readExitCode?: () => number | undefined): Promise<void> {
-  const startedAt = Date.now();
-  while (Date.now() - startedAt < 60_000) {
-    const exitCode = readExitCode?.();
-    if (exitCode !== undefined) {
-      throw new Error(`Server exited with ${exitCode} before ${target} was healthy`);
-    }
-    try {
-      const response = await fetch(target);
-      if (response.ok) {
-        return;
-      }
-    } catch {
-      await sleep(250);
-    }
-  }
-  throw new Error(`Timed out waiting for ${target}`);
-}
-
-async function waitForText(
-  read: () => string,
-  expected: string,
-  timeoutMs: number,
-): Promise<boolean> {
-  const startedAt = Date.now();
-  while (Date.now() - startedAt < timeoutMs) {
-    if (stripAnsi(read()).includes(expected)) {
-      return true;
-    }
-    await sleep(100);
-  }
-  return false;
-}
-
-function waitForChildExit(
-  child: ReturnType<typeof spawnNode>,
-  timeoutMs: number,
-): Promise<number | null> {
-  return new Promise((resolve, reject) => {
-    const timeout = setTimeout(
-      () => reject(new Error("Timed out waiting for child exit")),
-      timeoutMs,
-    );
-    child.once("exit", (code) => {
-      clearTimeout(timeout);
-      resolve(code);
-    });
-  });
-}
-
-async function commandExists(command: string): Promise<boolean> {
-  const checker = os.platform() === "win32" ? "where" : "which";
-  const proc = Bun.spawn([checker, command], { stderr: "pipe", stdout: "pipe" });
-  const exitCode = await proc.exited;
-  await drain(proc.stdout);
-  await drain(proc.stderr);
-  return exitCode === 0;
-}
-
-async function findAvailablePort(start: number): Promise<number> {
-  for (let port = start; port < start + 100; port += 1) {
-    if (await canListen(port)) {
-      return port;
-    }
-  }
-  throw new Error(`No available port near ${start}`);
-}
-
-async function canListen(port: number): Promise<boolean> {
-  return new Promise((resolve) => {
-    const server = net.createServer();
-    server.once("error", () => resolve(false));
-    server.once("listening", () => {
-      server.close(() => resolve(true));
-    });
-    server.listen(port, "127.0.0.1");
-  });
-}
-
-async function drain(stream: ReadableStream<Uint8Array> | null): Promise<void> {
-  if (!stream) {
-    return;
-  }
-  await new Response(stream).text().catch(() => undefined);
-}
-
-function assertIncludes(value: string, expected: string, label: string): void {
-  if (!value.includes(expected)) {
-    throw new Error(`${label} did not include ${JSON.stringify(expected)}:\n${value}`);
-  }
-}
-
-function assertTrue(value: boolean, label: string): void {
-  if (!value) {
-    throw new Error(`${label} failed`);
-  }
-}
-
-function parseJsonPayload(value: string, label: string): Record<string, unknown> {
-  const payloadStart = value.indexOf("{");
-  if (payloadStart === -1) {
-    throw new Error(`${label} did not include a JSON payload:\n${value}`);
-  }
-  const parsed = JSON.parse(value.slice(payloadStart)) as unknown;
-  if (!parsed || typeof parsed !== "object" || Array.isArray(parsed)) {
-    throw new Error(`${label} payload was not an object:\n${value}`);
-  }
-  return parsed as Record<string, unknown>;
-}
-
-function shellJoin(command: string[]): string {
-  return command.map((part) => `'${part.replaceAll("'", "'\\''")}'`).join(" ");
-}
-
-function sleep(ms: number): Promise<void> {
-  return new Promise((resolve) => setTimeout(resolve, ms));
-}
-
-function stripAnsi(value: string): string {
-  let output = "";
-  for (let index = 0; index < value.length; index += 1) {
-    if (value.charCodeAt(index) === 0x1b && value[index + 1] === "[") {
-      index += 2;
-      while (index < value.length) {
-        const code = value.charCodeAt(index);
-        if (code >= 0x40 && code <= 0x7e) {
-          break;
-        }
-        index += 1;
-      }
-      continue;
-    }
-    output += value[index];
-  }
-  return output;
 }

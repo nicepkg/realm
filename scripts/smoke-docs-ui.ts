@@ -41,7 +41,7 @@ try {
   );
   await assertPage(
     "Docs home product preview uses a WeChat nine-grid group avatar collage",
-    "document.querySelector('.group-avatar')?.getAttribute('data-wechat-grid') === 'member-collage' && document.querySelector('.group-avatar')?.getAttribute('data-wechat-grid-shape') === 'nine-grid' && document.querySelectorAll('.group-avatar-row').length === 3 && document.querySelectorAll('.group-avatar i').length === 9",
+    "document.querySelector('.group-avatar')?.getAttribute('data-wechat-grid') === 'member-collage' && document.querySelector('.group-avatar')?.getAttribute('data-wechat-grid-shape') === 'nine-grid' && document.querySelectorAll('.group-avatar i').length === 9 && Array.from(document.querySelectorAll('.group-avatar i')).every((cell) => Boolean(cell.textContent?.trim()))",
   );
   await assertPage(
     "Docs home product preview exposes WeChat top-bar actions through the ellipsis menu",
