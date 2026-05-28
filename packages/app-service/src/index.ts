@@ -1,4 +1,3 @@
-import path from "node:path";
 import {
   type ConfigPatchApplyInput,
   type ConfigPatchRevisionInput,
@@ -6,14 +5,12 @@ import {
   type CreateWorldPatchInput,
   FileConfigPatchStore,
   type ProjectConfig,
-  projectLayout,
   trustProject,
   type UserConfig,
 } from "@realm/config";
 import type { ConfigPatchProposal, Message, RealmEvent, Room } from "@realm/core";
-import { PackagePiBridge, type PiBridge } from "@realm/pi-bridge";
+import { FakePiBridge, PackagePiBridge, type PiBridge } from "@realm/pi-bridge";
 import type { TrustTier } from "@realm/policy";
-import { PiRoleTurnRunner } from "@realm/runtime";
 import { type EventStore, InMemoryEventStore } from "@realm/storage";
 import { projectAuditTimeline } from "./audit-projection.ts";
 import { ConfigPatchService } from "./config-patch-service.ts";
@@ -25,7 +22,6 @@ import {
 } from "./extension-access-service.ts";
 import { FakeVerticalSliceService } from "./fake-vertical-slice-service.ts";
 import { type CreateRoomInput, MessageService, type SendMessageInput } from "./message-service.ts";
-import { resolveRoleModelSettings } from "./model-resolution-service.ts";
 import { ServicePolicyGate } from "./policy-gate.ts";
 import {
   type ApplyProjectPatchInput,
@@ -37,18 +33,15 @@ import {
   RoleMemoryService,
   type RoleMemoryWriteInput,
 } from "./role-memory-service.ts";
-import {
-  compileRoleSystemPrompt,
-  loadRoleTurnContext,
-  toPiAllowedSkills,
-} from "./role-turn-context.ts";
+import { executeRoleTurn } from "./role-turn-execution.ts";
 import {
   type SettingsExportSnapshot,
   SettingsService,
   type SettingsSnapshot,
 } from "./settings-service.ts";
-import { assertSafePathSegment, OWNER_ID, resolvePiExtensionPaths } from "./support.ts";
+import { assertSafePathSegment, OWNER_ID } from "./support.ts";
 import { type TurnCancelResult, TurnControlService } from "./turn-control-service.ts";
+import { TurnFailureEmitter } from "./turn-failure-emitter.ts";
 import type { RealmApplicationServiceOptions, RunRoleTurnInput } from "./types.ts";
 import {
   type CreateWorkflowArtifactInput,
@@ -88,6 +81,7 @@ export class RealmApplicationService {
   private readonly roleMemoryService: RoleMemoryService;
   private readonly settingsService: SettingsService;
   private readonly turnControlService = new TurnControlService();
+  private readonly turnFailureEmitter: TurnFailureEmitter;
   private readonly worldStateService: WorldStateService;
   private readonly workflowService: WorkflowService;
   readonly worldEvents: WorldEventService;
@@ -103,7 +97,12 @@ export class RealmApplicationService {
       trustTier,
       clock: this.clock,
     });
-    this.piBridge = options.piBridge ?? new PackagePiBridge();
+    // In fake runtime mode, role turns must complete deterministically without
+    // a real provider. Route through FakePiBridge (which echoes a canned reply
+    // regardless of provider/model) unless the caller injected an explicit
+    // bridge. Real mode keeps the package bridge so providers resolve normally.
+    this.piBridge =
+      options.piBridge ?? (options.fakeVerticalSlice ? new FakePiBridge() : new PackagePiBridge());
     this.configQueryService = new ConfigQueryService(options.root, {
       env: options.env,
       trustTier,
@@ -183,6 +182,11 @@ export class RealmApplicationService {
           appendAudit: (input) => this.policyGate.appendAudit(input),
         })
       : undefined;
+    this.turnFailureEmitter = new TurnFailureEmitter({
+      eventStore: this.eventStore,
+      clock: this.clock,
+      appendAudit: (input) => this.policyGate.appendAudit(input),
+    });
     for (const tokenScope of options.extensionStaticTokens ?? []) {
       this.extensionAccessService.registerStaticToken(tokenScope);
     }
@@ -303,76 +307,37 @@ export class RealmApplicationService {
 
   async runRoleTurn(input: RunRoleTurnInput): Promise<{ turnId: string; message: Message }> {
     this.policyGate.assertAllowed("turn.run");
-    assertSafePathSegment(input.worldId, "worldId");
-    assertSafePathSegment(input.roomId, "roomId");
-    assertSafePathSegment(input.roleId, "roleId");
-    const roleContext = await loadRoleTurnContext({
-      root: this.options.root,
-      worldId: input.worldId,
-      roleId: input.roleId,
-      roles: await this.listRoles(),
-    });
-    if (!roleContext.role) {
-      throw new Error(`Unknown role: ${input.roleId}`);
-    }
-    const layout = projectLayout(this.options.root);
-    const runner = new PiRoleTurnRunner(this.piBridge, this.eventStore, this.clock);
-    const timeoutMs = input.timeoutMs ?? 60_000;
-    const extensionSession = this.extensionAccessService.createSession({
-      worldId: input.worldId,
-      roleId: input.roleId,
-      expiresAt: new Date(this.clock().getTime() + timeoutMs + 30_000),
-    });
-    const modelSettings = resolveRoleModelSettings({
-      settings: await this.getSettings(),
-      roleModel: roleContext.role.model,
-      env: this.options.env,
-    });
-
-    try {
-      const result = await runner.run({
-        turnId: input.turnId,
-        worldId: input.worldId,
-        roomId: input.roomId,
-        roleId: input.roleId,
-        prompt:
-          input.prompt ?? `Reply to the latest room context as ${roleContext.role.displayName}.`,
-        cwd: this.options.root,
-        sessionDir: path.join(
-          layout.stateDir,
-          "pi-sessions",
-          input.worldId,
-          input.roomId,
-          input.roleId,
-        ),
-        systemPrompt: compileRoleSystemPrompt(roleContext),
-        provider: modelSettings.provider,
-        model: modelSettings.model,
-        allowedSkills: toPiAllowedSkills(roleContext.callableSkills),
-        allowedSkillPaths: roleContext.callableSkills.map((skill) => skill.path),
-        extensionPaths: await resolvePiExtensionPaths(
-          this.options.piExtensionPath ?? process.env.REALM_PI_EXTENSION_PATH,
-        ),
-        env: {
-          ...modelSettings.env,
-          REALM_EXTENSION_BASE_URL: this.options.extensionBaseUrl ?? "http://127.0.0.1:3737",
-          REALM_EXTENSION_TOKEN: extensionSession.token,
-          REALM_EXTENSION_WORLD_ID: input.worldId,
-          REALM_EXTENSION_ROLE_ID: input.roleId,
-        },
-        signal: input.signal,
-        timeoutMs,
-      });
-
-      return { turnId: result.turn.id, message: result.message };
-    } finally {
-      this.extensionAccessService.deleteSession(extensionSession.tokenHash);
-    }
+    return executeRoleTurn(
+      {
+        root: this.options.root,
+        eventStore: this.eventStore,
+        clock: this.clock,
+        piBridge: this.piBridge,
+        extensionAccessService: this.extensionAccessService,
+        fakeRuntime: Boolean(this.options.fakeVerticalSlice),
+        extensionBaseUrl: this.options.extensionBaseUrl,
+        piExtensionPath: this.options.piExtensionPath,
+        env: this.options.env,
+        listRoles: () => this.listRoles(),
+        getSettings: () => this.getSettings(),
+      },
+      input,
+    );
   }
 
   startRoleTurn(input: RunRoleTurnInput): { turnId: string } {
-    return this.turnControlService.start((turnId, signal) =>
-      this.runRoleTurn({ ...input, turnId, signal }),
+    return this.turnControlService.start(
+      (turnId, signal) => this.runRoleTurn({ ...input, turnId, signal }),
+      (turnId, reason) =>
+        this.turnFailureEmitter.emit(
+          {
+            turnId,
+            worldId: input.worldId,
+            roomId: input.roomId,
+            roleId: input.roleId,
+          },
+          reason,
+        ),
     );
   }
 
