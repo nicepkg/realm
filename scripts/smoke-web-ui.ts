@@ -102,8 +102,8 @@ try {
     "!document.body.innerText.includes('No messages yet') && !document.body.innerText.includes('Send a message to start')",
   );
   await assertPage(
-    "Group conversations render real member avatars inside a WeChat-style grid",
-    "(() => { const grid = document.querySelector(\"[data-testid='group-avatar-grid']\"); const count = grid?.querySelectorAll(\"[data-testid='group-avatar-cell']\").length ?? 0; return count === 9; })()",
+    "Group conversations render real member avatars inside a WeChat-style collage",
+    "(() => { const grid = document.querySelector(\"[data-testid='group-avatar-grid']\"); const count = grid?.querySelectorAll(\"[data-testid='group-avatar-cell']\").length ?? 0; return count >= 4 && count <= 9; })()",
   );
   await assertPage(
     "Conversation list rows keep WeChat avatar/title/preview/time structure",
@@ -114,11 +114,11 @@ try {
     "(() => { const row = document.querySelector(\"[data-chat-row='conversation'][data-wechat-row='conversation']\"); const avatar = row?.querySelector(\"[data-wechat-avatar='person'], [data-wechat-avatar='group']\"); if (!row || !avatar) return false; const rowRect = row.getBoundingClientRect(); const avatarRect = avatar.getBoundingClientRect(); return rowRect.height >= 80 && rowRect.height <= 84 && avatarRect.width >= 54 && avatarRect.height >= 54; })()",
   );
   await assertPage(
-    "Group avatars are laid out as a WeChat nine-grid member collage",
-    "(() => { const grid = document.querySelector(\"[data-testid='group-avatar-grid']\"); if (!grid) return false; const cells = grid.querySelectorAll(\"[data-testid='group-avatar-cell']\").length; const rows = grid.querySelectorAll(\"[data-testid='group-avatar-row']\").length; return grid.getAttribute('data-wechat-grid') === 'member-collage' && grid.getAttribute('data-wechat-grid-shape') === 'nine-grid' && rows === 3 && cells === 9; })()",
+    "Group avatars are laid out as a WeChat member collage without fake filler people",
+    "(() => { const grid = document.querySelector(\"[data-testid='group-avatar-grid']\"); if (!grid) return false; const cells = grid.querySelectorAll(\"[data-testid='group-avatar-cell']\").length; const rows = grid.querySelectorAll(\"[data-testid='group-avatar-row']\").length; return grid.getAttribute('data-wechat-grid') === 'member-collage' && grid.getAttribute('data-wechat-grid-shape') === 'nine-grid' && rows >= 2 && rows <= 3 && cells >= 4 && cells <= 9; })()",
   );
   await assertPage(
-    "WeChat avatars use configured role faces first and deterministic fallback slots when missing",
+    "WeChat avatars use configured role faces first and deterministic person fallbacks when missing",
     "(() => { const grid = document.querySelector(\"[data-testid='group-avatar-grid']\"); if (!grid) return false; const configured = grid.querySelectorAll(\"[data-avatar-kind='emoji'], [data-avatar-kind='image']\").length; const fallback = grid.querySelectorAll(\"[data-avatar-kind='fallback']\").length; return configured >= 3 && fallback >= 1; })()",
   );
   await assertPage(

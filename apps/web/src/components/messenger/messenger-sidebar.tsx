@@ -1,9 +1,9 @@
 import {
   ChevronDown,
+  CirclePlus,
   ContactRound,
   Menu,
   MessageCircle,
-  Plus,
   Settings2,
   UsersRound,
 } from "lucide-react";
@@ -68,7 +68,7 @@ export function MessengerSidebar({
             onClick={onCreateRoom}
             type="button"
           >
-            <Plus className="size-[22px]" />
+            <CirclePlus className="size-[26px]" />
           </button>
         </div>
         <div className="flex h-[70px] items-center justify-between border-[#d9d9dc] border-t bg-[#f2f2f2] px-6 text-[15px] text-[var(--realm-fg-muted)]">
