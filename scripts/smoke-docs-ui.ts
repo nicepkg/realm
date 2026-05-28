@@ -48,8 +48,8 @@ try {
     "(() => { const menu = document.querySelector('.topbar-menu'); if (!menu) return false; const text = menu.textContent ?? ''; return text.includes('Command') && text.includes('World Inspector') && text.includes('God') && text.includes('Settings'); })()",
   );
   await assertPage(
-    "Docs home surfaces verification signals",
-    "document.querySelector('.proof-band')?.textContent?.includes('Agent Browser') === true",
+    "Docs home surfaces user-facing value props",
+    "document.querySelector('.proof-band')?.textContent?.includes('Local-first') === true",
   );
   await assertPage(
     "Docs nav exposes release install without a fake GitHub topic route",
