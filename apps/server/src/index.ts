@@ -4,6 +4,7 @@ import {
   adminStatePatchRequestSchema,
   applyProjectPatchRequestSchema,
   assistantConfigRequestSchema,
+  configPatchApplyRequestSchema,
   createRoleRequestSchema,
   createRoomRequestSchema,
   createWorkflowArtifactRequestSchema,
@@ -25,7 +26,11 @@ import {
   updateProjectSettingsRequestSchema,
   updateUserSettingsRequestSchema,
 } from "@realm/api-contract";
-import { RealmApplicationService, type RealmApplicationServiceOptions } from "@realm/app-service";
+import {
+  OWNER_ID,
+  RealmApplicationService,
+  type RealmApplicationServiceOptions,
+} from "@realm/app-service";
 import { Hono } from "hono";
 import { registerSimulationRoutes } from "./simulation-routes.ts";
 import { registerWorldEventRoutes } from "./world-event-routes.ts";
@@ -88,7 +93,7 @@ export function createRealmServer(options: RealmServerOptions): Hono {
       afterSeq: Number.isNaN(afterSeq) ? 0 : afterSeq,
       limit: 500,
     });
-    return context.json({ events, lastSeq: events.at(-1)?.seq ?? afterSeq });
+    return context.json({ events, lastSeq: service.lastEventSeq() });
   });
   app.get("/api/events/stream", (context) => {
     const afterSeq = Number.parseInt(context.req.query("afterSeq") ?? "0", 10);
@@ -108,6 +113,9 @@ export function createRealmServer(options: RealmServerOptions): Hono {
   app.get("/api/worlds/:worldId/state", async (context) =>
     context.json(await service.getWorldState(context.req.param("worldId"))),
   );
+  app.get("/api/worlds/:worldId/roles/:roleId/memory", async (context) =>
+    context.json(await service.readRoleMemory({ roleId: context.req.param("roleId") })),
+  );
   registerWorldEventRoutes(app, service);
   registerSimulationRoutes(app, service);
   app.get("/api/worlds/:worldId/rooms", async (context) =>
@@ -124,7 +132,11 @@ export function createRealmServer(options: RealmServerOptions): Hono {
   );
   app.post("/api/rooms/:roomId/messages", async (context) => {
     const request = sendMessageRequestSchema.parse(await context.req.json());
-    const message = service.sendMessage({ ...request, roomId: context.req.param("roomId") });
+    const message = service.sendMessage({
+      ...request,
+      operatorId: OWNER_ID,
+      roomId: context.req.param("roomId"),
+    });
     return context.json({ message }, 201);
   });
   app.post("/api/rooms/:roomId/role-turns", async (context) => {
@@ -237,9 +249,11 @@ export function createRealmServer(options: RealmServerOptions): Hono {
     return context.json({ patch: await service.proposeAssistantConfig(request) }, 201);
   });
 
-  app.post("/api/config/patches/:patchId/apply", async (context) =>
-    context.json(await service.applyConfigPatch(context.req.param("patchId"))),
-  );
+  app.post("/api/config/patches/:patchId/apply", async (context) => {
+    const rawBody = await context.req.text();
+    const request = configPatchApplyRequestSchema.parse(rawBody ? JSON.parse(rawBody) : {});
+    return context.json(await service.applyConfigPatch(context.req.param("patchId"), request));
+  });
 
   app.post("/api/config/history/:historyId/rollback", async (context) =>
     context.json(await service.rollbackConfigHistory(context.req.param("historyId"))),

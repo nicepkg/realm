@@ -1,0 +1,5 @@
+.agents/config.local.yaml
+.agents/state/*
+!.agents/state/README.md
+.agents/logs/*
+!.agents/logs/README.md

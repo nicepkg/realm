@@ -175,8 +175,11 @@ export const listMessagesResponseSchema = z.object({
 
 export const sendMessageRequestSchema = z.object({
   worldId: z.string().min(1),
-  displayedAuthorId: z.string().min(1).optional(),
-  operatorId: z.string().min(1).optional(),
+  displayedAuthorId: z
+    .string()
+    .min(1)
+    .refine((value) => value !== "god", "God messages must use world event endpoints")
+    .optional(),
   content: z.string().min(1),
   idempotencyKey: z.string().min(1).optional(),
 });
@@ -376,6 +379,10 @@ export const assistantConfigRequestSchema = z.object({
 
 export const configPatchProposalResponseSchema = z.object({
   patch: configPatchProposalSchema,
+});
+
+export const configPatchApplyRequestSchema = z.object({
+  confirmation: z.string().optional(),
 });
 
 export const configPatchApplyResponseSchema = z.object({

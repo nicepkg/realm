@@ -4,6 +4,7 @@ import {
   applyProjectPatchRequestSchema,
   assistantConfigRequestSchema,
   cancelTurnResponseSchema,
+  configPatchApplyRequestSchema,
   configPatchApplyResponseSchema,
   configPatchProposalResponseSchema,
   configRollbackResponseSchema,
@@ -130,6 +131,15 @@ export class RealmHttpClient extends RealmHttpTransport {
   async getWorldState(worldId: string): Promise<z.infer<typeof worldStateResponseSchema>> {
     return this.get(`/api/worlds/${encodeURIComponent(worldId)}/state`, worldStateResponseSchema);
   }
+  async readRoleMemory(
+    worldId: string,
+    roleId: string,
+  ): Promise<z.infer<typeof extensionMemoryReadResponseSchema>> {
+    return this.get(
+      `/api/worlds/${encodeURIComponent(worldId)}/roles/${encodeURIComponent(roleId)}/memory`,
+      extensionMemoryReadResponseSchema,
+    );
+  }
   async listRoles(): Promise<z.infer<typeof listRolesResponseSchema>> {
     return this.get("/api/roles", listRolesResponseSchema);
   }
@@ -222,10 +232,13 @@ export class RealmHttpClient extends RealmHttpTransport {
     );
   }
 
-  async applyConfigPatch(patchId: string): Promise<z.infer<typeof configPatchApplyResponseSchema>> {
+  async applyConfigPatch(
+    patchId: string,
+    input: z.input<typeof configPatchApplyRequestSchema> = {},
+  ): Promise<z.infer<typeof configPatchApplyResponseSchema>> {
     return this.post(
       `/api/config/patches/${encodeURIComponent(patchId)}/apply`,
-      {},
+      configPatchApplyRequestSchema.parse(input),
       configPatchApplyResponseSchema,
     );
   }

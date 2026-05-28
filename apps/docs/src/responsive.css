@@ -1,0 +1,67 @@
+@media (max-width: 1080px) {
+  .hero-section,
+  .split-band {
+    grid-template-columns: 1fr;
+  }
+
+  .concept-map,
+  .example-grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+}
+
+@media (max-width: 760px) {
+  .topbar {
+    gap: 12px;
+    padding: 0 14px;
+  }
+
+  .brand {
+    min-width: 0;
+  }
+
+  .topnav,
+  .brand small {
+    display: none;
+  }
+
+  .doc-index {
+    justify-content: flex-start;
+    top: 64px;
+  }
+
+  .hero-section {
+    display: block;
+    padding-top: 34px;
+  }
+
+  h1 {
+    font-size: 56px;
+  }
+
+  .hero-copy p {
+    font-size: 17px;
+  }
+
+  .install-strip,
+  .command-row,
+  .reference-row {
+    grid-template-columns: 1fr;
+  }
+
+  .install-strip code {
+    overflow-wrap: anywhere;
+    white-space: normal;
+  }
+
+  .concept-map,
+  .example-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .band,
+  .reference-section,
+  .final-cta {
+    padding-top: 52px;
+  }
+}

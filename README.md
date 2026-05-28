@@ -90,9 +90,12 @@ Binary releases are built with Bun compile and published from GitHub release art
 Useful development commands:
 
 ```bash
+bun run check
 bun run typecheck
 bun run lint
 bun test
+bun run smoke:tui
+bun run smoke:package
 bun run build:binary
 bun run smoke:binary
 bun run smoke:pi-rpc
@@ -168,8 +171,14 @@ The repository includes:
 
 - cross-platform CI for Linux, macOS, and Windows;
 - docs build and Cloudflare Pages workflow;
+- Release Please workflow for conventional changelog and version PRs;
 - GitHub release workflow for Bun-compiled binaries;
 - npm package metadata for `@nicepkg/realm` with the `realm` binary.
+
+Commits use Angular/conventional commit subjects such as
+`feat(web): add world manager` or `fix(tui): preserve failed drafts`. Release
+Please uses those commits to update `CHANGELOG.md` and open a release PR. Merging
+that PR creates the tag and the binary workflow uploads release artifacts.
 
 ## License
 

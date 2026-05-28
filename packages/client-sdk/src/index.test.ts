@@ -34,7 +34,7 @@ describe("RealmHttpClient", () => {
     const response = await client.updateUserSettings({
       version: 1,
       defaultProvider: "google",
-      defaultModel: "gemini-3.5-pro",
+      defaultModel: "gemini-2.5-flash",
       providers: [],
       web: { host: "127.0.0.1", preferredPort: 3737, openBrowser: true },
     });
@@ -93,6 +93,28 @@ describe("RealmHttpClient", () => {
     await client.importSettings({ user: exported.user, project: exported.project });
 
     expect(requestPaths).toEqual(["/api/settings/export", "/api/settings/import"]);
+  });
+
+  test("posts config patch typed confirmation", async () => {
+    let requestPath = "";
+    let requestBody: Record<string, unknown> = {};
+    const client = new RealmHttpClient({
+      fetchImpl: (async (input, init) => {
+        requestPath = new URL(String(input), "http://realm.test").pathname;
+        requestBody = JSON.parse(String(init?.body)) as Record<string, unknown>;
+        return Response.json({
+          patchId: "patch-1",
+          historyId: "history-1",
+          changedPaths: [".agents/worlds/cultivation/world.yaml"],
+        });
+      }) as typeof fetch,
+    });
+
+    const response = await client.applyConfigPatch("patch-1", { confirmation: "APPLY patch-1" });
+
+    expect(requestPath).toBe("/api/config/patches/patch-1/apply");
+    expect(requestBody).toEqual({ confirmation: "APPLY patch-1" });
+    expect(response.historyId).toBe("history-1");
   });
 
   test("starts and cancels role turns", async () => {
@@ -163,6 +185,21 @@ describe("RealmHttpClient", () => {
 
     expect(requestPath).toBe("/api/policy/effective");
     expect(policy.roleWorlds[0]?.allowedSkills[0]?.id).toBe("role-private:leijun:private-note");
+  });
+
+  test("reads role memory through the operator endpoint", async () => {
+    let requestPath = "";
+    const client = new RealmHttpClient({
+      fetchImpl: (async (input) => {
+        requestPath = new URL(String(input), "http://realm.test").pathname;
+        return Response.json({ content: "remember launch plan" });
+      }) as typeof fetch,
+    });
+
+    const response = await client.readRoleMemory("cultivation", "leijun");
+
+    expect(requestPath).toBe("/api/worlds/cultivation/roles/leijun/memory");
+    expect(response.content).toBe("remember launch plan");
   });
 
   test("posts typed God role actions to the world endpoint", async () => {

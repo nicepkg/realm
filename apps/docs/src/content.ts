@@ -1,334 +1,480 @@
-export type Locale = "en" | "zh";
+export type Locale = "en" | "zh-CN";
+
+export type TextPair = {
+  label: string;
+  value: string;
+};
 
 export type DocSection = {
   id: string;
+  eyebrow: string;
   title: string;
-  body: string[];
-  bullets?: string[];
+  body: string;
+  bullets: string[];
   code?: string;
-  note?: string;
 };
 
-export type DocPage = {
+export type DocsPage = {
   locale: Locale;
   languageLabel: string;
   switchLabel: string;
-  title: string;
-  subtitle: string;
-  primaryAction: string;
-  secondaryAction: string;
-  badges: string[];
-  nav: string[];
+  nav: TextPair[];
+  hero: {
+    title: string;
+    promise: string;
+    installLabel: string;
+    installCommand: string;
+    primaryAction: string;
+    secondaryAction: string;
+    proof: string[];
+  };
+  preview: {
+    managerTitle: string;
+    managerAction: string;
+    worldName: string;
+    worldMeta: string;
+    chatTitle: string;
+    time: string;
+    incomingAuthor: string;
+    incoming: string;
+    outgoing: string;
+    composer: string;
+    settings: string;
+    god: string;
+  };
+  quickStart: {
+    title: string;
+    intro: string;
+    steps: TextPair[];
+  };
+  concepts: {
+    title: string;
+    intro: string;
+    nodes: TextPair[];
+  };
+  tui: {
+    title: string;
+    intro: string;
+    lines: string[];
+  };
+  trust: {
+    title: string;
+    intro: string;
+    bullets: string[];
+  };
+  examples: {
+    title: string;
+    intro: string;
+    items: TextPair[];
+  };
   sections: DocSection[];
+  cta: {
+    title: string;
+    body: string;
+    install: string;
+    github: string;
+  };
 };
 
-export const pages: Record<Locale, DocPage> = {
+export const locales = ["en", "zh-CN"] as const;
+
+export const pages: Record<Locale, DocsPage> = {
   en: {
     locale: "en",
     languageLabel: "English",
-    switchLabel: "中文",
-    title: "Realm CLI Documentation",
-    subtitle:
-      "Run a project-local AI command center with roles, worlds, God adjudication, state, memory, traces, and a desktop-messenger Web UI.",
-    primaryAction: "Quick start",
-    secondaryAction: "Architecture",
-    badges: ["Bun + TypeScript", "Pi package-first", "Local-first", "Binary-ready"],
+    switchLabel: "简体中文",
     nav: [
-      "Start",
-      "Concepts",
-      "Install",
-      "Configuration",
-      "Worlds",
-      "State",
-      "Simulation",
-      "Governance",
-      "Development",
-      "TUI",
-      "Deployment",
+      { label: "Quick start", value: "quick-start" },
+      { label: "Concepts", value: "concepts" },
+      { label: "Web UI", value: "web-ui" },
+      { label: "TUI", value: "tui" },
+      { label: "Config", value: "configuration" },
+      { label: "Pi", value: "pi-integration" },
+      { label: "Safety", value: "identity-safety" },
+      { label: "Templates", value: "templates" },
+      { label: "API", value: "api-sdk" },
+      { label: "Contributing", value: "contributing" },
+      { label: "GitHub", value: "github" },
     ],
+    hero: {
+      title: "Realm",
+      promise:
+        "A local-first AI role runtime that opens as a calm world manager, then becomes a WeChat-like workspace for roles, rooms, state, and God adjudication.",
+      installLabel: "Install",
+      installCommand: "bunx @nicepkg/realm init --template cultivation",
+      primaryAction: "Start in 3 commands",
+      secondaryAction: "View GitHub",
+      proof: ["Bun + TypeScript", "Pi package-first", "Web + TUI", "Binary-ready"],
+    },
+    preview: {
+      managerTitle: "Create World",
+      managerAction: "Create",
+      worldName: "Cultivation Demo",
+      worldMeta: "game · 2 roles · main",
+      chatTitle: "All Hands (3)",
+      time: "Thu 09:41",
+      incomingAuthor: "Lei Jun",
+      incoming: "The opportunity is real, but the cost must be bounded.",
+      outgoing: "Start with the world conversation, then run a role turn.",
+      composer: "Message",
+      settings: "Settings",
+      god: "God",
+    },
+    quickStart: {
+      title: "Three commands to a running world",
+      intro:
+        "Realm is useful before you configure real model keys. Start with a deterministic fake runtime, inspect the world, then switch to provider-backed role turns when ready.",
+      steps: [
+        { label: "Initialize", value: "realm init --template cultivation" },
+        { label: "Trust the project", value: "realm trust --tier run-roles" },
+        { label: "Open the workspace", value: "realm open --runtime fake" },
+      ],
+    },
+    concepts: {
+      title: "The mental model",
+      intro:
+        "A project owns portable files. A world owns state. Rooms carry conversation. Roles behave like accounts. God is a guarded adjudication surface, not a casual chat contact.",
+      nodes: [
+        { label: "Project", value: ".agents config, templates, skills, trust boundary" },
+        { label: "World", value: "rooms, roles, state schema, visibility and events" },
+        { label: "Role", value: "model, prompt skill, memory and scoped tools" },
+        { label: "God", value: "typed actions, state patches, audit and rollback evidence" },
+      ],
+    },
+    tui: {
+      title: "A terminal messenger, not a prompt loop",
+      intro:
+        "The TUI uses Pi TUI primitives for a status line, scrollback, editor, pickers, settings, help, and guarded confirmations.",
+      lines: [
+        "Realm TUI | Cultivation Demo",
+        "World: Cultivation Demo | Room: All Hands | Speaking: owner",
+        "> main             world-main  All Hands",
+        "Boss: Start with the world conversation.",
+        "Lei Jun: The risk is bounded if the state patch is audited.",
+        "Enter send · Ctrl+K commands · Ctrl+G God Console",
+      ],
+    },
+    trust: {
+      title: "Local-first by default",
+      intro:
+        "Realm treats repository files as portable truth and keeps secrets, logs, provider keys, and runtime state out of git.",
+      bullets: [
+        "Project config lives under .agents and can be reviewed like code.",
+        "Machine-local settings live in REALM_HOME or ~/.realm.",
+        "High-risk actions pass through policy, validation, audit, and confirmation.",
+        "Pi package integration is the normal path; subprocess RPC is diagnostic fallback.",
+      ],
+    },
+    examples: {
+      title: "Templates that prove behavior",
+      intro:
+        "Examples are acceptance fixtures: they exercise messaging, state visibility, God actions, role turns, workflow approvals, and replay.",
+      items: [
+        {
+          label: "Cultivation simulation",
+          value: "examples/cultivation-sim with roles, visibility, state, skills and events",
+        },
+        {
+          label: "Software company",
+          value: "PM, architect, engineer, QA, security and docs roles",
+        },
+        { label: "Investment council", value: "thesis, risk, conviction and decision-room memory" },
+      ],
+    },
     sections: [
       {
-        id: "start",
-        title: "Start",
-        body: [
-          "Realm is installed as a CLI and opened inside an existing project. The active project owns its .agents directory, while user secrets and provider settings stay in REALM_HOME or ~/.realm.",
-          "The first UI is intentionally familiar: a narrow app rail, a conversation list, a central chat pane, and a contextual inspector. Advanced world, state, trace, and God controls extend the messenger model instead of replacing it.",
-        ],
-        code: "cd /path/to/project\nrealm init --template cultivation\nrealm trust --tier run-roles\nrealm\n\n# Development workflow\nrealm init --template software-company\nrealm trust --tier run-roles\nrealm",
-      },
-      {
-        id: "concepts",
-        title: "Core concepts",
-        body: [
-          "A project contains worlds. A world contains rooms, roles, state schemas, visibility rules, skills, God configuration, and event rules. Chat is only one projection of the event log.",
-          "Roles behave like contacts. Rooms behave like group chats. Every world has one all-member group. God is the in-world adjudicator, while the owner remains the out-of-world administrator.",
-        ],
+        id: "release-install",
+        eyebrow: "Install / release",
+        title: "Use npm, source, or a Bun-built binary",
+        body: "The codebase stays Bun + TypeScript end to end. The same CLI can run from source, install from npm, or ship as a Bun binary for machines that should not install a Node toolchain. Release checks build the Web UI, docs, CLI and binary before publication.",
         bullets: [
-          "Role: a named AI identity with model, prompt skill, memory, and private workspace.",
-          "World: a stateful context such as investment council, software company, or cultivation game.",
-          "Room: a DM, temporary group, or world all-hands conversation.",
-          "God: a privileged adjudicator that proposes structured state patches.",
+          "Source: bun run apps/cli/src/index.ts open --runtime fake",
+          "Package: npm i -g @nicepkg/realm",
+          "Binary: bun run build:binary && ./dist/bin/realm doctor",
+          "Docs: bun run build:docs, then deploy with Wrangler when Cloudflare credentials are present.",
         ],
-      },
-      {
-        id: "install",
-        title: "Install and run",
-        body: [
-          "During development, run Realm with Bun directly. For distribution, the same CLI can be published as an npm package or compiled into a Bun binary.",
-          "Realm uses Pi through package dependencies. The Pi CLI/RPC path is explicit diagnostics only and is never required for normal role turns.",
-        ],
-        code: "bun install\nbun run apps/cli/src/index.ts init --template cultivation\nbun run apps/cli/src/index.ts init --template software-company\nbun run apps/cli/src/index.ts trust --tier run-roles\nbun run apps/cli/src/index.ts open\nbun run apps/cli/src/index.ts open --runtime fake\nbun run build:binary\n./dist/bin/realm doctor",
+        code: "bun install\nbun run build\nbun run build:docs\nbun run build:binary\n./dist/bin/realm init --template cultivation\n./dist/bin/realm open --runtime fake",
       },
       {
         id: "configuration",
-        title: "Configuration model",
-        body: [
-          "Project configuration is portable and committed. Machine-local state, logs, provider keys, and runtime snapshots are kept out of git by default.",
-          "Config changes can be produced visually or by the AI configuration assistant, but file writes pass through validation, conflict detection, history, and rollback.",
-        ],
-        code: ".agents/\n  config.yaml\n  config.local.yaml # gitignored\n  roles/<role>/role.yaml\n  roles/<role>/skills/<skill>/SKILL.md\n  worlds/<world>/world.yaml\n  worlds/<world>/initial-state.yaml\n  worlds/<world>/state.schema.yaml\n  worlds/<world>/visibility.yaml\n  state/          # gitignored\n  logs/           # gitignored",
-      },
-      {
-        id: "worlds",
-        title: "World templates",
-        body: [
-          "Realm ships with built-in templates for cultivation simulation and software company workflow, plus an investment council example direction.",
-          "Templates are not decorative samples. They are acceptance targets for runtime behavior, policy, state visibility, and replayability. The software company template creates PM, architect, engineer, QA, test, security, docs, and release roles with workflow state and approval rules.",
-        ],
+        eyebrow: "Configuration",
+        title: "Files stay reviewable",
+        body: "Worlds, roles, room definitions, visibility, state schema, and callable skills are plain files. Config assistants may propose changes, but they apply through patch validation and rollback history.",
         bullets: [
-          "Cultivation: roles have realms, HP, artifacts, random encounters, disasters, and God-adjudicated outcomes.",
-          "Investment council: roles debate thesis, risk, conviction, positions, and market context.",
-          "Software company: PM, architect, engineer, QA, test, security, and docs roles collaborate through approval gates.",
+          ".agents/config.yaml is the project entry point.",
+          "config.local.yaml, state and logs are local-only.",
+          "Config patches carry intent, affected files, risk and recovery context.",
         ],
+        code: ".agents/\n  config.yaml\n  roles/<role>/role.yaml\n  worlds/<world>/world.yaml\n  worlds/<world>/state.schema.yaml\n  state/ # gitignored\n  logs/  # gitignored",
       },
       {
-        id: "state",
-        title: "State and God adjudication",
-        body: [
-          "World state is structured, versioned, and patched. God does not silently mutate memory through prose. God proposes a patch, the reducer validates it, and the event store records the result.",
-          "Roles query state through controlled tools and only receive the slice visible to them. Owner/admin views can inspect hidden state with audit trails.",
-        ],
+        id: "web-ui",
+        eyebrow: "Web UI",
+        title: "Create world first, then operate through chat",
+        body: "The Web app starts at an Apple-flat world manager. Creating or opening a world lands directly in a WeChat-like workspace with a conversation list, group avatar, role accounts, identity switching and a bottom composer.",
         bullets: [
-          "Five state layers: public, private, hidden, derived, and meta.",
-          "State patches are idempotent and version-aware.",
-          "Kill, mute, revive, and natural events use typed God/admin actions.",
-          "Snapshots support replay, rollback planning, and debugging.",
+          "No permanent industrial-control dashboard in the first viewport.",
+          "Settings, God controller, patch preview and trace views are progressive surfaces.",
+          "Identity takeover names displayed author, real operator, world and room.",
         ],
-      },
-      {
-        id: "simulation",
-        title: "Advanced simulation",
-        body: [
-          "Simulation worlds can run deterministic ticks without spending a model call on every participant. The scheduler uses seeded low-cost @all activation, then updates role energy, reputation, relationships, and doctrine memory through typed state patches.",
-          "The Web UI exposes these controls from the contextual inspector so the messenger surface remains familiar. The same commands are available through the local API and client SDK for automation.",
-        ],
-        bullets: [
-          "Run bounded tick batches with a deterministic seed.",
-          "Pause and resume a world, including resume from a named fork.",
-          "Export replay and state hashes for reproducibility.",
-          "Fork world snapshots under .agents/state/worlds/<world>/forks/.",
-          "Start and stop bounded background simulation runs.",
-        ],
-        code: 'curl -s http://127.0.0.1:3737/api/worlds/cultivation/simulation/status\ncurl -s -X POST http://127.0.0.1:3737/api/worlds/cultivation/simulation/ticks \\\n  -H "content-type: application/json" \\\n  -d \'{"ticks":2,"seed":"fixture-seed","maxActivations":1}\'\ncurl -s http://127.0.0.1:3737/api/worlds/cultivation/simulation/export',
-      },
-      {
-        id: "governance",
-        title: "Tools, skills, and governance",
-        body: [
-          "Skills can be global, project-level, world-level, role-private, or role-prompt skills. Policies compile allowlists and blacklists into exact callable skill identities.",
-          "High-risk tools such as shell, project file writes, and network access are denied unless explicitly granted by trusted configuration. Project trust decisions are machine-local in ~/.realm/trust.json.",
-        ],
-        bullets: [
-          "Callable skills use exact ids such as role-private:<roleId>:<skill> and world:<worldId>:<skill>.",
-          "Role prompt skills are not callable just because their directory is broadly included.",
-          "Policy decisions are enforced by runtime services, not by UI hints.",
-          "Denied actions become trace and audit events.",
-          "The Web UI shows effective capabilities, denied skills, trust warnings, and secret-free settings import/export.",
-        ],
-      },
-      {
-        id: "development",
-        title: "Development workflow",
-        body: [
-          "The codebase is a Bun + TypeScript monorepo with UI-agnostic runtime packages and separate app clients.",
-          "Important logic is covered by unit and integration tests. Workflow artifacts, tasks, reviews, approval gates, and approved project patches are evented API contracts, not Web-only state. The software-company fixture proves discussion-to-patch-to-test-to-review behavior. UI flows are designed for browser automation and manual smoke testing.",
-        ],
-        code: "bun run lint\nbun run typecheck\nbun test\nbun run build\nbun run build:binary\nbun run smoke:binary\nbun run smoke:pi-rpc",
       },
       {
         id: "tui",
-        title: "Terminal UI",
-        body: [
-          "The TUI connects to an existing Realm server and uses the same client SDK contracts as the Web UI. It is intentionally thin: rooms, chat, identity switching, settings, and config-assistant requests all go through API calls.",
-          "This keeps the runtime reusable for Web, terminal, automation, and future clients without copying domain logic into presentation code.",
+        eyebrow: "TUI",
+        title: "Keyboard-first but still safe",
+        body: "The terminal surface keeps the same product model: current project, world, room and identity remain visible; pickers are overlays; risky role and God actions require confirmation.",
+        bullets: [
+          "Ctrl+K command palette, Ctrl+W worlds, Ctrl+L rooms, Ctrl+R roles.",
+          "Ctrl+G opens a guarded God Console with typed confirmation syntax.",
+          "One-shot role sends cannot bypass role takeover confirmation.",
         ],
-        code: 'realm tui --base-url http://127.0.0.1:3737 --once\nrealm tui --base-url http://127.0.0.1:3737 --send "hello from tui" --once\nrealm tui --base-url http://127.0.0.1:3737 --settings --once\n\n# Interactive commands\n:send hello\n:id god\n:room main\n:model openai gpt-5\n:assistant create a QA role',
+        code: 'realm tui --base-url http://127.0.0.1:3737 --once\nrealm tui --base-url http://127.0.0.1:3737\n:god mute leijun "story pause"',
       },
       {
-        id: "deployment",
-        title: "Docs deployment",
-        body: [
-          "The documentation site is a separate Vite app under apps/docs. It can be built locally and deployed to Cloudflare Pages with Wrangler.",
-          "The live site is https://realm-docs.pages.dev.",
-          "The GitHub workflow builds docs on every change. Deployment runs when Cloudflare secrets are configured or when invoked manually from a trusted environment.",
+        id: "pi-integration",
+        eyebrow: "Pi integration",
+        title: "Package-first role turns",
+        body: "Realm integrates Pi through package dependencies so normal role turns do not require a global pi executable. The subprocess RPC path exists for diagnostics and compatibility smoke tests.",
+        bullets: [
+          "Role turns use scoped tools generated from Realm policy.",
+          "Trace events record model, usage, tool calls and failures.",
+          "Doctor output distinguishes package runtime from subprocess fallback.",
         ],
-        code: "bun run build:docs\nwrangler pages deploy apps/docs/dist --project-name realm-docs",
-        note: "Recommended Cloudflare secrets: CLOUDFLARE_API_TOKEN and CLOUDFLARE_ACCOUNT_ID.",
+      },
+      {
+        id: "identity-safety",
+        eyebrow: "Identity safety",
+        title: "Role accounts are explicit",
+        body: "Speaking as a role is powerful and risky. Realm keeps the visible identity, real operator and audit trail explicit across Web, TUI, API and event store.",
+        bullets: [
+          "Boss/owner is the default composer identity.",
+          "Role takeover uses confirmation and a persistent banner.",
+          "God is not a normal chat identity.",
+        ],
+      },
+      {
+        id: "api-sdk",
+        eyebrow: "API",
+        title: "One runtime, many clients",
+        body: "Web, TUI, tests and automation all use the same typed API contracts and client SDK. Domain logic lives in packages, not in React components or terminal rendering.",
+        bullets: [
+          "Zod contracts define messages, events, patches, settings and simulation.",
+          "Client SDK wraps role turns, settings, God actions and workflow endpoints.",
+          "Service packages enforce policy and trust independent of UI.",
+        ],
+      },
+      {
+        id: "contributing",
+        eyebrow: "Governance",
+        title: "Open-source project hygiene",
+        body: "Realm is designed to be trusted by contributors: explicit dependencies, dependency audits, CI, release checks, conventional changelog direction and screenshot acceptance for UI surfaces.",
+        bullets: [
+          "bun run check:deps catches ghost dependencies.",
+          "CI builds Web, docs, CLI binary and tests.",
+          "Changes use conventional commits and keep package dependencies explicit.",
+        ],
       },
     ],
+    cta: {
+      title: "Build a world inside your repo",
+      body: "Start with fake runtime, then add model providers, role skills, world state and policy gates when the project is ready.",
+      install: "Install Realm",
+      github: "Star on GitHub",
+    },
   },
-  zh: {
-    locale: "zh",
-    languageLabel: "中文",
+  "zh-CN": {
+    locale: "zh-CN",
+    languageLabel: "简体中文",
     switchLabel: "English",
-    title: "Realm CLI 文档",
-    subtitle:
-      "在任意项目里启动一个本地 AI 指挥中心：角色、世界、上帝裁判、状态、记忆、轨迹和类似桌面微信的 Web UI。",
-    primaryAction: "快速开始",
-    secondaryAction: "架构说明",
-    badges: ["Bun + TypeScript", "PI 包优先", "本地优先", "支持二进制"],
     nav: [
-      "开始",
-      "概念",
-      "安装",
-      "配置",
-      "世界",
-      "状态",
-      "模拟",
-      "治理",
-      "开发",
-      "终端 UI",
-      "部署",
+      { label: "快速开始", value: "quick-start" },
+      { label: "核心概念", value: "concepts" },
+      { label: "Web UI", value: "web-ui" },
+      { label: "TUI", value: "tui" },
+      { label: "配置", value: "configuration" },
+      { label: "Pi", value: "pi-integration" },
+      { label: "身份安全", value: "identity-safety" },
+      { label: "模板", value: "templates" },
+      { label: "API", value: "api-sdk" },
+      { label: "贡献", value: "contributing" },
+      { label: "GitHub", value: "github" },
     ],
+    hero: {
+      title: "Realm",
+      promise:
+        "一个本地优先的 AI 角色运行时：第一屏是安静的创建世界入口，进入后就是微信式工作区，用房间、角色、状态和上帝裁判组织复杂项目。",
+      installLabel: "安装",
+      installCommand: "bunx @nicepkg/realm init --template cultivation",
+      primaryAction: "三条命令启动",
+      secondaryAction: "查看 GitHub",
+      proof: ["Bun + TypeScript", "Pi 包优先", "Web + TUI", "可打包二进制"],
+    },
+    preview: {
+      managerTitle: "创建世界",
+      managerAction: "创建",
+      worldName: "修真 Demo",
+      worldMeta: "game · 2 个角色 · main",
+      chatTitle: "全员群 (3)",
+      time: "周四 09:41",
+      incomingAuthor: "雷军",
+      incoming: "机会是真的，但成本必须可控。",
+      outgoing: "先进入世界群聊，再运行角色回合。",
+      composer: "消息",
+      settings: "设置",
+      god: "上帝",
+    },
+    quickStart: {
+      title: "三条命令启动一个世界",
+      intro:
+        "Realm 不要求你一开始就配置真实模型 key。先用确定性的 fake runtime 看清世界结构，之后再切换到真实 provider 跑角色。",
+      steps: [
+        { label: "初始化", value: "realm init --template cultivation" },
+        { label: "信任项目", value: "realm trust --tier run-roles" },
+        { label: "打开工作区", value: "realm open --runtime fake" },
+      ],
+    },
+    concepts: {
+      title: "你需要记住的模型",
+      intro:
+        "项目负责可迁移文件，世界负责状态，房间承载对话，角色像独立账号。上帝是有门槛的裁判界面，不是普通聊天联系人。",
+      nodes: [
+        { label: "Project", value: ".agents 配置、模板、skill、信任边界" },
+        { label: "World", value: "房间、角色、状态 schema、可见性和事件" },
+        { label: "Role", value: "模型、提示词 skill、记忆和受控工具" },
+        { label: "God", value: "typed action、状态 patch、审计和回滚证据" },
+      ],
+    },
+    tui: {
+      title: "终端也是聊天器，不是 readline 循环",
+      intro: "TUI 使用 Pi TUI 原语实现状态栏、滚动消息、编辑器、选择器、设置、帮助和危险动作确认。",
+      lines: [
+        "Realm TUI | 修真 Demo",
+        "World: 修真 Demo | Room: 全员群 | Speaking: owner",
+        "> main             world-main  全员群",
+        "Boss: 先从世界群聊开始。",
+        "雷军: 如果状态 patch 可审计，风险就是可控的。",
+        "Enter 发送 · Ctrl+K 命令 · Ctrl+G 上帝控制台",
+      ],
+    },
+    trust: {
+      title: "默认本地优先",
+      intro: "Realm 把仓库文件当成可迁移真相，把密钥、日志、provider key 和运行时状态留在本机。",
+      bullets: [
+        "项目配置在 .agents 下，像代码一样接受 review。",
+        "机器本地设置在 REALM_HOME 或 ~/.realm。",
+        "高风险动作经过策略、校验、审计和确认。",
+        "Pi 包集成是常规路径；subprocess RPC 只是诊断兜底。",
+      ],
+    },
+    examples: {
+      title: "模板必须证明行为",
+      intro:
+        "示例不是摆设，而是验收夹具：它们要覆盖消息、状态可见性、上帝动作、角色 turn、工作流审批和回放。",
+      items: [
+        { label: "修真模拟", value: "examples/cultivation-sim，含角色、可见性、状态、技能和事件" },
+        { label: "软件公司", value: "PM、架构师、工程师、QA、安全和文档角色" },
+        { label: "投资委员会", value: "论点、风险、置信度和决策室记忆" },
+      ],
+    },
     sections: [
       {
-        id: "start",
-        title: "开始",
-        body: [
-          "Realm 是一个在项目目录内打开的 CLI。当前项目拥有自己的 .agents 目录；用户级密钥、模型 provider 和偏好配置保存在 REALM_HOME 或 ~/.realm。",
-          "第一屏刻意保持熟悉：窄侧栏、会话列表、中间聊天区、右侧上下文面板。世界状态、上帝裁判、轨迹和设置都从这个聊天模型逐步展开。",
-        ],
-        code: "cd /path/to/project\nrealm init --template cultivation\nrealm trust --tier run-roles\nrealm\n\n# 开发工作流\nrealm init --template software-company\nrealm trust --tier run-roles\nrealm",
-      },
-      {
-        id: "concepts",
-        title: "核心概念",
-        body: [
-          "一个项目包含多个世界。世界包含房间、角色、状态 schema、可见性规则、skill、上帝配置和事件规则。聊天只是事件日志的一种投影。",
-          "角色像联系人，房间像群聊，每个世界固定有一个全员群。上帝是世界内的裁判和叙事者，项目 owner 是世界外的管理员。",
-        ],
+        id: "release-install",
+        eyebrow: "安装 / 发布",
+        title: "支持 npm、源码和 Bun 二进制",
+        body: "代码栈从头到尾保持 Bun + TypeScript。同一个 CLI 可以从源码运行、通过 npm 安装，也可以打成 Bun 二进制给不想装 Node 工具链的机器用。发布前必须构建 Web、docs、CLI 和 binary。",
         bullets: [
-          "Role：带模型、提示词 skill、记忆和私有工作区的 AI 身份。",
-          "World：投资委员会、软件公司、修真游戏等有状态上下文。",
-          "Room：私聊、临时群或世界全员群。",
-          "God：可以提出结构化状态 patch 的特权裁判。",
+          "源码：bun run apps/cli/src/index.ts open --runtime fake",
+          "包安装：npm i -g @nicepkg/realm",
+          "二进制：bun run build:binary && ./dist/bin/realm doctor",
+          "文档：bun run build:docs；有 Cloudflare 凭证时再用 Wrangler 部署。",
         ],
-      },
-      {
-        id: "install",
-        title: "安装和运行",
-        body: [
-          "开发时可以直接用 Bun 运行。发布时同一套 CLI 既可以作为 npm 包安装，也可以编译成 Bun 二进制。",
-          "Realm 通过 npm 包集成 PI。PI CLI/RPC 只用于显式诊断和兼容性冒烟，不是普通角色 turn 的依赖。",
-        ],
-        code: "bun install\nbun run apps/cli/src/index.ts init --template cultivation\nbun run apps/cli/src/index.ts init --template software-company\nbun run apps/cli/src/index.ts trust --tier run-roles\nbun run apps/cli/src/index.ts open\nbun run apps/cli/src/index.ts open --runtime fake\nbun run build:binary\n./dist/bin/realm doctor",
+        code: "bun install\nbun run build\nbun run build:docs\nbun run build:binary\n./dist/bin/realm init --template cultivation\n./dist/bin/realm open --runtime fake",
       },
       {
         id: "configuration",
-        title: "配置模型",
-        body: [
-          "项目配置应该可跨机器迁移并提交到 git。机器本地状态、日志、provider key 和运行时快照默认不进仓库。",
-          "配置可以通过可视化表单或 AI 配置助手生成，但落盘前必须经过校验、冲突检测、历史记录和回滚能力。",
-        ],
-        code: ".agents/\n  config.yaml\n  config.local.yaml # gitignored\n  roles/<role>/role.yaml\n  roles/<role>/skills/<skill>/SKILL.md\n  worlds/<world>/world.yaml\n  worlds/<world>/initial-state.yaml\n  worlds/<world>/state.schema.yaml\n  worlds/<world>/visibility.yaml\n  state/          # gitignored\n  logs/           # gitignored",
-      },
-      {
-        id: "worlds",
-        title: "世界模板",
-        body: [
-          "Realm 内置修真模拟和软件公司工作流模板，并保留投资委员会作为示例方向。",
-          "模板不是展示用样例，而是运行时行为、策略、状态可见性和可回放性的验收目标。软件公司模板会创建 PM、架构师、工程师、QA、测试、安全、文档和发布角色，并带工作流状态和审批规则。",
-        ],
+        eyebrow: "配置",
+        title: "文件必须可审查",
+        body: "世界、角色、房间、可见性、状态 schema 和可调用 skill 都是普通文件。配置助手可以提案，但落盘必须经过 patch 校验和回滚历史。",
         bullets: [
-          "修真世界：角色有境界、血条、法宝、奇遇、灾难和上帝裁决结果。",
-          "投资委员会：角色围绕 thesis、风险、置信度、仓位和市场上下文争辩。",
-          "软件公司：PM、架构师、工程师、QA、测试、安全和文档角色通过审批门协作。",
+          ".agents/config.yaml 是项目入口。",
+          "config.local.yaml、state 和 logs 只留在本机。",
+          "配置 patch 带意图、影响文件、风险和恢复上下文。",
         ],
+        code: ".agents/\n  config.yaml\n  roles/<role>/role.yaml\n  worlds/<world>/world.yaml\n  worlds/<world>/state.schema.yaml\n  state/ # gitignored\n  logs/  # gitignored",
       },
       {
-        id: "state",
-        title: "状态和上帝裁判",
-        body: [
-          "世界状态是结构化、版本化、patch 驱动的。上帝不能只靠文字说状态变了，必须提出 patch，由 reducer 校验并写入事件日志。",
-          "角色通过受控工具查询状态，只能看到自己可见的切片。Owner/Admin 可以在审计记录下查看隐藏状态。",
-        ],
+        id: "web-ui",
+        eyebrow: "Web UI",
+        title: "先创建世界，再用聊天界面操作",
+        body: "Web 第一屏是 Apple-flat 世界管理器。创建或打开世界后，直接进入微信式工作区：会话列表、群头像、角色账号、身份切换和底部输入框。",
         bullets: [
-          "五层状态：public、private、hidden、derived、meta。",
-          "状态 patch 支持幂等 key 和版本校验。",
-          "击杀、禁言、复活、自然事件都走 typed God/Admin action。",
-          "快照用于回放、回滚规划和调试。",
+          "首屏不能是工业控制面板。",
+          "设置、上帝控制器、补丁预览和 trace 都是渐进式界面。",
+          "身份接管必须说清显示作者、真实操作者、世界和房间。",
         ],
-      },
-      {
-        id: "simulation",
-        title: "高级模拟",
-        body: [
-          "模拟世界可以运行确定性 tick，不需要每次都让所有参与者消耗模型调用。调度器会用种子执行低成本 @all 激活，再通过 typed state patch 更新角色精力、声望、关系和道统记忆。",
-          "Web UI 会把这些控制放在上下文检查器里，不破坏熟悉的聊天界面。同样的命令也能通过本地 API 和 client SDK 自动化调用。",
-        ],
-        bullets: [
-          "用确定性 seed 运行有限 tick 批次。",
-          "暂停和恢复世界，也可以从指定 fork 恢复。",
-          "导出 replay hash 和 state hash，方便复现。",
-          "把世界快照分叉到 .agents/state/worlds/<world>/forks/。",
-          "启动和停止有上限的后台模拟运行。",
-        ],
-        code: 'curl -s http://127.0.0.1:3737/api/worlds/cultivation/simulation/status\ncurl -s -X POST http://127.0.0.1:3737/api/worlds/cultivation/simulation/ticks \\\n  -H "content-type: application/json" \\\n  -d \'{"ticks":2,"seed":"fixture-seed","maxActivations":1}\'\ncurl -s http://127.0.0.1:3737/api/worlds/cultivation/simulation/export',
-      },
-      {
-        id: "governance",
-        title: "工具、Skill 和治理",
-        body: [
-          "Skill 可以是全局、项目级、世界级、角色私有或角色 system prompt skill。策略会把 allowlist/blacklist 编译成精确的可调用 skill 身份。",
-          "Shell、项目文件写入、联网等高风险工具默认拒绝，除非受信配置显式授权。项目 trust 决策保存在本机 ~/.realm/trust.json。",
-        ],
-        bullets: [
-          "可调用 skill 使用 role-private:<roleId>:<skill>、world:<worldId>:<skill> 这类精确 id。",
-          "角色 prompt skill 不会因为目录被广泛 include 就自动变成可调用 skill。",
-          "策略由运行时服务强制执行，不靠 UI 提示。",
-          "被拒绝的动作会进入 trace 和 audit。",
-          "Web UI 展示有效能力、被拒绝的 skill、trust 风险提示，以及不含原始密钥的设置导入/导出。",
-        ],
-      },
-      {
-        id: "development",
-        title: "开发工作流",
-        body: [
-          "代码库是 Bun + TypeScript monorepo。运行时包与 UI 解耦，Web/TUI/自动化客户端都应该通过 API 合同访问。",
-          "重要逻辑需要单元测试和集成测试。工作流 artifact、task、review、approval gate 和审批后的项目 patch 是事件化 API 合同，不是 Web-only 状态。software-company fixture 证明了从讨论到 patch、测试、review 的闭环。UI 流程要能被浏览器自动化和手动冒烟验证。",
-        ],
-        code: "bun run lint\nbun run typecheck\nbun test\nbun run build\nbun run build:binary\nbun run smoke:binary\nbun run smoke:pi-rpc",
       },
       {
         id: "tui",
-        title: "终端 UI",
-        body: [
-          "TUI 连接一个已启动的 Realm 本地服务，并使用和 Web UI 相同的 client SDK 合同。它保持轻量：房间、聊天、身份切换、设置和配置助手请求都走 API。",
-          "这样 Web、终端、自动化和未来客户端都能复用同一个运行时，不把领域逻辑复制到展示层。",
+        eyebrow: "TUI",
+        title: "键盘优先，但不能绕过安全",
+        body: "终端界面延续同一个产品模型：当前项目、世界、房间和身份一直可见；选择器是覆盖层；危险的角色和上帝动作必须确认。",
+        bullets: [
+          "Ctrl+K 命令面板，Ctrl+W 世界，Ctrl+L 房间，Ctrl+R 角色。",
+          "Ctrl+G 打开带精确确认语法的上帝控制台。",
+          "一次性 role send 不能绕过身份接管确认。",
         ],
-        code: 'realm tui --base-url http://127.0.0.1:3737 --once\nrealm tui --base-url http://127.0.0.1:3737 --send "hello from tui" --once\nrealm tui --base-url http://127.0.0.1:3737 --settings --once\n\n# 交互命令\n:send hello\n:id god\n:room main\n:model openai gpt-5\n:assistant create a QA role',
+        code: 'realm tui --base-url http://127.0.0.1:3737 --once\nrealm tui --base-url http://127.0.0.1:3737\n:god mute leijun "story pause"',
       },
       {
-        id: "deployment",
-        title: "文档部署",
-        body: [
-          "文档站是 apps/docs 下的独立 Vite 应用，可以本地构建并用 Wrangler 部署到 Cloudflare Pages。",
-          "线上地址是 https://realm-docs.pages.dev。",
-          "GitHub workflow 会构建文档。配置 Cloudflare secrets 后可以自动部署，也可以在受信本地环境手动部署。",
+        id: "pi-integration",
+        eyebrow: "Pi 集成",
+        title: "角色回合走包优先",
+        body: "Realm 通过包依赖集成 Pi，普通角色 turn 不依赖全局 pi 可执行文件。subprocess RPC 只用于诊断和兼容性冒烟。",
+        bullets: [
+          "角色 turn 使用 Realm policy 生成的受控工具。",
+          "Trace 记录模型、用量、工具调用和失败原因。",
+          "doctor 输出区分包运行时和 subprocess fallback。",
         ],
-        code: "bun run build:docs\nwrangler pages deploy apps/docs/dist --project-name realm-docs",
-        note: "建议配置 Cloudflare secrets：CLOUDFLARE_API_TOKEN 和 CLOUDFLARE_ACCOUNT_ID。",
+      },
+      {
+        id: "identity-safety",
+        eyebrow: "身份安全",
+        title: "角色账号必须显式",
+        body: "代替角色发言是高风险动作。Realm 在 Web、TUI、API 和事件日志里都保留显示身份、真实操作者和审计记录。",
+        bullets: [
+          "Boss/owner 是默认输入身份。",
+          "接管角色需要确认，并显示持续 banner。",
+          "上帝不是普通聊天身份。",
+        ],
+      },
+      {
+        id: "api-sdk",
+        eyebrow: "API",
+        title: "一个运行时，多种客户端",
+        body: "Web、TUI、测试和自动化都使用同一套类型化 API 合同和 client SDK。领域逻辑放在 packages 里，不塞进 React 组件或终端渲染。",
+        bullets: [
+          "Zod 合同定义消息、事件、patch、设置和模拟。",
+          "Client SDK 封装角色 turn、设置、上帝动作和工作流端点。",
+          "Service packages 在 UI 之外强制执行 policy 和 trust。",
+        ],
+      },
+      {
+        id: "contributing",
+        eyebrow: "治理",
+        title: "开源项目要经得起审查",
+        body: "Realm 必须让贡献者信任：显式依赖、依赖审计、CI、release 检查、conventional changelog 方向，以及 UI 截图验收。",
+        bullets: [
+          "bun run check:deps 防止幽灵依赖。",
+          "CI 构建 Web、docs、CLI binary 并运行测试。",
+          "改动使用 conventional commits，并保持 package 依赖显式。",
+        ],
       },
     ],
+    cta: {
+      title: "在你的仓库里启动一个世界",
+      body: "先用 fake runtime 跑通，再按项目成熟度增加模型 provider、角色 skill、世界状态和策略门槛。",
+      install: "安装 Realm",
+      github: "去 GitHub 点 Star",
+    },
   },
 };

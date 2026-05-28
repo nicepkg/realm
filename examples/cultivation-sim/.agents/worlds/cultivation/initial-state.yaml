@@ -1,0 +1,60 @@
+publicState:
+  world:
+    season: early-spring
+    day: 1
+    location: Cloud Ridge Outer Sect
+    ambientQi: unstable
+  sect:
+    reputation: low
+    spiritStones: 120
+    herbs:
+      moon-grass: 8
+      fire-root: 3
+    threats:
+      - id: wolf-demon
+        severity: medium
+        status: scouting border farms
+  roles:
+    leijun:
+      name: Lei Jun
+      realm: Foundation Establishment 1
+      role: Mentor
+    guchenfeng:
+      name: Gu Chenfeng
+      realm: Qi Refining 5
+      role: Disciple
+    yunyao:
+      name: Yun Yao
+      realm: Qi Refining 8
+      role: Alchemist
+privateState:
+  roles:
+    leijun:
+      doubts:
+        - The sect cannot survive by fighting every visible threat.
+    guchenfeng:
+      injuries:
+        - cracked rib
+      hiddenGoal: Find the missing jade token.
+    yunyao:
+      supplyNotes:
+        - Fire-root stock is lower than reported.
+hiddenState:
+  fate:
+    nextDisaster: spirit-rain
+    traitorHint: market-ledger-mismatch
+derivedState:
+  dangerLevel: medium
+  nextRecommendedAction: stabilize herbs before hunting the wolf demon
+metaState:
+  tick: 0
+  roles:
+    leijun:
+      alive: true
+      muted: false
+    guchenfeng:
+      alive: true
+      muted: false
+    yunyao:
+      alive: true
+      muted: false

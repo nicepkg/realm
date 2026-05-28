@@ -130,7 +130,7 @@ export class SubprocessPiBridge implements PiBridge {
     const args = buildPiRpcArgs(input, this.options.extraArgs ?? []);
     return this.spawnProcess(this.binary, args, {
       cwd: input.cwd,
-      env: { ...process.env, ...this.options.env, ...input.env },
+      env: buildSubprocessEnv(input.env, this.options.env),
     });
   }
 
@@ -307,6 +307,41 @@ function defaultSpawner(
     env: options.env,
     stdio: ["pipe", "pipe", "pipe"],
   });
+}
+
+export function buildSubprocessEnv(
+  inputEnv: Record<string, string> | undefined,
+  optionEnv: NodeJS.ProcessEnv | undefined,
+): NodeJS.ProcessEnv {
+  if (!inputEnv) {
+    return { ...process.env, ...optionEnv };
+  }
+  return { ...safeRuntimeEnv(process.env), ...optionEnv, ...inputEnv };
+}
+
+function safeRuntimeEnv(env: NodeJS.ProcessEnv): NodeJS.ProcessEnv {
+  const keys = [
+    "PATH",
+    "Path",
+    "HOME",
+    "USER",
+    "LOGNAME",
+    "SHELL",
+    "TMPDIR",
+    "TEMP",
+    "TMP",
+    "SystemRoot",
+    "WINDIR",
+    "COMSPEC",
+    "PATHEXT",
+  ];
+  const safeEnv: NodeJS.ProcessEnv = {};
+  for (const key of keys) {
+    if (env[key]) {
+      safeEnv[key] = env[key];
+    }
+  }
+  return safeEnv;
 }
 
 function isPiRpcResponse(record: PiRpcRecord): boolean {

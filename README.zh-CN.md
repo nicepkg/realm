@@ -84,9 +84,12 @@ realm
 常用开发命令：
 
 ```bash
+bun run check
 bun run typecheck
 bun run lint
 bun test
+bun run smoke:tui
+bun run smoke:package
 bun run build:binary
 bun run smoke:binary
 bun run smoke:pi-rpc
@@ -158,8 +161,14 @@ bun run deploy:docs
 
 - Linux、macOS、Windows 跨平台 CI；
 - 文档构建和 Cloudflare Pages workflow；
+- Release Please workflow，用 conventional commits 生成 changelog 和版本 PR；
 - Bun 编译二进制的 GitHub Release workflow；
 - `@nicepkg/realm` npm 包元数据和 `realm` binary 入口。
+
+提交信息使用 Angular/conventional commit 格式，例如
+`feat(web): add world manager` 或 `fix(tui): preserve failed drafts`。Release
+Please 会基于这些提交更新 `CHANGELOG.md` 并打开 release PR；合并后创建 tag，
+二进制 workflow 会上传 release artifacts。
 
 ## License
 

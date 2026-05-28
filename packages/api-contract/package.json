@@ -3,6 +3,11 @@
   "version": "0.1.0",
   "type": "module",
   "private": true,
+  "dependencies": {
+    "@realm/config": "workspace:*",
+    "@realm/core": "workspace:*",
+    "zod": "^4.1.13"
+  },
   "exports": {
     ".": "./src/index.ts"
   }

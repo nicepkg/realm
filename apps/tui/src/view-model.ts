@@ -1,32 +1,49 @@
 import type { Message, RealmEvent, RoleSummary, Room } from "@realm/api-contract";
+import { renderConfigPatchPreview } from "./config-patch-preview.ts";
+import { type TuiLocale, t } from "./i18n.ts";
+import { previewJson } from "./state-inspection.ts";
 import type { TuiState } from "./types.ts";
 
 const width = 88;
 
-export function renderTui(state: TuiState): string {
+export function renderTui(state: TuiState, locale: TuiLocale = "en"): string {
   return [
-    titleLine(state),
+    renderStatus(state, locale),
     divider(),
-    renderRooms(state.rooms, state.room),
+    renderConversations(state.rooms, state.room, locale),
     divider(),
-    renderChat(state.messages, state.roles),
+    renderMessages(state.messages, state.roles, locale),
     divider(),
-    renderInspector(state),
+    renderContext(state, locale),
     divider(),
-    renderCommandPalette(state),
+    renderShortcuts(state, locale),
   ].join("\n");
 }
 
-function titleLine(state: TuiState): string {
-  const world = state.world ? `${state.world.name} (${state.world.mode.type})` : "No world";
-  const room = state.room ? state.room.name : "No room";
-  return fit(`Realm TUI | ${state.projectName} | ${world} | ${room}`, width);
+function renderStatus(state: TuiState, locale: TuiLocale): string {
+  const dict = t(locale);
+  const world = state.world ? `${state.world.name} (${state.world.mode.type})` : dict.noWorld;
+  const room = state.room ? state.room.name : dict.noRoom;
+  return [
+    fit(`Realm TUI | ${state.projectName}`, width),
+    fit(
+      `${dict.world}: ${world} | ${dict.room}: ${room} | ${dict.speaking}: ${state.identity}`,
+      width,
+    ),
+  ].join("\n");
 }
 
-function renderRooms(rooms: Room[], selectedRoom: Room | undefined): string {
+function renderConversations(
+  rooms: Room[],
+  selectedRoom: Room | undefined,
+  locale: TuiLocale,
+): string {
+  const dict = t(locale);
   const rows =
-    rooms.length === 0 ? ["  no rooms"] : rooms.map((room) => roomRow(room, selectedRoom));
-  return ["Rooms", ...rows].join("\n");
+    rooms.length === 0
+      ? [`  ${dict.noConversations}`]
+      : rooms.map((room) => roomRow(room, selectedRoom));
+  return [dict.conversations, ...rows].join("\n");
 }
 
 function roomRow(room: Room, selectedRoom: Room | undefined): string {
@@ -34,11 +51,14 @@ function roomRow(room: Room, selectedRoom: Room | undefined): string {
   return fit(`${marker} ${room.id.padEnd(16)} ${room.type.padEnd(11)} ${room.name}`, width);
 }
 
-function renderChat(messages: Message[], roles: RoleSummary[]): string {
+function renderMessages(messages: Message[], roles: RoleSummary[], locale: TuiLocale): string {
+  const dict = t(locale);
   if (messages.length === 0) {
-    return "Chat\n  no messages yet";
+    return `${dict.messages}\n  ${dict.noMessages}`;
   }
-  return ["Chat", ...messages.slice(-12).map((message) => messageRow(message, roles))].join("\n");
+  return [dict.messages, ...messages.slice(-12).map((message) => messageRow(message, roles))].join(
+    "\n",
+  );
 }
 
 function messageRow(message: Message, roles: RoleSummary[]): string {
@@ -46,47 +66,67 @@ function messageRow(message: Message, roles: RoleSummary[]): string {
   return fit(`  ${author}: ${message.content.replace(/\s+/g, " ")}`, width);
 }
 
-function renderInspector(state: TuiState): string {
-  const trace = latestTrace(state.events);
+function renderContext(state: TuiState, locale: TuiLocale): string {
+  const dict = t(locale);
+  const trace = latestTrace(state.events, dict);
   const rows = [
-    `Identity: ${state.identity}`,
-    `Roles: ${state.roles.map((role) => role.id).join(", ") || "none"}`,
-    `Events: ${state.events.length}`,
-    `Latest trace: ${trace}`,
+    `${dict.visibleRoles}: ${state.roles.map((role) => role.id).join(", ") || dict.noValue}`,
+    `${dict.eventsRecorded}: ${state.events.length}`,
+    `${dict.latestTrace}: ${trace}`,
   ];
+  if (state.worldState) {
+    rows.push(
+      `${dict.worldState}: v${state.worldState.version} ${previewJson(state.worldState.state, 160).replace(/\s+/g, " ")}`,
+    );
+  }
+  if (state.stateInspection) {
+    rows.push(state.stateInspection);
+  }
+  if (state.memoryInspection) {
+    rows.push(state.memoryInspection);
+  }
   if (state.settingsSummary) {
-    rows.push(`Settings: ${state.settingsSummary}`);
+    rows.push(`${dict.settings}: ${state.settingsSummary}`);
   }
   if (state.assistantProposal) {
-    rows.push(`Assistant proposal: ${state.assistantProposal.title}`);
+    rows.push(renderConfigPatchPreview(state.assistantProposal, locale));
   }
-  return ["Inspector", ...rows.map((row) => fit(`  ${row}`, width))].join("\n");
-}
-
-function renderCommandPalette(state: TuiState): string {
-  const roomId = state.room?.id ?? "main";
+  if (state.lastPatchApply) {
+    rows.push(
+      `${dict.configPatch}: ${state.lastPatchApply.patchId} -> ${state.lastPatchApply.changedPaths.join(", ")}`,
+    );
+  }
   return [
-    "Commands",
-    fit(`  :send <message>  :id ${state.identity}  :room ${roomId}  :settings`, width),
-    fit("  :model <provider> <id>  :assistant <goal>  :refresh  :q", width),
+    dict.context,
+    ...rows.flatMap((row) => row.split("\n").map((line) => fit(`  ${line}`, width))),
   ].join("\n");
 }
 
-function latestTrace(events: RealmEvent[]): string {
+function renderShortcuts(state: TuiState, locale: TuiLocale): string {
+  const dict = t(locale);
+  const roomId = state.room?.id ?? "main";
+  return [
+    dict.shortcuts,
+    fit(`  ${dict.shortcutKeys}`, width),
+    fit(`  ${dict.shortcutSlash(state.identity, roomId)}`, width),
+  ].join("\n");
+}
+
+function latestTrace(events: RealmEvent[], dict: ReturnType<typeof t>): string {
   const event = events.at(-1);
   if (!event) {
-    return "none";
+    return dict.noTrace;
   }
   if (event.type === "message.created") {
-    return `message ${event.message.displayedAuthorId}`;
+    return dict.traceMessage(event.message.displayedAuthorId);
   }
   if (event.type === "world.event.triggered") {
-    return `world event ${event.event.title}`;
+    return dict.traceWorldEvent(event.event.title);
   }
   if (event.type === "turn.completed" || event.type === "turn.failed") {
-    return `turn ${event.turn.status} ${event.turn.actorId}`;
+    return dict.traceTurn(event.turn.status, event.turn.actorId);
   }
-  return event.type;
+  return dict.traceEvent(event.type);
 }
 
 function displayName(identity: string, roles: RoleSummary[]): string {

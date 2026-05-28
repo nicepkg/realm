@@ -3,6 +3,19 @@
   "version": "0.1.0",
   "type": "module",
   "private": true,
+  "dependencies": {
+    "@realm/assistant": "workspace:*",
+    "@realm/config": "workspace:*",
+    "@realm/context": "workspace:*",
+    "@realm/core": "workspace:*",
+    "@realm/kernel": "workspace:*",
+    "@realm/pi-bridge": "workspace:*",
+    "@realm/policy": "workspace:*",
+    "@realm/runtime": "workspace:*",
+    "@realm/scheduler": "workspace:*",
+    "@realm/storage": "workspace:*",
+    "yaml": "^2.8.2"
+  },
   "exports": {
     ".": "./src/index.ts"
   }

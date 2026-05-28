@@ -1,195 +1,399 @@
 import { realmColors } from "@realm/design-tokens";
-import { type CSSProperties, useEffect, useMemo, useState } from "react";
-import { type DocPage, type Locale, pages } from "./content.ts";
+import { type CSSProperties, useEffect, useState } from "react";
+import { type DocsPage, type Locale, locales, pages } from "./content.ts";
+
+const LOCALE_STORAGE_KEY = "realm-docs-locale";
+const githubUrl = "https://github.com/nicepkg/realm";
 
 export function DocsApp() {
-  const [locale, setLocale] = useState<Locale>(() => localeFromPath(window.location.pathname));
+  const [locale, setLocale] = useState<Locale>(() => resolveInitialLocale());
   const page = pages[locale];
-  const otherLocale: Locale = locale === "en" ? "zh" : "en";
   const shellStyle = { "--realm-primary": realmColors.primary } as CSSProperties;
 
   useEffect(() => {
-    const onPopState = () => setLocale(localeFromPath(window.location.pathname));
+    const onPopState = () =>
+      setLocale((current) => localeFromPath(window.location.pathname) ?? current);
     window.addEventListener("popstate", onPopState);
     return () => window.removeEventListener("popstate", onPopState);
   }, []);
 
+  useEffect(() => {
+    document.documentElement.lang = locale;
+    window.localStorage.setItem(LOCALE_STORAGE_KEY, locale);
+  }, [locale]);
+
   function switchLocale() {
-    const nextPath = otherLocale === "en" ? "/" : "/zh";
-    window.history.pushState({}, "", nextPath);
-    setLocale(otherLocale);
+    const nextLocale: Locale = locale === "en" ? "zh-CN" : "en";
+    window.history.pushState({}, "", pathForLocale(nextLocale));
+    setLocale(nextLocale);
   }
 
   return (
     <div className="docs-shell" style={shellStyle}>
-      <header className="topbar">
-        <a className="brand" href={locale === "en" ? "/" : "/zh"} aria-label="Realm docs home">
-          <span className="brand-mark">R</span>
-          <span>
-            <strong>Realm</strong>
-            <small>CLI Docs</small>
-          </span>
-        </a>
-        <nav className="topnav" aria-label="Primary">
-          <a href="#install">Install</a>
-          <a href="#configuration">Config</a>
-          <a href="#development">Develop</a>
-          <a href="https://github.com/nicepkg/realm">GitHub</a>
-        </nav>
-        <button className="language-button" type="button" onClick={switchLocale}>
-          {page.switchLabel}
-        </button>
-      </header>
-
-      <main className="docs-main">
-        <aside className="sidebar" aria-label="Documentation navigation">
-          <strong>{page.languageLabel}</strong>
-          {page.sections.map((section, index) => (
-            <a key={section.id} href={`#${section.id}`}>
-              <span>{String(index + 1).padStart(2, "0")}</span>
-              {page.nav[index] ?? section.title}
-            </a>
-          ))}
-        </aside>
-
-        <article className="content">
-          <Hero page={page} />
-          <MessengerPreview locale={locale} />
-          <SectionList page={page} />
-        </article>
+      <TopBar page={page} onSwitchLocale={switchLocale} />
+      <main>
+        <Hero page={page} />
+        <ProofBand page={page} />
+        <DocIndex page={page} />
+        <QuickStart page={page} />
+        <Concepts page={page} />
+        <WebWorkflow page={page} />
+        <TuiPreview page={page} />
+        <TrustModel page={page} />
+        <Examples page={page} />
+        <SectionList page={page} />
+        <FinalCta page={page} />
       </main>
     </div>
   );
 }
 
-function Hero({ page }: { page: DocPage }) {
+function TopBar({ onSwitchLocale, page }: { onSwitchLocale: () => void; page: DocsPage }) {
   return (
-    <section className="hero" aria-labelledby="hero-title">
+    <header className="topbar">
+      <a className="brand" href={pathForLocale(page.locale)} aria-label="Realm docs home">
+        <span className="brand-mark">R</span>
+        <span>
+          <strong>{page.hero.title}</strong>
+          <small>{page.languageLabel}</small>
+        </span>
+      </a>
+      <nav className="topnav" aria-label="Primary">
+        {page.nav.slice(0, 6).map((item) => (
+          <a href={`#${item.value}`} key={item.value}>
+            {item.label}
+          </a>
+        ))}
+        <a href={githubUrl}>GitHub</a>
+      </nav>
+      <button className="language-button" type="button" onClick={onSwitchLocale}>
+        {page.switchLabel}
+      </button>
+    </header>
+  );
+}
+
+function Hero({ page }: { page: DocsPage }) {
+  return (
+    <section className="hero-section" aria-labelledby="hero-title">
       <div className="hero-copy">
-        <div className="badge-row">
-          {page.badges.map((badge) => (
-            <span key={badge}>{badge}</span>
+        <div className="proof-row">
+          {page.hero.proof.map((item) => (
+            <span key={item}>{item}</span>
           ))}
         </div>
-        <h1 id="hero-title">{page.title}</h1>
-        <p>{page.subtitle}</p>
+        <h1 id="hero-title">{page.hero.title}</h1>
+        <p>{page.hero.promise}</p>
+        <div className="install-strip">
+          <span>{page.hero.installLabel}</span>
+          <code>{page.hero.installCommand}</code>
+        </div>
         <div className="hero-actions">
-          <a className="primary-action" href="#start">
-            {page.primaryAction}
+          <a className="primary-action" href="#quick-start">
+            {page.hero.primaryAction}
           </a>
-          <a className="secondary-action" href="#concepts">
-            {page.secondaryAction}
+          <a className="secondary-action" href={githubUrl}>
+            {page.hero.secondaryAction}
           </a>
         </div>
       </div>
+      <ProductPreview page={page} />
     </section>
   );
 }
 
-function MessengerPreview({ locale }: { locale: Locale }) {
-  const copy = useMemo(
-    () =>
-      locale === "en"
-        ? {
-            conversations: "Conversations",
-            allHands: "Cultivation · All Hands",
-            dm: "DM · Lei Jun",
-            header: "Cultivation World",
-            owner: "Owner",
-            role: "Lei Jun",
-            message: "Can you evaluate this encounter?",
-            reply: "The opportunity is real, but the cost must be bounded.",
-            inspector: "Context",
-            state: "Visible state",
-          }
-        : {
-            conversations: "会话",
-            allHands: "修真世界 · 全员群",
-            dm: "私聊 · 雷军",
-            header: "修真世界",
-            owner: "Boss",
-            role: "雷军",
-            message: "你判断一下这次奇遇值不值得冒险？",
-            reply: "机会是真的，但成本必须可控。",
-            inspector: "上下文",
-            state: "可见状态",
-          },
-    [locale],
-  );
-
+function ProductPreview({ page }: { page: DocsPage }) {
+  const preview = page.preview;
   return (
-    <section className="preview" aria-label="Realm messenger preview">
-      <div className="preview-rail" aria-hidden="true">
-        <span className="active-dot" />
-        <span />
-        <span />
-        <span />
-      </div>
-      <div className="preview-list">
-        <strong>{copy.conversations}</strong>
-        <div className="conversation selected">
-          <span className="avatar">修</span>
-          <p>
-            <b>{copy.allHands}</b>
-            <small>@all · God patch committed</small>
-          </p>
+    <section className="product-preview" aria-label="Realm product preview">
+      <section className="manager-preview">
+        <header>
+          <span>{page.hero.title}</span>
+          <button type="button">{preview.settings}</button>
+        </header>
+        <div className="manager-body">
+          <p>{preview.managerTitle}</p>
+          <button type="button">{preview.managerAction}</button>
         </div>
-        <div className="conversation">
-          <span className="avatar light">雷</span>
-          <p>
-            <b>{copy.dm}</b>
-            <small>Private state visible</small>
-          </p>
+        <div className="world-row">
+          <GroupAvatar />
+          <span>
+            <strong>{preview.worldName}</strong>
+            <small>{preview.worldMeta}</small>
+          </span>
         </div>
-      </div>
-      <div className="preview-chat">
-        <header>{copy.header}</header>
-        <div className="bubble owner">
-          <small>{copy.owner}</small>
-          <span>{copy.message}</span>
+      </section>
+      <section className="chat-preview">
+        <header>
+          <span>‹</span>
+          <strong>{preview.chatTitle}</strong>
+          <span>•••</span>
+        </header>
+        <div className="message-time">{preview.time}</div>
+        <div className="message-row outgoing">
+          <div className="message-bubble">{preview.outgoing}</div>
+          <Avatar seed="🎧" />
         </div>
-        <div className="bubble role">
-          <small>{copy.role}</small>
-          <span>{copy.reply}</span>
+        <div className="message-row incoming">
+          <Avatar seed="🚀" />
+          <span>
+            <small>{preview.incomingAuthor}</small>
+            <div className="message-bubble">{preview.incoming}</div>
+          </span>
         </div>
-      </div>
-      <div className="preview-inspector">
-        <strong>{copy.inspector}</strong>
-        <p>{copy.state}</p>
-        <code>hp: 88</code>
-        <code>realm: Qi Refining</code>
-      </div>
+        <footer>
+          <span className="voice-mark">▥</span>
+          <span className="composer">{preview.composer}</span>
+          <span>☺</span>
+          <span>＋</span>
+        </footer>
+      </section>
+      <section className="god-chip" aria-label={preview.god}>
+        {preview.god}
+      </section>
     </section>
   );
 }
 
-function SectionList({ page }: { page: DocPage }) {
+function DocIndex({ page }: { page: DocsPage }) {
   return (
-    <div className="section-list">
-      {page.sections.map((section) => (
-        <section className="doc-section" id={section.id} key={section.id}>
-          <h2>{section.title}</h2>
-          {section.body.map((paragraph) => (
-            <p key={paragraph}>{paragraph}</p>
-          ))}
-          {section.bullets ? (
-            <ul>
-              {section.bullets.map((bullet) => (
-                <li key={bullet}>{bullet}</li>
-              ))}
-            </ul>
-          ) : null}
-          {section.code ? <pre>{section.code}</pre> : null}
-          {section.note ? <div className="note">{section.note}</div> : null}
-        </section>
+    <section className="doc-index" aria-label="Documentation topics">
+      {page.nav
+        .filter((item) => item.value !== "github")
+        .map((item) => (
+          <a href={`#${item.value}`} key={item.value}>
+            {item.label}
+          </a>
+        ))}
+    </section>
+  );
+}
+
+function ProofBand({ page }: { page: DocsPage }) {
+  const items =
+    page.locale === "zh-CN"
+      ? [
+          { label: "Web", value: "Agent Browser 截图验收" },
+          { label: "TUI", value: "Pi TUI 覆盖交互确认" },
+          { label: "Docs", value: "中英文路线与移动端 smoke" },
+          { label: "Release", value: "Bun 二进制与 CI 检查" },
+        ]
+      : [
+          { label: "Web", value: "Agent Browser screenshot acceptance" },
+          { label: "TUI", value: "Pi TUI interaction coverage" },
+          { label: "Docs", value: "EN/ZH routes and mobile smoke" },
+          { label: "Release", value: "Bun binary and CI checks" },
+        ];
+
+  return (
+    <section className="proof-band" aria-label="Verification signals">
+      {items.map((item) => (
+        <article key={item.label}>
+          <strong>{item.label}</strong>
+          <span>{item.value}</span>
+        </article>
       ))}
-    </div>
+    </section>
   );
 }
 
-function localeFromPath(pathname: string): Locale {
-  if (pathname.startsWith("/zh")) {
-    return "zh";
+function QuickStart({ page }: { page: DocsPage }) {
+  return (
+    <section className="band quick-start" id="quick-start">
+      <div className="section-heading">
+        <h2>{page.quickStart.title}</h2>
+        <p>{page.quickStart.intro}</p>
+      </div>
+      <div className="command-list">
+        {page.quickStart.steps.map((step, index) => (
+          <div className="command-row" key={step.label}>
+            <span>{String(index + 1).padStart(2, "0")}</span>
+            <strong>{step.label}</strong>
+            <code>{step.value}</code>
+          </div>
+        ))}
+      </div>
+    </section>
+  );
+}
+
+function Concepts({ page }: { page: DocsPage }) {
+  return (
+    <section className="band concepts" id="concepts">
+      <div className="section-heading">
+        <h2>{page.concepts.title}</h2>
+        <p>{page.concepts.intro}</p>
+      </div>
+      <div className="concept-map">
+        {page.concepts.nodes.map((node) => (
+          <article key={node.label}>
+            <span>{node.label}</span>
+            <p>{node.value}</p>
+          </article>
+        ))}
+      </div>
+    </section>
+  );
+}
+
+function WebWorkflow({ page }: { page: DocsPage }) {
+  const section = page.sections.find((item) => item.id === "web-ui");
+  if (!section) {
+    return null;
   }
-  return "en";
+  return (
+    <section className="band split-band" id="web-ui">
+      <div className="section-heading">
+        <span>{section.eyebrow}</span>
+        <h2>{section.title}</h2>
+        <p>{section.body}</p>
+      </div>
+      <ul className="workflow-list">
+        {section.bullets.map((bullet) => (
+          <li key={bullet}>{bullet}</li>
+        ))}
+      </ul>
+    </section>
+  );
+}
+
+function TuiPreview({ page }: { page: DocsPage }) {
+  return (
+    <section className="band tui-band" id="tui">
+      <div className="section-heading">
+        <h2>{page.tui.title}</h2>
+        <p>{page.tui.intro}</p>
+      </div>
+      <pre className="terminal-preview">
+        {page.tui.lines.map((line) => (
+          <span key={line}>{line}</span>
+        ))}
+      </pre>
+    </section>
+  );
+}
+
+function TrustModel({ page }: { page: DocsPage }) {
+  return (
+    <section className="band split-band" id="identity-safety">
+      <div className="section-heading">
+        <h2>{page.trust.title}</h2>
+        <p>{page.trust.intro}</p>
+      </div>
+      <ul className="trust-list">
+        {page.trust.bullets.map((bullet) => (
+          <li key={bullet}>{bullet}</li>
+        ))}
+      </ul>
+    </section>
+  );
+}
+
+function Examples({ page }: { page: DocsPage }) {
+  return (
+    <section className="band examples" id="templates">
+      <div className="section-heading">
+        <h2>{page.examples.title}</h2>
+        <p>{page.examples.intro}</p>
+      </div>
+      <div className="example-grid">
+        {page.examples.items.map((item) => (
+          <article key={item.label}>
+            <strong>{item.label}</strong>
+            <p>{item.value}</p>
+          </article>
+        ))}
+      </div>
+    </section>
+  );
+}
+
+function SectionList({ page }: { page: DocsPage }) {
+  return (
+    <section className="reference-section" aria-label="Documentation reference">
+      {page.sections
+        .filter((section) => !["web-ui", "tui", "identity-safety"].includes(section.id))
+        .map((section) => (
+          <article className="reference-row" id={section.id} key={section.id}>
+            <span>{section.eyebrow}</span>
+            <div>
+              <h2>{section.title}</h2>
+              <p>{section.body}</p>
+              <ul>
+                {section.bullets.map((bullet) => (
+                  <li key={bullet}>{bullet}</li>
+                ))}
+              </ul>
+              {section.code ? <pre>{section.code}</pre> : null}
+            </div>
+          </article>
+        ))}
+    </section>
+  );
+}
+
+function FinalCta({ page }: { page: DocsPage }) {
+  return (
+    <section className="final-cta">
+      <h2>{page.cta.title}</h2>
+      <p>{page.cta.body}</p>
+      <div className="hero-actions">
+        <a className="primary-action" href="#quick-start">
+          {page.cta.install}
+        </a>
+        <a className="secondary-action" href={githubUrl}>
+          {page.cta.github}
+        </a>
+      </div>
+    </section>
+  );
+}
+
+function GroupAvatar() {
+  const cells = ["🎧", "🚀", "🔥", "🧪", "📚", "🎯", "🧭", "💬", "⚡"];
+  return (
+    <span className="group-avatar" aria-hidden="true">
+      {cells.map((cell) => (
+        <i key={cell}>{cell}</i>
+      ))}
+    </span>
+  );
+}
+
+function Avatar({ seed }: { seed: string }) {
+  return (
+    <span className="avatar" aria-hidden="true">
+      {seed}
+    </span>
+  );
+}
+
+function resolveInitialLocale(): Locale {
+  const routeLocale = localeFromPath(window.location.pathname);
+  if (routeLocale) {
+    return routeLocale;
+  }
+  const stored = window.localStorage.getItem(LOCALE_STORAGE_KEY);
+  if (isLocale(stored)) {
+    return stored;
+  }
+  return window.navigator.language.toLowerCase().startsWith("zh") ? "zh-CN" : "en";
+}
+
+function localeFromPath(pathname: string): Locale | undefined {
+  if (pathname === "/zh-CN" || pathname.startsWith("/zh-CN/")) {
+    return "zh-CN";
+  }
+  if (pathname === "/" || pathname.startsWith("/en/")) {
+    return "en";
+  }
+  return undefined;
+}
+
+function pathForLocale(locale: Locale): string {
+  return locale === "en" ? "/" : "/zh-CN";
+}
+
+function isLocale(value: string | null): value is Locale {
+  return locales.some((locale) => locale === value);
 }

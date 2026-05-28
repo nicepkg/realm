@@ -1,4 +1,7 @@
-import type { TuiCommand } from "./types.ts";
+import { type TuiLocale, t } from "./i18n.ts";
+import type { TuiCommand, TuiGodRoleAction } from "./types.ts";
+
+const GOD_ROLE_ACTIONS = new Set<TuiGodRoleAction>(["kill", "mute", "revive"]);
 
 export function parseTuiCommand(input: string): TuiCommand {
   const trimmed = input.trim();
@@ -31,22 +34,101 @@ export function parseTuiCommand(input: string): TuiCommand {
   if ((head === ":assistant" || head === "assistant") && rest) {
     return { kind: "assistant", goal: rest };
   }
+  if (head === ":drafts" || head === "drafts") {
+    return { kind: "drafts" };
+  }
+  if ((head === ":retry-draft" || head === "retry-draft") && rest) {
+    return { kind: "retryDraft", draftId: rest };
+  }
+  if (head === ":state" || head === "state") {
+    return { kind: "state", ...(rest ? { path: rest } : {}) };
+  }
+  if ((head === ":memory" || head === "memory") && rest) {
+    return { kind: "memory", roleId: rest };
+  }
+  if (head === ":patch" || head === "patch") {
+    const action = tail[0] ?? "show";
+    if (action === "apply") {
+      const confirmation = tail.slice(1).join(" ").trim();
+      return { kind: "patchApply", ...(confirmation ? { confirmation } : {}) };
+    }
+    if (action === "reject") {
+      return { kind: "patchReject" };
+    }
+    return { kind: "patchPreview" };
+  }
+  if ((head === ":god" || head === "god") && tail.length >= 3) {
+    const action = tail[0] as TuiGodRoleAction | undefined;
+    const targetRoleId = tail[1] ?? "";
+    const reason = tail.slice(2).join(" ").trim();
+    if (action && GOD_ROLE_ACTIONS.has(action) && targetRoleId && reason) {
+      return { action, kind: "god", reason, targetRoleId };
+    }
+  }
   if ((head === ":send" || head === "send") && rest) {
     return { kind: "send", content: rest };
   }
   return { kind: "send", content: trimmed.replace(/^:/, "") };
 }
 
-export function renderTuiHelp(): string {
+export function renderTuiHelp(locale: TuiLocale = "en"): string {
+  if (locale === "zh-CN") {
+    return [
+      "按键：",
+      "  Enter                 发送输入内容",
+      "  Ctrl+K                命令面板",
+      "  Ctrl+W / Ctrl+L       世界选择 / 房间选择",
+      "  Ctrl+R / Ctrl+G       角色选择 / 上帝控制台",
+      "  Esc                   关闭覆盖层",
+      "  ?                     帮助",
+      "",
+      "命令：",
+      "  :send <message>        用当前身份发送",
+      "  :id <identity>         切换发送身份",
+      "  :room <room-id>        切换房间",
+      "  :assistant <goal>      生成配置补丁提案",
+      "  :patch show|apply|reject",
+      "                         预览、应用或拒绝当前配置补丁",
+      "  :state [json-pointer]   查看当前世界状态",
+      "  :memory <role-id>       查看角色记忆",
+      "  :god <action> <role> <reason>",
+      "                         受保护的上帝动作；需输入角色 id 确认",
+      "  :drafts                查看失败草稿",
+      "  :retry-draft <id>      重试并删除草稿",
+      "  :settings              显示设置摘要",
+      "  :model <provider> <id>  更新默认模型设置",
+      "  :refresh               重新加载项目状态",
+      "  :q                     退出",
+    ].join("\n");
+  }
+  const dict = t(locale);
   return [
+    "Keys:",
+    "  Enter                 send composer text",
+    "  Ctrl+K                command palette",
+    "  Ctrl+W / Ctrl+L       world picker / room picker",
+    "  Ctrl+R / Ctrl+G       role picker / God Console",
+    "  Esc                   close overlay",
+    "  ?                     help",
+    "",
     "Commands:",
     "  :send <message>        send as current identity",
     "  :id <identity>         switch speaking identity",
     "  :room <room-id>        switch room",
     "  :assistant <goal>      propose a config patch",
+    "  :patch show|apply|reject",
+    "                         preview, apply, or reject the current config patch",
+    "  :state [json-pointer]   inspect current world state",
+    "  :memory <role-id>       inspect role memory",
+    "  :god <action> <role> <reason>",
+    "                         guarded God action; type role id to confirm",
+    "  :drafts                list failed drafts",
+    "  :retry-draft <id>      retry and remove a draft",
     "  :settings              show settings summary",
     "  :model <provider> <id>  update default model settings",
     "  :refresh               reload project state",
     "  :q                     quit",
+    "",
+    `Footer: ${dict.footer}`,
   ].join("\n");
 }

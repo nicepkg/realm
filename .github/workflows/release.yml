@@ -38,9 +38,13 @@ jobs:
         with:
           bun-version: "1.3.11"
       - run: bun install --frozen-lockfile
+      - run: bun run check:deps
+      - run: bun run check:files
+      - run: bun run check:web-structure
       - run: bun run lint
       - run: bun run typecheck
       - run: bun test
+      - run: bun run build:docs
       - run: bun run build:binary
       - run: bun run smoke:binary
       - run: mkdir release
@@ -52,9 +56,34 @@ jobs:
           name: ${{ matrix.artifact }}
           path: release/*
 
+  package:
+    name: Build npm package
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v5
+      - uses: oven-sh/setup-bun@v2
+        with:
+          bun-version: "1.3.11"
+      - run: bun install --frozen-lockfile
+      - run: bun run check:deps
+      - run: bun run check:files
+      - run: bun run check:web-structure
+      - run: bun run lint
+      - run: bun run typecheck
+      - run: bun test
+      - run: bun run build:docs
+      - run: bun run build
+      - run: bun run smoke:package
+      - run: mkdir release
+      - run: npm pack --pack-destination release
+      - uses: actions/upload-artifact@v5
+        with:
+          name: realm-npm-package
+          path: release/*.tgz
+
   github-release:
     name: Publish GitHub release
-    needs: binaries
+    needs: [binaries, package]
     runs-on: ubuntu-latest
     steps:
       - uses: actions/download-artifact@v5
@@ -64,4 +93,4 @@ jobs:
       - uses: softprops/action-gh-release@v2
         with:
           files: release/*
-          generate_release_notes: true
+          fail_on_unmatched_files: true

@@ -96,11 +96,12 @@ async function doctor(argv: string[]): Promise<void> {
   const config = await loadProjectConfig(root).catch(() => undefined);
   const trust = await readProjectTrust(root);
   const piPackageStatus = await checkPiPackageImports();
+  const localConfigStatus = await describeLocalConfig(layout);
 
   console.log(`Project root: ${root}`);
   console.log(`Agents dir: ${layout.agentsDir}`);
   console.log(`Config: ${config ? "ok" : "missing or invalid"}`);
-  console.log(`Local config: ${(await pathExists(layout.localConfigPath)) ? "ok" : "missing"}`);
+  console.log(`Local config: ${localConfigStatus}`);
   console.log(`Default world: ${config?.defaults.world ?? "unknown"}`);
   console.log(`Project trust: ${trust?.tier ?? "untrusted/read-only"}`);
   console.log(
@@ -113,6 +114,14 @@ async function doctor(argv: string[]): Promise<void> {
       `Pi CLI fallback: ${(await commandExists("pi")) ? "available" : "unavailable (optional)"}`,
     );
   }
+}
+
+async function describeLocalConfig(layout: ReturnType<typeof projectLayout>): Promise<string> {
+  if (await pathExists(layout.localConfigPath)) {
+    return "ok";
+  }
+  const examplePath = path.join(layout.agentsDir, "config.local.example.yaml");
+  return (await pathExists(examplePath)) ? "missing (example available)" : "missing";
 }
 
 async function open(argv: string[]): Promise<void> {

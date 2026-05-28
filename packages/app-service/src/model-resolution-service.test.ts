@@ -25,7 +25,7 @@ describe("resolveRoleModelSettings", () => {
     });
 
     expect(resolved.provider).toBe("google");
-    expect(resolved.model).toBe("gemini-3.5-pro");
+    expect(resolved.model).toBe("gemini-2.5-flash");
   });
 
   test("resolves explicit provider model refs and maps custom key env names", () => {
@@ -54,6 +54,26 @@ describe("resolveRoleModelSettings", () => {
     });
   });
 
+  test("uses explicit env input instead of leaking ambient provider keys", () => {
+    const previous = process.env.OPENAI_API_KEY;
+    process.env.OPENAI_API_KEY = "ambient";
+    try {
+      const resolved = resolveRoleModelSettings({
+        settings: settingsSnapshot(),
+        roleModel: "default",
+        env: {},
+      });
+
+      expect(resolved.env).toEqual({});
+    } finally {
+      if (previous === undefined) {
+        delete process.env.OPENAI_API_KEY;
+      } else {
+        process.env.OPENAI_API_KEY = previous;
+      }
+    }
+  });
+
   test("keeps slash model ids as models when the prefix is not a provider", () => {
     const resolved = resolveRoleModelSettings({
       settings: settingsSnapshot(),
@@ -74,7 +94,7 @@ describe("resolveRoleModelSettings", () => {
               {
                 id: "google",
                 apiKeyEnv: "GEMINI_API_KEY",
-                defaultModel: "gemini-3.5-pro",
+                defaultModel: "gemini-2.5-flash",
                 enabled: false,
               },
             ],

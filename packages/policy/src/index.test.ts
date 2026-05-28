@@ -37,6 +37,39 @@ describe("CapabilityPolicy", () => {
     expect(decision.allow).toBe(true);
   });
 
+  test("allows read-only inspection capabilities in read-only trust tier", () => {
+    const policy = new CapabilityPolicy();
+    const readCapabilities = [
+      "config.read",
+      "state.query",
+      "memory.read",
+      "trace.read",
+      "fs.project.read",
+    ] as const;
+
+    for (const capability of readCapabilities) {
+      const decision = policy.decide({
+        principal: owner,
+        capability,
+        trustTier: "read-only",
+        allowedCapabilities: [capability],
+      });
+
+      expect(decision.allow).toBe(true);
+    }
+  });
+
+  test("denies writes in read-only trust tier", () => {
+    const decision = new CapabilityPolicy().decide({
+      principal: owner,
+      capability: "message.send",
+      trustTier: "read-only",
+      allowedCapabilities: ["message.send"],
+    });
+
+    expect(decision.allow).toBe(false);
+  });
+
   test("explicit deny wins", () => {
     const decision = new CapabilityPolicy().decide({
       principal: owner,

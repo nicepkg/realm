@@ -10,6 +10,7 @@ export default defineConfig({
   plugins: [react(), tailwindcss()],
   resolve: {
     alias: {
+      "@": path.join(root, "apps/web/src"),
       "@realm/api-contract": path.join(root, "packages/api-contract/src/index.ts"),
       "@realm/client-sdk": path.join(root, "packages/client-sdk/src/index.ts"),
       "@realm/core": path.join(root, "packages/core/src/index.ts"),

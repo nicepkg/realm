@@ -260,6 +260,28 @@ describe("Pi subprocess adapter", () => {
     ]);
   });
 
+  test("maps Pi package assistant errors into session errors", () => {
+    expect(
+      mapAgentEventToBridgeEvents("session-1", {
+        type: "message_end",
+        message: {
+          role: "assistant",
+          provider: "openai",
+          model: "gpt-4o-mini",
+          stopReason: "error",
+          errorMessage: "OpenAI API error (401): permission denied",
+          content: [],
+        },
+      } as never),
+    ).toEqual([
+      {
+        type: "session.error",
+        sessionId: "session-1",
+        message: "Pi openai/gpt-4o-mini failed: OpenAI API error (401): permission denied",
+      },
+    ]);
+  });
+
   test("sends prompt commands and resolves prompt acceptance", async () => {
     const fakeProcess = new FakeChildProcess();
     let spawnedEnv: NodeJS.ProcessEnv | undefined;
@@ -300,7 +322,6 @@ describe("Pi subprocess adapter", () => {
     });
     await bridge.dispose(handle.id);
   });
-
   test("emits subprocess heartbeat events when enabled", async () => {
     const fakeProcess = new FakeChildProcess();
     const bridge = new SubprocessPiBridge({

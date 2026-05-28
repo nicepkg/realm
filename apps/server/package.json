@@ -3,6 +3,15 @@
   "version": "0.1.0",
   "type": "module",
   "private": true,
+  "dependencies": {
+    "@realm/api-contract": "workspace:*",
+    "@realm/app-service": "workspace:*",
+    "hono": "^4.10.7"
+  },
+  "devDependencies": {
+    "@realm/config": "workspace:*",
+    "@realm/pi-bridge": "workspace:*"
+  },
   "exports": {
     ".": "./src/index.ts"
   }

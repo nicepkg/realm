@@ -1,70 +1,14 @@
 import { describe, expect, test } from "bun:test";
-import { mkdir, mkdtemp, readFile, writeFile } from "node:fs/promises";
+import { access, mkdir, mkdtemp, readFile, writeFile } from "node:fs/promises";
 import os from "node:os";
 import path from "node:path";
 import type { ConfigAssistantPlanner } from "@realm/assistant";
 import { initProject } from "@realm/config";
-import {
-  AsyncEventQueue,
-  FakePiBridge,
-  type PiBridge,
-  type PiBridgeEvent,
-  type PiPromptInput,
-  type PiSessionHandle,
-  type PiSessionStartInput,
-} from "@realm/pi-bridge";
-import { SQLiteEventStore } from "@realm/storage";
+import { FakePiBridge } from "@realm/pi-bridge";
 import { RealmApplicationService } from "./index.ts";
+import { CapturingPiBridge, HangingPiBridge, waitFor } from "./index-test-helpers.ts";
 
 describe("RealmApplicationService", () => {
-  test("defaults to read-only trust when no trust tier is provided", async () => {
-    const root = await mkdtemp(path.join(os.tmpdir(), "realm-app-read-only-"));
-    await initProject(root, "demo");
-    const service = new RealmApplicationService({ root });
-
-    expect(() =>
-      service.sendMessage({
-        worldId: "cultivation",
-        roomId: "main",
-        operatorId: "owner",
-        displayedAuthorId: "owner",
-        content: "Blocked until trusted.",
-      }),
-    ).toThrow("read-only");
-    expect(service.listEvents().map((event) => event.type)).toEqual(["audit.created"]);
-    expect(service.listEvents()[0]).toMatchObject({
-      audit: { action: "policy.denied", target: "message.send" },
-    });
-  });
-
-  test("persists messages and audits impersonation", async () => {
-    const root = await mkdtemp(path.join(os.tmpdir(), "realm-app-message-"));
-    await initProject(root, "demo");
-    const store = new SQLiteEventStore(path.join(root, ".agents", "state", "events.sqlite"));
-    const service = new RealmApplicationService({
-      root,
-      eventStore: store,
-      trustTier: "run-roles",
-    });
-
-    const message = service.sendMessage({
-      worldId: "cultivation",
-      roomId: "main",
-      operatorId: "owner",
-      displayedAuthorId: "leijun",
-      content: "Ship it.",
-      idempotencyKey: "message-1",
-    });
-
-    expect(message.realOperatorId).toBe("owner");
-    expect(service.listMessages("main")).toHaveLength(1);
-    expect(service.listEvents().map((event) => event.type)).toEqual([
-      "message.created",
-      "audit.created",
-    ]);
-    store.close();
-  });
-
   test("applies and rolls back role config patches", async () => {
     const root = await mkdtemp(path.join(os.tmpdir(), "realm-app-config-"));
     await initProject(root, "demo");
@@ -82,6 +26,78 @@ describe("RealmApplicationService", () => {
     expect(await readFile(rolePath, "utf8")).toContain("Warren Buffett");
     await service.rollbackConfigHistory(applied.historyId);
     await expect(readFile(rolePath, "utf8")).rejects.toThrow();
+    await expect(access(path.dirname(rolePath))).rejects.toThrow();
+  });
+
+  test("rejects stale config patches without writing or auditing apply", async () => {
+    const root = await mkdtemp(path.join(os.tmpdir(), "realm-app-config-conflict-"));
+    await initProject(root, "demo");
+    const service = new RealmApplicationService({ root, trustTier: "run-roles" });
+
+    const proposal = await service.proposeRole({
+      id: "qa",
+      displayName: "QA",
+      model: "default",
+      summary: "Regression reviewer.",
+    });
+    const rolePath = path.join(root, ".agents", "roles", "qa", "role.yaml");
+    await mkdir(path.dirname(rolePath), { recursive: true });
+    await writeFile(rolePath, "version: 1\nid: qa\ndisplayName: Existing QA\n", "utf8");
+
+    await expect(service.applyConfigPatch(proposal.id)).rejects.toThrow(
+      "Config conflict at .agents/roles/qa/role.yaml",
+    );
+    expect(await readFile(rolePath, "utf8")).toContain("Existing QA");
+    expect(service.listEvents().map((event) => event.type)).not.toContain("config.patch.applied");
+  });
+
+  test("requires typed confirmation for high-risk config patches", async () => {
+    const root = await mkdtemp(path.join(os.tmpdir(), "realm-app-config-risk-"));
+    await initProject(root, "demo");
+    await mkdir(path.join(root, ".agents", "worlds", "cultivation"), { recursive: true });
+    await writeFile(
+      path.join(root, ".agents", "worlds", "cultivation", "world.yaml"),
+      [
+        "version: 1",
+        "id: cultivation",
+        "name: Existing Cultivation",
+        "mode:",
+        "  type: game",
+        "  time:",
+        "    kind: manual",
+        "rooms:",
+        "  main:",
+        "    type: world-main",
+        "    name: All Hands",
+        "roles: []",
+        "",
+      ].join("\n"),
+      "utf8",
+    );
+    const service = new RealmApplicationService({ root, trustTier: "run-roles" });
+
+    const proposal = await service.proposeWorld({
+      id: "cultivation",
+      mode: "simulation",
+      name: "Existing Cultivation",
+      roleIds: [],
+      roomName: "All Hands",
+    });
+
+    expect(proposal.riskLevel).toBe("high");
+    expect(proposal.typedConfirmation).toBe(`APPLY ${proposal.id}`);
+    await expect(service.applyConfigPatch(proposal.id)).rejects.toThrow("Type APPLY");
+
+    const applied = await service.applyConfigPatch(proposal.id, {
+      confirmation: proposal.typedConfirmation ?? "",
+    });
+    expect(
+      await readFile(path.join(root, ".agents", "worlds", "cultivation", "world.yaml"), "utf8"),
+    ).toContain("simulation");
+    await service.rollbackConfigHistory(applied.historyId);
+    expect(
+      await readFile(path.join(root, ".agents", "worlds", "cultivation", "world.yaml"), "utf8"),
+    ).toContain("Existing Cultivation");
   });
 
   test("uses an injected config assistant planner for proposals", async () => {
@@ -155,7 +171,7 @@ describe("RealmApplicationService", () => {
     await service.updateUserSettings({
       ...initial.user,
       defaultProvider: "google",
-      defaultModel: "gemini-3.5-pro",
+      defaultModel: "gemini-2.5-flash",
     });
     const updated = await service.updateProjectSettings({
       ...initial.project,
@@ -287,7 +303,7 @@ describe("RealmApplicationService", () => {
 
     expect(piBridge.starts[0]).toMatchObject({
       provider: "google",
-      model: "gemini-3.5-pro",
+      model: "gemini-2.5-flash",
     });
     expect(piBridge.starts[0]?.env).toMatchObject({
       GEMINI_API_KEY: "secret",
@@ -431,52 +447,3 @@ describe("RealmApplicationService", () => {
     expect(start?.env?.REALM_EXTENSION_TOKEN).toMatch(/^realm_ext_/);
   });
 });
-
-class CapturingPiBridge extends FakePiBridge {
-  readonly starts: PiSessionStartInput[] = [];
-
-  override async startSession(input: PiSessionStartInput): Promise<PiSessionHandle> {
-    this.starts.push(input);
-    return super.startSession(input);
-  }
-}
-
-class HangingPiBridge implements PiBridge {
-  sessionId?: string;
-  private queue?: AsyncEventQueue<PiBridgeEvent>;
-
-  async startSession(input: PiSessionStartInput): Promise<PiSessionHandle> {
-    this.sessionId = `hanging-${crypto.randomUUID()}`;
-    this.queue = new AsyncEventQueue<PiBridgeEvent>();
-    this.queue.push({
-      type: "session.started",
-      sessionId: this.sessionId,
-      sessionDir: input.sessionDir,
-    });
-    return { id: this.sessionId, sessionDir: input.sessionDir, events: this.queue };
-  }
-
-  async sendPrompt(sessionId: string, _input: PiPromptInput): Promise<void> {
-    this.queue?.push({ type: "prompt.accepted", sessionId, requestId: "request-hanging" });
-  }
-
-  async abort(sessionId: string): Promise<void> {
-    this.queue?.push({ type: "session.aborted", sessionId });
-  }
-
-  async dispose(sessionId: string): Promise<void> {
-    this.queue?.push({ type: "session.disposed", sessionId });
-    this.queue?.close();
-  }
-}
-
-async function waitFor(predicate: () => boolean, timeoutMs = 1000): Promise<void> {
-  const deadline = Date.now() + timeoutMs;
-  while (Date.now() < deadline) {
-    if (predicate()) {
-      return;
-    }
-    await new Promise((resolve) => setTimeout(resolve, 10));
-  }
-  throw new Error("Timed out waiting for condition");
-}

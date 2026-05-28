@@ -2,12 +2,38 @@ import { describe, expect, test } from "bun:test";
 import { mkdir, mkdtemp, writeFile } from "node:fs/promises";
 import os from "node:os";
 import path from "node:path";
-import { RealmApplicationService } from "@realm/app-service";
 import { initProject } from "@realm/config";
 import { FakePiBridge } from "@realm/pi-bridge";
-import { createRealmServer, createRealmWebSocketHandlers, realmWebSocketData } from "./index.ts";
+import { createRealmServer } from "./index.ts";
 
 describe("Realm server API", () => {
+  test("serves world state in default read-only trust mode", async () => {
+    const root = await mkdtemp(path.join(os.tmpdir(), "realm-server-read-only-state-"));
+    await initProject(root, "demo");
+    const app = createRealmServer({ root });
+
+    const response = await app.request("/api/worlds/cultivation/state");
+    const payload = (await response.json()) as { worldId: string; version: number };
+
+    expect(response.status).toBe(200);
+    expect(payload).toMatchObject({ worldId: "cultivation", version: 0 });
+  });
+
+  test("serves role memory through the operator read-only endpoint", async () => {
+    const root = await mkdtemp(path.join(os.tmpdir(), "realm-server-role-memory-"));
+    await initProject(root, "demo");
+    const memoryDir = path.join(root, ".agents", "state", "roles", "leijun");
+    await mkdir(memoryDir, { recursive: true });
+    await writeFile(path.join(memoryDir, "memory.md"), "remember launch plan", "utf8");
+    const app = createRealmServer({ root });
+
+    const response = await app.request("/api/worlds/cultivation/roles/leijun/memory");
+    const payload = (await response.json()) as { content: string };
+
+    expect(response.status).toBe(200);
+    expect(payload.content).toBe("remember launch plan");
+  });
+
   test("accepts a message and returns it from the room query", async () => {
     const root = await mkdtemp(path.join(os.tmpdir(), "realm-server-message-"));
     await initProject(root, "demo");
@@ -27,6 +53,32 @@ describe("Realm server API", () => {
     const listResponse = await app.request("/api/rooms/main/messages");
     const payload = (await listResponse.json()) as { messages: Array<{ content: string }> };
     expect(payload.messages.map((message) => message.content)).toEqual(["Hello realm."]);
+  });
+
+  test("ignores caller-supplied operators on the public message API", async () => {
+    const root = await mkdtemp(path.join(os.tmpdir(), "realm-server-message-operator-"));
+    await initProject(root, "demo");
+    const app = createRealmServer({ root, trustTier: "run-roles" });
+
+    const sendResponse = await app.request("/api/rooms/main/messages", {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({
+        worldId: "cultivation",
+        operatorId: "leijun",
+        displayedAuthorId: "leijun",
+        content: "I should still be audited as owner.",
+      }),
+    });
+    const payload = (await sendResponse.json()) as {
+      message: { displayedAuthorId: string; realOperatorId?: string };
+    };
+
+    expect(sendResponse.status).toBe(201);
+    expect(payload.message).toMatchObject({
+      displayedAuthorId: "leijun",
+      realOperatorId: "owner",
+    });
   });
 
   test("proposes and applies role config through API", async () => {
@@ -113,68 +165,6 @@ describe("Realm server API", () => {
     expect(settingsResponse.status).toBe(200);
     expect(userResponse.status).toBe(200);
     expect(projectResponse.status).toBe(200);
-  });
-
-  test("streams events as server-sent events", async () => {
-    const root = await mkdtemp(path.join(os.tmpdir(), "realm-server-stream-"));
-    await initProject(root, "demo");
-    const app = createRealmServer({ root, trustTier: "run-roles" });
-    await app.request("/api/rooms/main/messages", {
-      method: "POST",
-      headers: { "content-type": "application/json" },
-      body: JSON.stringify({
-        worldId: "cultivation",
-        displayedAuthorId: "owner",
-        content: "Stream me.",
-      }),
-    });
-
-    const response = await app.request("/api/events/stream?afterSeq=0");
-    const reader = response.body?.getReader();
-    const chunk = await reader?.read();
-    await reader?.cancel();
-
-    expect(response.headers.get("content-type")).toContain("text/event-stream");
-    expect(new TextDecoder().decode(chunk?.value)).toContain("message.created");
-  });
-
-  test("streams events over WebSocket", async () => {
-    const root = await mkdtemp(path.join(os.tmpdir(), "realm-server-ws-"));
-    await initProject(root, "demo");
-    const service = new RealmApplicationService({ root, trustTier: "run-roles" });
-    const app = createRealmServer({ root, service });
-    service.sendMessage({
-      worldId: "cultivation",
-      roomId: "main",
-      displayedAuthorId: "owner",
-      content: "WebSocket me.",
-    });
-    const server = Bun.serve({
-      hostname: "127.0.0.1",
-      port: 0,
-      fetch(request, server) {
-        const requestUrl = new URL(request.url);
-        if (requestUrl.pathname === "/api/events/ws") {
-          const afterSeq = Number.parseInt(requestUrl.searchParams.get("afterSeq") ?? "0", 10);
-          const upgraded = server.upgrade(request, {
-            data: realmWebSocketData(service, afterSeq),
-          });
-          return upgraded ? undefined : new Response("WebSocket upgrade failed", { status: 400 });
-        }
-        return app.fetch(request);
-      },
-      websocket: createRealmWebSocketHandlers(),
-    });
-
-    try {
-      const event = JSON.parse(
-        await readOneWebSocketMessage(`ws://127.0.0.1:${server.port}/api/events/ws?afterSeq=0`),
-      ) as { type: string; message: { content: string } };
-      expect(event.type).toBe("message.created");
-      expect(event.message.content).toBe("WebSocket me.");
-    } finally {
-      server.stop(true);
-    }
   });
 
   test("runs role turns through the API", async () => {
@@ -461,22 +451,3 @@ describe("Realm server API", () => {
     expect(replayPayload.events.map((event) => event.type)).toContain("world.event.triggered");
   });
 });
-
-function readOneWebSocketMessage(url: string): Promise<string> {
-  return new Promise((resolve, reject) => {
-    const socket = new WebSocket(url);
-    const timeout = setTimeout(() => {
-      socket.close();
-      reject(new Error("Timed out waiting for WebSocket event"));
-    }, 2_000);
-    socket.onmessage = (event) => {
-      clearTimeout(timeout);
-      socket.close();
-      resolve(String(event.data));
-    };
-    socket.onerror = () => {
-      clearTimeout(timeout);
-      reject(new Error("WebSocket connection failed"));
-    };
-  });
-}

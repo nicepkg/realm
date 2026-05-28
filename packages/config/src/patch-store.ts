@@ -1,5 +1,5 @@
 import { createHash, randomUUID } from "node:crypto";
-import { mkdir, readFile, rename, rm, writeFile } from "node:fs/promises";
+import { mkdir, readFile, rename, rm, rmdir, writeFile } from "node:fs/promises";
 import path from "node:path";
 import {
   type Capability,
@@ -22,6 +22,10 @@ export type ConfigPatchApplyResult = {
   patchId: string;
   historyId: string;
   changedPaths: string[];
+};
+
+export type ConfigPatchApplyInput = {
+  confirmation?: string;
 };
 
 type ConfigHistoryManifest = {
@@ -119,8 +123,11 @@ export class FileConfigPatchStore {
     return configPatchProposalSchema.parse(JSON.parse(raw));
   }
 
-  async apply(patchId: string): Promise<ConfigPatchApplyResult> {
+  async apply(patchId: string, input: ConfigPatchApplyInput = {}): Promise<ConfigPatchApplyResult> {
     const proposal = await this.loadProposal(patchId);
+    if (proposal.typedConfirmation && input.confirmation !== proposal.typedConfirmation) {
+      throw new Error(`Type ${proposal.typedConfirmation} to apply this high-risk config patch.`);
+    }
     const historyId = makeFilesystemId("history");
     const manifest: ConfigHistoryManifest = {
       id: historyId,
@@ -175,6 +182,7 @@ export class FileConfigPatchStore {
       const targetPath = this.resolveAgentsPath(file.path);
       if (file.previousContent === null) {
         await rm(targetPath, { force: true });
+        await pruneEmptyConfigDirs(path.dirname(targetPath), this.layout.agentsDir);
       } else {
         await writeFileAtomic(targetPath, file.previousContent);
       }
@@ -207,11 +215,16 @@ export class FileConfigPatchStore {
       }),
     );
 
+    const id = makeFilesystemId("patch");
+    const risk = classifyConfigPatchRisk(operations, input.riskLevel);
+
     return {
-      id: makeFilesystemId("patch"),
+      id,
       title: input.title,
       summary: input.summary,
-      riskLevel: input.riskLevel,
+      riskLevel: risk.level,
+      riskReasons: risk.reasons,
+      typedConfirmation: risk.level === "high" ? `APPLY ${id}` : null,
       requiredCapabilities: input.requiredCapabilities,
       operations,
       createdAt: this.clock().toISOString(),
@@ -266,6 +279,65 @@ export class FileConfigPatchStore {
   }
 }
 
+function classifyConfigPatchRisk(
+  operations: ConfigPatchProposal["operations"],
+  fallback: ConfigPatchProposal["riskLevel"],
+): { level: ConfigPatchProposal["riskLevel"]; reasons: string[] } {
+  const reasons = new Set<string>();
+  let score = riskScore(fallback);
+
+  for (const operation of operations) {
+    const normalizedPath = operation.path.replaceAll("\\", "/");
+    if (operation.action === "delete") {
+      score = Math.max(score, riskScore("high"));
+      reasons.add("Deletes config files.");
+    }
+    if (operation.action === "update") {
+      score = Math.max(score, riskScore("medium"));
+      reasons.add("Modifies existing config.");
+    }
+    if (
+      normalizedPath === ".agents/config.yaml" ||
+      normalizedPath.endsWith("/config.yaml") ||
+      normalizedPath.includes("config.local")
+    ) {
+      score = Math.max(score, riskScore("high"));
+      reasons.add("Changes project, provider, or machine-local settings.");
+    }
+    if (
+      normalizedPath.endsWith("/visibility.yaml") ||
+      normalizedPath.endsWith("/rules.yaml") ||
+      normalizedPath.endsWith("/god.yaml")
+    ) {
+      score = Math.max(score, riskScore("high"));
+      reasons.add("Changes visibility, tool policy, or God permissions.");
+    }
+    if (normalizedPath.startsWith(".agents/worlds/") && operation.action === "update") {
+      score = Math.max(score, riskScore("high"));
+      reasons.add("Changes an existing world definition or state seed.");
+    }
+  }
+
+  if (reasons.size === 0) {
+    reasons.add("Creates new config files only.");
+  }
+
+  return {
+    level: score === 2 ? "high" : score === 1 ? "medium" : "low",
+    reasons: [...reasons],
+  };
+}
+
+function riskScore(level: ConfigPatchProposal["riskLevel"]): number {
+  if (level === "high") {
+    return 2;
+  }
+  if (level === "medium") {
+    return 1;
+  }
+  return 0;
+}
+
 async function readTextIfExists(filePath: string): Promise<string | null> {
   try {
     return await readFile(filePath, "utf8");
@@ -282,6 +354,18 @@ async function writeFileAtomic(filePath: string, content: string): Promise<void>
   );
   await writeFile(tempPath, content, "utf8");
   await rename(tempPath, filePath);
+}
+
+async function pruneEmptyConfigDirs(startDir: string, agentsDir: string): Promise<void> {
+  let currentDir = startDir;
+  while (currentDir !== agentsDir && path.dirname(currentDir) !== agentsDir) {
+    try {
+      await rmdir(currentDir);
+    } catch {
+      return;
+    }
+    currentDir = path.dirname(currentDir);
+  }
 }
 
 function assertSafePathSegment(value: string, label: string): void {

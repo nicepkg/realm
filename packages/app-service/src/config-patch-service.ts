@@ -1,6 +1,7 @@
 import { randomUUID } from "node:crypto";
 import { type ConfigAssistantPlanner, DeterministicConfigAssistantPlanner } from "@realm/assistant";
 import type {
+  ConfigPatchApplyInput,
   CreateRolePatchInput,
   CreateWorldPatchInput,
   FileConfigPatchStore,
@@ -50,13 +51,14 @@ export class ConfigPatchService {
 
   async applyConfigPatch(
     patchId: string,
+    input: ConfigPatchApplyInput = {},
   ): Promise<{ patchId: string; historyId: string; changedPaths: string[] }> {
     const proposal = await this.options.patchStore.loadProposal(patchId);
     for (const capability of proposal.requiredCapabilities) {
       this.options.assertAllowed(capability);
     }
 
-    const result = await this.options.patchStore.apply(patchId);
+    const result = await this.options.patchStore.apply(patchId, input);
     const createdAt = nowIso(this.options.clock());
     this.options.eventStore.append({
       eventId: makeId("event:config:patch:applied", randomUUID()),

@@ -1,0 +1,21 @@
+version: 1
+project:
+  name: Cultivation Sim
+defaults:
+  world: cultivation
+  modelProfile: default
+skills:
+  global:
+    mode: blacklist
+    include:
+      - ~/.realm/skills/**
+    exclude: []
+  project:
+    mode: blacklist
+    include:
+      - .agents/skills/**
+    exclude: []
+security:
+  requireTrust: true
+  allowProjectShellByDefault: false
+  allowNetworkByDefault: false

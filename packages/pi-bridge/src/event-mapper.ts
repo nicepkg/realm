@@ -109,6 +109,10 @@ function mapAssistantEndMessage(sessionId: string, message: unknown): PiBridgeEv
   if (content) {
     events.push({ type: "assistant.message", sessionId, content });
   }
+  const errorMessage = extractAssistantError(message);
+  if (errorMessage) {
+    events.push({ type: "session.error", sessionId, message: errorMessage });
+  }
   return events;
 }
 
@@ -132,6 +136,18 @@ function extractAssistantText(message: unknown): string | undefined {
     })
     .join("");
   return text.length > 0 ? text : undefined;
+}
+
+function extractAssistantError(message: unknown): string | undefined {
+  if (!isObject(message) || message.role !== "assistant") {
+    return undefined;
+  }
+  if (typeof message.errorMessage !== "string" || message.errorMessage.trim().length === 0) {
+    return undefined;
+  }
+  const provider = typeof message.provider === "string" ? `${message.provider}` : "provider";
+  const model = typeof message.model === "string" ? `/${message.model}` : "";
+  return `Pi ${provider}${model} failed: ${message.errorMessage}`;
 }
 
 function extractAssistantUsage(

@@ -1,0 +1,35 @@
+version: 1
+id: cultivation
+name: Cultivation Sim
+mode:
+  type: simulation
+  time:
+    kind: tick
+rooms:
+  main:
+    type: world-main
+    name: All Hands
+  sect-hall:
+    type: group
+    name: Sect Hall
+  infirmary:
+    type: group
+    name: Infirmary
+  god:
+    type: god-channel
+    name: God / Fate
+roles:
+  - id: leijun
+    model: default
+  - id: guchenfeng
+    model: default
+  - id: yunyao
+    model: default
+god:
+  id: fate
+  model: default
+  permissions:
+    canPatchAnyState: true
+    canKillRole: true
+    canCreateEvents: true
+    canAdvanceTime: true

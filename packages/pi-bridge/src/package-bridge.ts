@@ -137,25 +137,25 @@ function firstModelIdForProvider(provider: string): string | undefined {
   return firstModel?.id;
 }
 
-function defaultApiKeyResolver(
+export function defaultApiKeyResolver(
   env: Record<string, string> | undefined,
 ): (provider: string) => string | undefined {
-  const mergedEnv = { ...process.env, ...env };
+  const sourceEnv = env ?? process.env;
   return (provider: string) => {
     const normalized = provider.toLowerCase();
     if (normalized === "openai" || normalized === "openai-codex") {
-      return mergedEnv.OPENAI_API_KEY;
+      return sourceEnv.OPENAI_API_KEY;
     }
     if (normalized === "google" || normalized === "google-vertex") {
-      return mergedEnv.GOOGLE_API_KEY ?? mergedEnv.GEMINI_API_KEY;
+      return sourceEnv.GOOGLE_API_KEY ?? sourceEnv.GEMINI_API_KEY;
     }
     if (normalized === "anthropic") {
-      return mergedEnv.ANTHROPIC_API_KEY;
+      return sourceEnv.ANTHROPIC_API_KEY;
     }
     if (normalized === "openrouter") {
-      return mergedEnv.OPENROUTER_API_KEY;
+      return sourceEnv.OPENROUTER_API_KEY;
     }
     const envName = `${normalized.replace(/[^a-z0-9]/g, "_").toUpperCase()}_API_KEY`;
-    return mergedEnv[envName];
+    return sourceEnv[envName];
   };
 }

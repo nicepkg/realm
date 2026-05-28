@@ -42,6 +42,19 @@ describe("RealmApplicationService world state", () => {
     expect(memory.content).toBe("remember this");
   });
 
+  test("reads role memory in read-only trust for operator inspection", async () => {
+    const root = await mkdtemp(path.join(os.tmpdir(), "realm-app-read-only-memory-"));
+    await initProject(root, "demo");
+    const memoryDir = path.join(root, ".agents", "state", "roles", "leijun");
+    await mkdir(memoryDir, { recursive: true });
+    await writeFile(path.join(memoryDir, "memory.md"), "remember launch plan", "utf8");
+    const service = new RealmApplicationService({ root, trustTier: "read-only" });
+
+    await expect(service.readRoleMemory({ roleId: "leijun" })).resolves.toEqual({
+      content: "remember launch plan",
+    });
+  });
+
   test("commits admin state patches, snapshots state, and preserves role visibility", async () => {
     const root = await mkdtemp(path.join(os.tmpdir(), "realm-app-admin-state-"));
     await initProject(root, "demo");

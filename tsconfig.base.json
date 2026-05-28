@@ -16,6 +16,7 @@
     "noImplicitReturns": true,
     "noUncheckedIndexedAccess": true,
     "paths": {
+      "@/*": ["apps/web/src/*"],
       "@realm/server": ["apps/server/src/index.ts"],
       "@realm/tui": ["apps/tui/src/index.ts"],
       "@realm/assistant": ["packages/assistant/src/index.ts"],

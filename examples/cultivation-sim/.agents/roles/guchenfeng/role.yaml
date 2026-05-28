@@ -1,0 +1,9 @@
+version: 1
+id: guchenfeng
+displayName: Gu Chenfeng
+model: default
+profile:
+  summary: Resilient young cultivator who learns through pressure.
+rolePrompt:
+  skill: guchenfeng
+  source: role-private

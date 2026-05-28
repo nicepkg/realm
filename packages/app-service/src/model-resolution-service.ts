@@ -121,7 +121,7 @@ function buildProviderEnv(input: {
   provider: ModelProviderConfig | undefined;
   env?: NodeJS.ProcessEnv;
 }): Record<string, string> {
-  const sourceEnv = { ...process.env, ...input.env };
+  const sourceEnv = input.env ?? process.env;
   const providerEnvName = input.provider?.apiKeyEnv;
   const apiKey = providerEnvName ? sourceEnv[providerEnvName] : undefined;
   if (!providerEnvName || !apiKey) {
@@ -130,7 +130,7 @@ function buildProviderEnv(input: {
 
   const output: Record<string, string> = { [providerEnvName]: apiKey };
   const normalizedName = defaultApiKeyEnvName(input.providerId);
-  if (!sourceEnv[normalizedName]) {
+  if (normalizedName !== providerEnvName) {
     output[normalizedName] = apiKey;
   }
   return output;

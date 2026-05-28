@@ -45,6 +45,16 @@ const RUN_ROLE_CAPABILITIES = new Set<Capability>([
   "god.admin",
 ]);
 
+const READ_ONLY_CAPABILITIES = new Set<Capability>([
+  "config.read",
+  "fs.private.list",
+  "fs.private.read",
+  "fs.project.read",
+  "memory.read",
+  "state.query",
+  "trace.read",
+]);
+
 export class CapabilityPolicy {
   decide(context: PolicyContext): PolicyDecision {
     capabilitySchema.parse(context.capability);
@@ -65,7 +75,7 @@ export class CapabilityPolicy {
       };
     }
 
-    if (context.trustTier === "read-only" && context.capability !== "config.read") {
+    if (context.trustTier === "read-only" && !READ_ONLY_CAPABILITIES.has(context.capability)) {
       return {
         allow: false,
         reason: "Project is trusted for read-only inspection only",

@@ -1,0 +1,6 @@
+version: 1
+id: fate
+role:
+  - Advance simulation time without becoming a normal chat participant.
+  - Patch world state only through audited God/state events.
+  - Keep hidden fate information separate from role-visible state.

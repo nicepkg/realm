@@ -1,0 +1,242 @@
+.product-preview {
+  align-self: center;
+  display: grid;
+  gap: 14px;
+  grid-template-columns: minmax(200px, 0.84fr) minmax(300px, 1.16fr);
+  min-width: 0;
+  position: relative;
+}
+
+.manager-preview,
+.chat-preview,
+.god-chip {
+  background: #fff;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  overflow: hidden;
+}
+
+.manager-preview header,
+.chat-preview header {
+  align-items: center;
+  border-bottom: 1px solid var(--line);
+  display: flex;
+  height: 46px;
+  justify-content: space-between;
+  padding: 0 14px;
+}
+
+.manager-body {
+  padding: 28px 18px 18px;
+}
+
+.manager-body p {
+  font-size: 24px;
+  font-weight: 650;
+  margin-bottom: 14px;
+}
+
+.manager-body button {
+  background: var(--realm-primary);
+  border: 0;
+  border-radius: 8px;
+  color: #fff;
+  padding: 9px 14px;
+}
+
+.manager-preview header button {
+  background: transparent;
+  border: 0;
+  color: var(--text-muted);
+}
+
+.world-row {
+  align-items: center;
+  border-top: 1px solid var(--line);
+  display: grid;
+  gap: 12px;
+  grid-template-columns: 46px minmax(0, 1fr);
+  min-height: 76px;
+  padding: 12px 14px;
+}
+
+.world-row strong,
+.world-row small {
+  display: block;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.world-row small {
+  color: var(--text-muted);
+  margin-top: 4px;
+}
+
+.group-avatar {
+  align-content: center;
+  background: #d9dcdf;
+  border-radius: 4px;
+  display: grid;
+  gap: 2px;
+  grid-template-columns: repeat(3, 1fr);
+  height: 44px;
+  justify-content: center;
+  padding: 3px;
+  width: 44px;
+}
+
+.group-avatar i {
+  align-items: center;
+  background: var(--realm-primary);
+  border-radius: 3px;
+  display: inline-flex;
+  font-size: 9px;
+  font-style: normal;
+  justify-content: center;
+}
+
+.chat-preview {
+  background: #ededee;
+  min-height: 360px;
+  position: relative;
+}
+
+.chat-preview header {
+  background: #f7f7f8;
+}
+
+.message-time {
+  color: var(--text-faint);
+  font-size: 12px;
+  padding: 20px 0 8px;
+  text-align: center;
+}
+
+.message-row {
+  align-items: flex-start;
+  display: flex;
+  gap: 10px;
+  margin: 18px 18px;
+}
+
+.message-row.outgoing {
+  justify-content: flex-end;
+}
+
+.message-row.incoming {
+  justify-content: flex-start;
+}
+
+.avatar {
+  align-items: center;
+  background: #ff7a45;
+  border-radius: 8px;
+  display: inline-flex;
+  flex: 0 0 auto;
+  height: 40px;
+  justify-content: center;
+  width: 40px;
+}
+
+.message-row.incoming .avatar {
+  background: var(--realm-primary);
+}
+
+.message-row small {
+  color: var(--text-muted);
+  display: block;
+  margin: 0 0 6px;
+}
+
+.message-bubble {
+  background: #fff;
+  border-radius: 6px;
+  line-height: 1.45;
+  max-width: 280px;
+  padding: 10px 12px;
+  position: relative;
+}
+
+.message-bubble::before {
+  background: inherit;
+  content: "";
+  height: 9px;
+  position: absolute;
+  top: 13px;
+  transform: rotate(45deg);
+  width: 9px;
+}
+
+.incoming .message-bubble::before {
+  left: -4px;
+}
+
+.outgoing .message-bubble {
+  background: var(--bubble);
+}
+
+.outgoing .message-bubble::before {
+  right: -4px;
+}
+
+.chat-preview footer {
+  align-items: center;
+  background: #f7f7f8;
+  border-top: 1px solid var(--line);
+  bottom: 0;
+  display: grid;
+  gap: 10px;
+  grid-template-columns: auto minmax(0, 1fr) auto auto;
+  left: 0;
+  padding: 10px 12px;
+  position: absolute;
+  right: 0;
+}
+
+.voice-mark {
+  color: #1d1d1f;
+}
+
+.composer {
+  background: #fff;
+  border-radius: 6px;
+  color: var(--text-faint);
+  min-height: 36px;
+  padding: 8px 12px;
+}
+
+.god-chip {
+  bottom: 72px;
+  color: #7a4a00;
+  font-size: 13px;
+  padding: 9px 12px;
+  position: absolute;
+  right: 20px;
+}
+
+@media (max-width: 1080px) {
+  .product-preview {
+    grid-template-columns: minmax(220px, 0.78fr) minmax(340px, 1.22fr);
+  }
+}
+
+@media (max-width: 760px) {
+  .product-preview {
+    grid-template-columns: 1fr;
+    margin-top: 34px;
+  }
+
+  .manager-preview,
+  .god-chip {
+    display: none;
+  }
+
+  .chat-preview {
+    min-height: 470px;
+  }
+
+  .message-bubble {
+    max-width: 230px;
+  }
+}

@@ -1,6 +1,6 @@
 import path from "node:path";
-import type { ConfigAssistantPlanner } from "@realm/assistant";
 import {
+  type ConfigPatchApplyInput,
   type CreateRolePatchInput,
   type CreateWorldPatchInput,
   FileConfigPatchStore,
@@ -10,7 +10,6 @@ import {
 } from "@realm/config";
 import type { ConfigPatchProposal, Message, RealmEvent, Room } from "@realm/core";
 import { PackagePiBridge, type PiBridge } from "@realm/pi-bridge";
-import type { TrustTier } from "@realm/policy";
 import { PiRoleTurnRunner } from "@realm/runtime";
 import { type EventStore, InMemoryEventStore } from "@realm/storage";
 import { ConfigPatchService } from "./config-patch-service.ts";
@@ -19,7 +18,6 @@ import {
   type ExtensionAccessDecision,
   type ExtensionAccessInput,
   ExtensionAccessService,
-  type ExtensionSessionScope,
 } from "./extension-access-service.ts";
 import { FakeVerticalSliceService } from "./fake-vertical-slice-service.ts";
 import { type CreateRoomInput, MessageService, type SendMessageInput } from "./message-service.ts";
@@ -45,8 +43,9 @@ import {
   SettingsService,
   type SettingsSnapshot,
 } from "./settings-service.ts";
-import { assertSafePathSegment, resolvePiExtensionPaths } from "./support.ts";
+import { assertSafePathSegment, OWNER_ID, resolvePiExtensionPaths } from "./support.ts";
 import { type TurnCancelResult, TurnControlService } from "./turn-control-service.ts";
+import type { RealmApplicationServiceOptions, RunRoleTurnInput } from "./types.ts";
 import {
   type CreateWorkflowArtifactInput,
   type CreateWorkflowTaskInput,
@@ -76,6 +75,7 @@ export type {
 export type { CreateRoomInput, SendMessageInput } from "./message-service.ts";
 export type { ApplyProjectPatchInput, ProposeProjectPatchInput } from "./project-patch-service.ts";
 export type { RoleMemoryInput, RoleMemoryWriteInput } from "./role-memory-service.ts";
+export type { RealmApplicationServiceOptions, RunRoleTurnInput } from "./types.ts";
 export type {
   CreateWorkflowArtifactInput,
   CreateWorkflowTaskInput,
@@ -95,31 +95,7 @@ export type {
   WorldStateView,
 } from "./world-state-service.ts";
 export type { SettingsExportSnapshot, SettingsSnapshot, TurnCancelResult };
-
-export type RunRoleTurnInput = {
-  turnId?: string;
-  worldId: string;
-  roomId: string;
-  roleId: string;
-  prompt?: string;
-  signal?: AbortSignal;
-  timeoutMs?: number;
-};
-
-export type RealmApplicationServiceOptions = {
-  root: string;
-  eventStore?: EventStore;
-  trustTier?: TrustTier;
-  clock?: () => Date;
-  patchStore?: FileConfigPatchStore;
-  configAssistantPlanner?: ConfigAssistantPlanner;
-  piBridge?: PiBridge;
-  extensionBaseUrl?: string;
-  piExtensionPath?: string;
-  fakeVerticalSlice?: boolean;
-  env?: NodeJS.ProcessEnv;
-  extensionStaticTokens?: Array<ExtensionSessionScope & { token: string }>;
-};
+export { OWNER_ID };
 
 export class RealmApplicationService {
   private readonly eventStore: EventStore;
@@ -302,6 +278,9 @@ export class RealmApplicationService {
   listEvents(options: { afterSeq?: number; limit?: number } = {}): readonly RealmEvent[] {
     return this.eventStore.list(options);
   }
+  lastEventSeq(): number {
+    return this.eventStore.lastSeq();
+  }
 
   createRoom(input: CreateRoomInput): Room {
     return this.messageService.createRoom(input);
@@ -452,8 +431,9 @@ export class RealmApplicationService {
 
   async applyConfigPatch(
     patchId: string,
+    input: ConfigPatchApplyInput = {},
   ): Promise<{ patchId: string; historyId: string; changedPaths: string[] }> {
-    return this.configPatchService.applyConfigPatch(patchId);
+    return this.configPatchService.applyConfigPatch(patchId, input);
   }
 
   async rollbackConfigHistory(

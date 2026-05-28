@@ -6,9 +6,18 @@ import type {
   Room,
   WorldSummary,
 } from "@realm/api-contract";
+import type { TuiPendingIdentitySwitch } from "./identity-switch-confirmation.ts";
+import type { TuiWorldStateSnapshot } from "./state-inspection.ts";
+
+export type TuiConfigPatchApplyResult = {
+  patchId: string;
+  historyId: string;
+  changedPaths: string[];
+};
 
 export type TuiState = {
   projectName: string;
+  worlds: WorldSummary[];
   world?: WorldSummary;
   rooms: Room[];
   room?: Room;
@@ -16,9 +25,43 @@ export type TuiState = {
   messages: Message[];
   events: RealmEvent[];
   identity: string;
+  worldState?: TuiWorldStateSnapshot;
+  stateInspection?: string;
+  memoryInspection?: string;
   settingsSummary?: string;
   assistantProposal?: ConfigPatchProposal;
+  lastPatchApply?: TuiConfigPatchApplyResult;
 };
+
+export type TuiSettingsItem = {
+  currentValue: string;
+  description: string;
+  id: string;
+  label: string;
+};
+
+export type TuiPendingRoleSend = {
+  content: string;
+  identity: string;
+  identityLabel: string;
+  roomId: string;
+  roomName: string;
+  worldId: string;
+  worldName: string;
+};
+
+export type TuiGodRoleAction = "kill" | "mute" | "revive";
+
+export type TuiPendingGodAction = {
+  action: TuiGodRoleAction;
+  reason: string;
+  targetRoleId: string;
+  targetRoleLabel: string;
+  worldId: string;
+  worldName: string;
+};
+
+export type { TuiPendingIdentitySwitch };
 
 export type TuiCommand =
   | { kind: "quit" }
@@ -29,4 +72,12 @@ export type TuiCommand =
   | { kind: "room"; roomId: string }
   | { kind: "identity"; identity: string }
   | { kind: "send"; content: string }
+  | { kind: "drafts" }
+  | { kind: "retryDraft"; draftId: string }
+  | { kind: "state"; path?: string }
+  | { kind: "memory"; roleId: string }
+  | { kind: "patchPreview" }
+  | { kind: "patchApply"; confirmation?: string }
+  | { kind: "patchReject" }
+  | { kind: "god"; action: TuiGodRoleAction; targetRoleId: string; reason: string }
   | { kind: "assistant"; goal: string };

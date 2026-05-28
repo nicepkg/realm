@@ -3,6 +3,14 @@
   "version": "0.1.0",
   "type": "module",
   "private": true,
+  "dependencies": {
+    "@realm/app-service": "workspace:*",
+    "@realm/config": "workspace:*",
+    "@realm/runtime": "workspace:*",
+    "@realm/server": "workspace:*",
+    "@realm/storage": "workspace:*",
+    "@realm/tui": "workspace:*"
+  },
   "exports": {
     ".": "./src/index.ts"
   }

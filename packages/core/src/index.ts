@@ -295,6 +295,8 @@ export const configPatchProposalSchema = z.object({
   title: z.string().min(1),
   summary: z.string().min(1),
   riskLevel: z.enum(["low", "medium", "high"]),
+  riskReasons: z.array(z.string().min(1)).default([]),
+  typedConfirmation: z.string().min(1).nullable().default(null),
   requiredCapabilities: z.array(capabilitySchema),
   operations: z.array(configPatchFileOperationSchema).min(1),
   createdAt: isoDateSchema,

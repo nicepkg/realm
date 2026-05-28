@@ -1,6 +1,7 @@
 import { StrictMode } from "react";
 import { createRoot } from "react-dom/client";
-import { App } from "./ui/app.tsx";
+import { AppShell } from "./app/app-shell.tsx";
+import { I18nProvider } from "./i18n/index.tsx";
 import "./styles.css";
 
 const root = document.getElementById("root");
@@ -11,6 +12,8 @@ if (!root) {
 
 createRoot(root).render(
   <StrictMode>
-    <App />
+    <I18nProvider>
+      <AppShell />
+    </I18nProvider>
   </StrictMode>,
 );

@@ -62,7 +62,7 @@ const defaultModelProviders: ModelProviderConfig[] = [
     id: "google",
     displayName: "Google",
     apiKeyEnv: "GEMINI_API_KEY",
-    defaultModel: "gemini-3.5-pro",
+    defaultModel: "gemini-2.5-flash",
     enabled: true,
   },
 ];
