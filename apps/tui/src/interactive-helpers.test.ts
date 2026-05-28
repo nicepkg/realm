@@ -1,5 +1,5 @@
 import { describe, expect, test } from "bun:test";
-import { renderStatusLine, renderWhereami } from "./interactive-helpers.ts";
+import { renderStatusLine, renderWhereami, slashToCommand } from "./interactive-helpers.ts";
 import type { TuiState } from "./types.ts";
 
 describe("TUI interactive helpers", () => {
@@ -66,5 +66,13 @@ describe("TUI interactive helpers", () => {
     expect(rendered).toContain("Trust tier: run-roles");
     expect(rendered).toContain("Capabilities: 4 allowed, 3 denied, 1 high-risk allowed");
     expect(rendered).toContain("1 policy warning");
+  });
+
+  test("slash commands map to explicit commander actions", () => {
+    expect(slashToCommand("/world cultivation")).toBe(":world cultivation");
+    expect(slashToCommand('/create-room group "QA Room" leijun')).toBe(
+      ':create-room group "QA Room" leijun',
+    );
+    expect(slashToCommand("/run-role leijun verify")).toBe(":run-role leijun verify");
   });
 });

@@ -47,11 +47,11 @@ export function MessengerSidebar({
 
   return (
     <aside
-      className="hidden min-h-0 flex-col border-[var(--realm-line)] border-r bg-[#f7f7f7] md:flex"
+      className="hidden min-h-0 flex-col border-[#d9d9dc] border-r bg-[#f7f7f7] md:flex"
       data-testid="conversation-sidebar"
     >
-      <header className="shrink-0 border-[var(--realm-line)] border-b bg-[#f7f7f7]">
-        <div className="relative flex h-16 items-center justify-center px-4">
+      <header className="shrink-0 border-[#d9d9dc] border-b bg-[#f2f2f2]">
+        <div className="relative flex h-[86px] items-center justify-center px-4">
           <h2 className="flex max-w-[72%] items-center justify-center gap-2 truncate text-center font-semibold text-[18px] leading-6 text-[#111]">
             {isChatSection ? (
               <span
@@ -63,15 +63,15 @@ export function MessengerSidebar({
           </h2>
           <button
             aria-label={t("common.create")}
-            className="absolute right-5 flex size-8 shrink-0 items-center justify-center rounded-full text-[#111] transition hover:bg-white"
+            className="absolute right-5 flex size-9 shrink-0 items-center justify-center rounded-full text-[#111] transition hover:bg-white"
             data-testid="sidebar-create-room"
             onClick={onCreateRoom}
             type="button"
           >
-            <PlusCircle className="size-[19px]" />
+            <PlusCircle className="size-[21px]" />
           </button>
         </div>
-        <div className="flex h-[52px] items-center justify-between border-[var(--realm-line)] border-t bg-[#f2f2f2] px-6 text-[14px] text-[var(--realm-fg-muted)]">
+        <div className="flex h-[70px] items-center justify-between border-[#d9d9dc] border-t bg-[#f2f2f2] px-6 text-[15px] text-[var(--realm-fg-muted)]">
           <span className="flex min-w-0 items-center gap-6">
             <Menu className="size-[19px] shrink-0 text-[#8a8a8f]" />
             <span className="truncate">
@@ -101,7 +101,7 @@ function ConversationRows({ app }: { app: RealmAppController }) {
       {app.conversations.map((conversation) => (
         <button
           className={cn(
-            "relative grid h-[88px] w-full grid-cols-[52px_minmax(0,1fr)_58px] items-center gap-3.5 px-5 text-left transition after:absolute after:right-0 after:bottom-0 after:left-[88px] after:h-px after:bg-[var(--realm-line)] hover:bg-[#f3f3f4]",
+            "relative grid h-[76px] w-full grid-cols-[48px_minmax(0,1fr)_58px] items-center gap-3 px-5 text-left transition after:absolute after:right-0 after:bottom-0 after:left-[88px] after:h-px after:bg-[#e5e5e7] hover:bg-[#f3f3f4]",
             conversation.id === app.selectedRoom?.id && "bg-[#dedede] hover:bg-[#dedede]",
           )}
           data-chat-row="conversation"
@@ -115,14 +115,14 @@ function ConversationRows({ app }: { app: RealmAppController }) {
             <RoomAvatar room={conversation.room} roles={app.state.roles} size="lg" />
           </span>
           <span className="min-w-0 self-center">
-            <span className="block truncate font-medium text-[17px] leading-[23px] text-[#1f1f21]">
+            <span className="block truncate font-medium text-[16px] leading-[22px] text-[#1f1f21]">
               {conversation.title}
             </span>
-            <span className="mt-[5px] block truncate text-[15px] leading-5 text-[#9b9ba1]">
+            <span className="mt-[3px] block truncate text-[14px] leading-[19px] text-[#a3a3a8]">
               {conversation.lastMessage || conversation.subtitle}
             </span>
           </span>
-          <span className="flex h-full flex-col items-end justify-start pt-[17px]">
+          <span className="flex h-full flex-col items-end justify-start pt-[15px]">
             <span className="whitespace-nowrap text-right text-[13px] text-[#b5b5ba] tabular-nums">
               {conversation.timestamp}
             </span>
@@ -146,7 +146,7 @@ function RoleRows({
       {app.state.roles.map((role) => (
         <button
           className={cn(
-            "relative grid h-[88px] w-full grid-cols-[52px_minmax(0,1fr)_auto] items-center gap-3.5 px-5 text-left transition after:absolute after:right-0 after:bottom-0 after:left-[88px] after:h-px after:bg-[var(--realm-line)] hover:bg-[#f3f3f4]",
+            "relative grid h-[76px] w-full grid-cols-[48px_minmax(0,1fr)_auto] items-center gap-3 px-5 text-left transition after:absolute after:right-0 after:bottom-0 after:left-[88px] after:h-px after:bg-[#e5e5e7] hover:bg-[#f3f3f4]",
             role.id === app.runRoleId && "bg-[#dedede] hover:bg-[#dedede]",
           )}
           data-testid={`role-row-${role.id}`}
@@ -161,10 +161,10 @@ function RoleRows({
             size="lg"
           />
           <span className="min-w-0">
-            <span className="block truncate font-medium text-[17px] text-[#1f1f21]">
+            <span className="block truncate font-medium text-[16px] text-[#1f1f21]">
               {role.displayName}
             </span>
-            <span className="mt-1 block truncate text-[15px] text-[#9b9ba1]">
+            <span className="mt-[3px] block truncate text-[14px] text-[#a3a3a8]">
               {role.model ?? t("common.default")} · {role.id}
             </span>
           </span>
@@ -183,7 +183,7 @@ function WorldRows({ app }: { app: RealmAppController }) {
       {app.state.worlds.map((world) => (
         <button
           className={cn(
-            "relative grid h-[88px] w-full grid-cols-[52px_minmax(0,1fr)_auto] items-center gap-3.5 px-5 text-left transition after:absolute after:right-0 after:bottom-0 after:left-[88px] after:h-px after:bg-[var(--realm-line)] hover:bg-[#f3f3f4]",
+            "relative grid h-[76px] w-full grid-cols-[48px_minmax(0,1fr)_auto] items-center gap-3 px-5 text-left transition after:absolute after:right-0 after:bottom-0 after:left-[88px] after:h-px after:bg-[#e5e5e7] hover:bg-[#f3f3f4]",
             world.id === app.selectedWorld?.id && "bg-[#dedede] hover:bg-[#dedede]",
           )}
           data-selected={world.id === app.selectedWorld?.id ? "true" : "false"}
@@ -205,10 +205,10 @@ function WorldRows({ app }: { app: RealmAppController }) {
             size="lg"
           />
           <span className="min-w-0">
-            <span className="block truncate font-medium text-[17px] text-[#1f1f21]">
+            <span className="block truncate font-medium text-[16px] text-[#1f1f21]">
               {world.name}
             </span>
-            <span className="mt-1 block truncate text-[15px] text-[#9b9ba1]">
+            <span className="mt-[3px] block truncate text-[14px] text-[#a3a3a8]">
               {world.mode.type} · {world.roleIds.length} {t("common.roles")}
             </span>
           </span>
@@ -230,7 +230,7 @@ function SidebarTabBar({
 }) {
   const { t } = useI18n();
   return (
-    <nav className="grid h-[66px] shrink-0 grid-cols-4 border-[var(--realm-line)] border-t bg-[#f7f7f7]">
+    <nav className="grid h-[88px] shrink-0 grid-cols-4 border-[#d9d9dc] border-t bg-[#f7f7f7]">
       <SidebarTab
         active={app.activeSection === "chats"}
         icon={<MessageCircle className="size-5" />}
@@ -283,7 +283,7 @@ function SidebarTab({
     <button
       aria-label={label}
       className={cn(
-        "flex min-w-0 flex-col items-center justify-center gap-0.5 text-[11px] text-[var(--realm-fg-muted)] transition hover:bg-white",
+        "flex min-w-0 flex-col items-center justify-center gap-1 text-[12px] text-[var(--realm-fg-muted)] transition hover:bg-white",
         active && "text-[var(--realm-green-text)]",
       )}
       data-testid={testId}

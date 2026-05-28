@@ -38,8 +38,17 @@ export function renderWhereami(state: TuiState, locale: TuiLocale = "en"): strin
 export function slashToCommand(input: string): string {
   const [head, ...tail] = input.slice(1).split(/\s+/);
   const rest = tail.join(" ").trim();
+  if (head === "world" && rest) {
+    return `:world ${rest}`;
+  }
   if (head === "room" && rest) {
     return `:room ${rest}`;
+  }
+  if (head === "create-room" && rest) {
+    return `:create-room ${rest}`;
+  }
+  if (head === "run-role" && rest) {
+    return `:run-role ${rest}`;
   }
   if ((head === "as" || head === "id") && rest) {
     return `:id ${rest}`;

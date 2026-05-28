@@ -60,7 +60,18 @@ export type TuiPendingRoleSend = {
   worldName: string;
 };
 
+export type TuiPendingRoleTurn = {
+  prompt?: string;
+  roleId: string;
+  roleLabel: string;
+  roomId: string;
+  roomName: string;
+  worldId: string;
+  worldName: string;
+};
+
 export type TuiGodRoleAction = "kill" | "mute" | "revive";
+export type TuiRoomType = "group" | "dm" | "god-channel" | "system";
 
 export type TuiPendingGodAction = {
   action: TuiGodRoleAction;
@@ -79,9 +90,12 @@ export type TuiCommand =
   | { kind: "refresh" }
   | { kind: "settings" }
   | { kind: "model"; provider: string; model: string }
+  | { kind: "world"; worldId: string }
   | { kind: "room"; roomId: string }
   | { kind: "identity"; identity: string }
   | { kind: "send"; content: string }
+  | { kind: "createRoom"; roomType: TuiRoomType; name: string; memberIds: string[] }
+  | { kind: "runRole"; roleId: string; prompt?: string }
   | { kind: "drafts" }
   | { kind: "draftDetails"; draftId: string }
   | { kind: "editDraft"; draftId: string; content: string }

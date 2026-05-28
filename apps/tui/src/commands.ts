@@ -1,7 +1,8 @@
 import { type TuiLocale, t } from "./i18n.ts";
-import type { TuiCommand, TuiGodRoleAction } from "./types.ts";
+import type { TuiCommand, TuiGodRoleAction, TuiRoomType } from "./types.ts";
 
 const GOD_ROLE_ACTIONS = new Set<TuiGodRoleAction>(["kill", "mute", "revive"]);
+const ROOM_TYPES = new Set<TuiRoomType>(["group", "dm", "god-channel", "system"]);
 
 export function parseTuiCommand(input: string): TuiCommand {
   const trimmed = input.trim();
@@ -20,10 +21,13 @@ export function parseTuiCommand(input: string): TuiCommand {
   if (trimmed === ":settings" || trimmed === "settings") {
     return { kind: "settings" };
   }
-  const [head, ...tail] = trimmed.split(/\s+/);
+  const [head = "", ...tail] = splitCommandWords(trimmed);
   const rest = tail.join(" ").trim();
   if ((head === ":model" || head === "model") && tail.length >= 2) {
     return { kind: "model", provider: tail[0] ?? "", model: tail.slice(1).join(" ") };
+  }
+  if ((head === ":world" || head === "world") && rest) {
+    return { kind: "world", worldId: rest };
   }
   if ((head === ":room" || head === "room") && rest) {
     return { kind: "room", roomId: rest };
@@ -48,6 +52,24 @@ export function parseTuiCommand(input: string): TuiCommand {
   }
   if ((head === ":retry-draft" || head === "retry-draft") && rest) {
     return { kind: "retryDraft", draftId: rest };
+  }
+  if ((head === ":create-room" || head === "create-room") && tail.length >= 2) {
+    const roomType = tail[0] as TuiRoomType | undefined;
+    if (roomType && ROOM_TYPES.has(roomType)) {
+      return {
+        kind: "createRoom",
+        memberIds: tail.slice(2),
+        name: tail[1] ?? "",
+        roomType,
+      };
+    }
+  }
+  if ((head === ":run-role" || head === "run-role") && rest) {
+    return {
+      kind: "runRole",
+      ...(tail.slice(1).join(" ").trim() ? { prompt: tail.slice(1).join(" ").trim() } : {}),
+      roleId: tail[0] ?? rest,
+    };
   }
   if (head === ":state" || head === "state") {
     return { kind: "state", ...(rest ? { path: rest } : {}) };
@@ -80,6 +102,12 @@ export function parseTuiCommand(input: string): TuiCommand {
   return { kind: "send", content: trimmed.replace(/^:/, "") };
 }
 
+function splitCommandWords(input: string): string[] {
+  return [...input.matchAll(/"([^"]*)"|'([^']*)'|(\S+)/g)].map(
+    (match) => match[1] ?? match[2] ?? match[3] ?? "",
+  );
+}
+
 export function renderTuiHelp(locale: TuiLocale = "en"): string {
   if (locale === "zh-CN") {
     return [
@@ -94,7 +122,12 @@ export function renderTuiHelp(locale: TuiLocale = "en"): string {
       "命令：",
       "  :send <message>        用当前身份发送",
       "  :id <identity>         切换发送身份",
+      "  :world <world-id>       切换世界",
       "  :room <room-id>        切换房间",
+      "  :create-room <type> <name> [members...]",
+      "                         创建群聊/私聊/系统房间",
+      "  :run-role <role-id> [prompt]",
+      "                         运行角色回合",
       "  :assistant <goal>      生成配置补丁提案",
       "  :patch show|apply|reject",
       "                         预览、应用或拒绝当前配置补丁",
@@ -126,7 +159,12 @@ export function renderTuiHelp(locale: TuiLocale = "en"): string {
     "Commands:",
     "  :send <message>        send as current identity",
     "  :id <identity>         switch speaking identity",
+    "  :world <world-id>       switch world",
     "  :room <room-id>        switch room",
+    "  :create-room <type> <name> [members...]",
+    "                         create a group, DM, or system room",
+    "  :run-role <role-id> [prompt]",
+    "                         run a role turn",
     "  :assistant <goal>      propose a config patch",
     "  :patch show|apply|reject",
     "                         preview, apply, or reject the current config patch",

@@ -74,8 +74,16 @@ function ProductPreview({ page }: { page: DocsPage }) {
         <header>
           <span>‹</span>
           <strong>{preview.chatTitle}</strong>
-          <span>•••</span>
+          <button className="more-dot" type="button" aria-label="More actions">
+            •••
+          </button>
         </header>
+        <div className="topbar-menu" role="menu" aria-label="Top bar actions">
+          <button type="button">{preview.command}</button>
+          <button type="button">{preview.inspector}</button>
+          <button type="button">{preview.god}</button>
+          <button type="button">{preview.settings}</button>
+        </div>
         <div className="message-time">{preview.time}</div>
         <div className="message-row outgoing">
           <div className="message-bubble">{preview.outgoing}</div>
@@ -297,9 +305,18 @@ function FinalCta({ page }: { page: DocsPage }) {
 }
 
 function GroupAvatar() {
-  const rows = [["🎧"], ["🚀", "🧪"]];
+  const rows = [
+    ["🎧", "🚀", "🧪"],
+    ["🧭", "💬", "⚡"],
+    ["🎯", "🌿", "📌"],
+  ];
   return (
-    <span className="group-avatar" data-wechat-grid="member-collage" aria-hidden="true">
+    <span
+      className="group-avatar"
+      data-wechat-grid="member-collage"
+      data-wechat-grid-shape="nine-grid"
+      aria-hidden="true"
+    >
       {rows.map((row) => (
         <span className="group-avatar-row" key={row.join("-")}>
           {row.map((cell) => (

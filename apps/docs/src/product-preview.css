@@ -75,22 +75,20 @@
 }
 
 .group-avatar {
-  align-items: center;
   background: #d9dcdf;
   border-radius: 4px;
-  display: flex;
-  flex-direction: column;
+  display: grid;
   gap: 1.5px;
+  grid-template-columns: repeat(3, 1fr);
+  grid-template-rows: repeat(3, 1fr);
   height: 44px;
-  justify-content: center;
   padding: 3px;
+  place-items: center;
   width: 44px;
 }
 
 .group-avatar-row {
-  display: flex;
-  gap: 1.5px;
-  justify-content: center;
+  display: contents;
 }
 
 .group-avatar i {
@@ -98,16 +96,16 @@
   background: var(--realm-primary);
   border-radius: 3px;
   display: inline-flex;
-  font-size: 12px;
+  font-size: 8px;
   font-style: normal;
-  height: 18px;
+  height: 11px;
   justify-content: center;
-  width: 18px;
+  width: 11px;
 }
 
 .chat-preview {
   background: #ededee;
-  min-height: 350px;
+  min-height: 430px;
   position: relative;
 }
 
@@ -115,10 +113,55 @@
   background: #f7f7f8;
 }
 
+.more-dot {
+  background: transparent;
+  border: 0;
+  color: #1d1d1f;
+  font: inherit;
+  padding: 0;
+}
+
+.topbar-menu {
+  background: #fff;
+  border: 1px solid var(--line);
+  border-radius: 6px;
+  box-shadow: 0 12px 32px rgba(0, 0, 0, 0.16);
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  margin: -4px 12px 0 auto;
+  min-width: 220px;
+  overflow: hidden;
+  width: 220px;
+}
+
+.topbar-menu button {
+  background: #fff;
+  border: 0;
+  border-bottom: 1px solid var(--line);
+  border-right: 1px solid var(--line);
+  color: #1d1d1f;
+  font-size: 11px;
+  min-height: 30px;
+  padding: 6px 8px;
+  text-align: left;
+}
+
+.topbar-menu button:nth-child(2n) {
+  border-right: 0;
+}
+
+.topbar-menu button:nth-last-child(-n + 2) {
+  border-bottom: 0;
+}
+
+.topbar-menu button:last-child {
+  border-right: 0;
+}
+
 .message-time {
   color: var(--text-faint);
   font-size: 12px;
-  padding: 20px 0 8px;
+  padding: 14px 0 8px;
   text-align: center;
 }
 
@@ -126,7 +169,7 @@
   align-items: flex-start;
   display: flex;
   gap: 10px;
-  margin: 18px 18px;
+  margin: 14px 18px;
 }
 
 .message-row.outgoing {
@@ -242,7 +285,7 @@
   }
 
   .chat-preview {
-    min-height: 470px;
+    min-height: 480px;
   }
 
   .message-bubble {

@@ -39,7 +39,7 @@ export function ConfigRollbackNotice({
 
   return (
     <aside
-      className="fixed top-[128px] right-0 z-40 hidden rounded-l-full bg-white/95 py-1.5 pr-4 pl-3 shadow-[0_8px_22px_rgba(0,0,0,0.12)] md:block"
+      className="fixed top-[128px] right-4 z-40 hidden rounded-full bg-white/95 py-1.5 pr-3 pl-3 shadow-[0_8px_22px_rgba(0,0,0,0.12)] md:block"
       data-testid="config-rollback-notice"
     >
       <div className="flex min-w-0 items-center gap-2">

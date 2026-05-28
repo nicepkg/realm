@@ -47,6 +47,9 @@ export function DesktopMessenger({
               app={app}
               onBackToWorlds={onBackToWorlds}
               onOpenCommandPalette={onOpenCommandPalette}
+              onOpenGod={onOpenGod}
+              onOpenSettings={onOpenSettings}
+              onOpenWorldInspector={onOpenWorldInspector}
             />
             <MessengerTimeline app={app} />
             <MessengerComposer
@@ -76,7 +79,7 @@ function WechatStatusBar({ app }: { app: RealmAppController }) {
 
   return (
     <header
-      className="grid h-11 shrink-0 grid-cols-[1fr_auto] border-[var(--realm-line)] border-b bg-[#f2f2f2] px-0 font-semibold text-[#111] text-[15px] md:grid-cols-[minmax(360px,33.333vw)_minmax(0,1fr)]"
+      className="grid h-10 shrink-0 grid-cols-[1fr_auto] border-[var(--realm-line)] border-b bg-[#f2f2f2] px-0 font-semibold text-[#111] text-[15px] md:grid-cols-[minmax(360px,33.333vw)_minmax(0,1fr)]"
       data-testid="wechat-status-bar"
     >
       <div className="flex min-w-0 items-center gap-3 px-5 md:px-6">

@@ -42,7 +42,7 @@ describe("messenger avatar primitives", () => {
     expect(rows.every((row) => row.length <= 3)).toBe(true);
   });
 
-  test("keeps sparse group avatars as real WeChat member collages", () => {
+  test("fills sparse group avatars into a WeChat nine-grid visual", () => {
     const visualMembers = groupVisualMembers("All Hands", [
       { id: "owner", label: "Boss" },
       { id: "leijun", label: "Lei Jun" },
@@ -51,17 +51,18 @@ describe("messenger avatar primitives", () => {
     ]);
     const rows = groupRowsForMembers(visualMembers);
 
-    expect(visualMembers).toHaveLength(4);
-    expect(rows.map((row) => row.length)).toEqual([2, 2]);
+    expect(visualMembers).toHaveLength(9);
+    expect(rows.map((row) => row.length)).toEqual([3, 3, 3]);
     expect(visualMembers.slice(0, 4).map((member) => member.id)).toEqual([
       "owner",
       "leijun",
       "qa",
       "mentor",
     ]);
+    expect(visualMembers.slice(4).every((member) => member.id.startsWith("All Hands:"))).toBe(true);
   });
 
-  test("centers small groups and caps large groups to a nine-grid", () => {
+  test("renders group avatars as rows capped to a nine-grid", () => {
     const members = Array.from({ length: 9 }, (_, index) => ({
       id: `member-${index + 1}`,
       label: `Member ${index + 1}`,
@@ -69,10 +70,10 @@ describe("messenger avatar primitives", () => {
 
     expect(groupRowsForMembers(members.slice(0, 1)).map((row) => row.length)).toEqual([1]);
     expect(groupRowsForMembers(members.slice(0, 2)).map((row) => row.length)).toEqual([2]);
-    expect(groupRowsForMembers(members.slice(0, 3)).map((row) => row.length)).toEqual([1, 2]);
-    expect(groupRowsForMembers(members.slice(0, 4)).map((row) => row.length)).toEqual([2, 2]);
-    expect(groupRowsForMembers(members.slice(0, 5)).map((row) => row.length)).toEqual([2, 3]);
-    expect(groupRowsForMembers(members.slice(0, 8)).map((row) => row.length)).toEqual([2, 3, 3]);
+    expect(groupRowsForMembers(members.slice(0, 3)).map((row) => row.length)).toEqual([3]);
+    expect(groupRowsForMembers(members.slice(0, 4)).map((row) => row.length)).toEqual([3, 1]);
+    expect(groupRowsForMembers(members.slice(0, 5)).map((row) => row.length)).toEqual([3, 2]);
+    expect(groupRowsForMembers(members.slice(0, 8)).map((row) => row.length)).toEqual([3, 3, 2]);
     expect(groupRowsForMembers(members).map((row) => row.length)).toEqual([3, 3, 3]);
   });
 });

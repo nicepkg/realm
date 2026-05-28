@@ -21,6 +21,21 @@ describe("TUI commands", () => {
       provider: "openai",
       model: "gpt-5.2",
     });
+    expect(parseTuiCommand(":world cultivation")).toEqual({
+      kind: "world",
+      worldId: "cultivation",
+    });
+    expect(parseTuiCommand(':create-room group "Smoke Room" leijun yun')).toEqual({
+      kind: "createRoom",
+      memberIds: ["leijun", "yun"],
+      name: "Smoke Room",
+      roomType: "group",
+    });
+    expect(parseTuiCommand(":run-role leijun check the state")).toEqual({
+      kind: "runRole",
+      prompt: "check the state",
+      roleId: "leijun",
+    });
     expect(parseTuiCommand(":drafts")).toEqual({ kind: "drafts" });
     expect(parseTuiCommand(":draft draft-1")).toEqual({
       kind: "draftDetails",
@@ -56,6 +71,9 @@ describe("TUI commands", () => {
   test("renders discoverable commands", () => {
     expect(renderTuiHelp()).toContain(":send <message>");
     expect(renderTuiHelp()).toContain(":assistant <goal>");
+    expect(renderTuiHelp()).toContain(":world <world-id>");
+    expect(renderTuiHelp()).toContain(":create-room <type> <name> [members...]");
+    expect(renderTuiHelp()).toContain(":run-role <role-id> [prompt]");
     expect(renderTuiHelp()).toContain(":god <action> <role> <reason>");
     expect(renderTuiHelp()).toContain(":model <provider> <id>");
     expect(renderTuiHelp()).toContain(":retry-draft <id>");

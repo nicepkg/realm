@@ -46,6 +46,7 @@ export type TuiDictionary = {
   noConversations: string;
   noMessages: string;
   noRoom: string;
+  unknownRole: (roleId: string) => string;
   noValue: string;
   noWorld: string;
   pickerGodDescription: string;
@@ -80,23 +81,29 @@ export type TuiDictionary = {
   running: string;
   roleSendCancelled: string;
   roleSwitched: (identity: string) => string;
+  roleTurnCancelled: string;
   room: string;
+  roomCreated: (room: string) => string;
   roomSwitched: (room: string) => string;
+  roleTurnCompleted: (role: string, messageId: string) => string;
   settings: string;
   settingsOpened: string;
   settingsSummaryLoaded: string;
   shortcuts: string;
   slashAsDescription: string;
   slashAssistantDescription: string;
+  slashCreateRoomDescription: string;
   slashDraftsDescription: string;
   slashMemoryDescription: string;
   slashPatchDescription: string;
   slashRefreshDescription: string;
   slashRoomDescription: string;
+  slashRunRoleDescription: string;
   slashSendDescription: string;
   slashSettingsDescription: string;
   slashStateDescription: string;
   slashWhereamiDescription: string;
+  slashWorldDescription: string;
   shortcutKeys: string;
   shortcutSlash: (identity: string, roomId: string) => string;
   speaking: string;
@@ -184,6 +191,7 @@ export const tuiDictionaries: Record<TuiLocale, TuiDictionary> = {
     noConversations: "no conversations",
     noMessages: "no messages yet",
     noRoom: "No room",
+    unknownRole: (roleId) => `Unknown role: ${roleId}.`,
     noValue: "none",
     noWorld: "No world",
     pickerGodDescription: "privileged adjudication overlay",
@@ -220,23 +228,30 @@ export const tuiDictionaries: Record<TuiLocale, TuiDictionary> = {
     running: "Running",
     roleSendCancelled: "Role send cancelled.",
     roleSwitched: (identity) => `Speaking as ${identity}.`,
+    roleTurnCancelled: "Role turn cancelled.",
     room: "Room",
+    roomCreated: (room) => `Room created: ${room}.`,
     roomSwitched: (room) => `Room switched to ${room}.`,
+    roleTurnCompleted: (role, messageId) =>
+      `Role turn completed for ${role}. Message: ${messageId}.`,
     settings: "Settings",
     settingsOpened: "Settings opened.",
     settingsSummaryLoaded: "Settings summary loaded.",
     shortcuts: "Shortcuts",
     slashAsDescription: "switch composer identity with confirmation",
     slashAssistantDescription: "ask assistant for a config patch",
+    slashCreateRoomDescription: "create a group, DM, or system room",
     slashDraftsDescription: "list failed send drafts",
     slashMemoryDescription: "inspect role memory",
     slashPatchDescription: "preview/apply/reject config patch",
     slashRefreshDescription: "reload project state",
     slashRoomDescription: "switch room",
+    slashRunRoleDescription: "run a role turn in the current room",
     slashSendDescription: "send a message",
     slashSettingsDescription: "open settings summary",
     slashStateDescription: "inspect world state",
     slashWhereamiDescription: "show current context",
+    slashWorldDescription: "switch world and reset identity to Boss",
     shortcutKeys: "Enter send · Ctrl+K commands · Ctrl+L rooms · Ctrl+R roles · Esc close · ? help",
     shortcutSlash: (identity, roomId) =>
       `Slash: /send <message> · /as ${identity} · /room ${roomId} · /state · /patch`,
@@ -321,6 +336,7 @@ export const tuiDictionaries: Record<TuiLocale, TuiDictionary> = {
     noConversations: "暂无会话",
     noMessages: "还没有消息",
     noRoom: "无房间",
+    unknownRole: (roleId) => `未知角色：${roleId}。`,
     noValue: "无",
     noWorld: "无世界",
     pickerGodDescription: "高权限世界裁判面板",
@@ -357,23 +373,29 @@ export const tuiDictionaries: Record<TuiLocale, TuiDictionary> = {
     running: "运行状态",
     roleSendCancelled: "角色发送已取消。",
     roleSwitched: (identity) => `已切换发送身份：${identity}。`,
+    roleTurnCancelled: "角色回合已取消。",
     room: "房间",
+    roomCreated: (room) => `已创建房间：${room}。`,
     roomSwitched: (room) => `已切换房间：${room}。`,
+    roleTurnCompleted: (role, messageId) => `已运行 ${role} 回合。消息：${messageId}。`,
     settings: "设置",
     settingsOpened: "设置已打开。",
     settingsSummaryLoaded: "设置摘要已加载。",
     shortcuts: "快捷键",
     slashAsDescription: "确认后切换输入身份",
     slashAssistantDescription: "让助手生成配置补丁",
+    slashCreateRoomDescription: "创建群聊、私聊或系统房间",
     slashDraftsDescription: "查看失败草稿",
     slashMemoryDescription: "查看角色记忆",
     slashPatchDescription: "预览/应用/拒绝配置补丁",
     slashRefreshDescription: "重新加载项目状态",
     slashRoomDescription: "切换房间",
+    slashRunRoleDescription: "在当前房间运行角色回合",
     slashSendDescription: "发送消息",
     slashSettingsDescription: "打开设置摘要",
     slashStateDescription: "查看世界状态",
     slashWhereamiDescription: "显示当前上下文",
+    slashWorldDescription: "切换世界并重置为 Boss 身份",
     shortcutKeys: "Enter 发送 · Ctrl+K 命令 · Ctrl+L 房间 · Ctrl+R 角色 · Esc 关闭 · ? 帮助",
     shortcutSlash: (identity, roomId) =>
       `斜杠命令：/send <message> · /as ${identity} · /room ${roomId} · /state · /patch`,

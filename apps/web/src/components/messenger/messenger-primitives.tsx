@@ -8,30 +8,21 @@ type AvatarPerson = {
 };
 
 const AVATAR_SIZE_CLASS: Record<AvatarSize, string> = {
-  lg: "size-[52px] rounded-[4px] text-[25px]",
+  lg: "size-12 rounded-[4px] text-[23px]",
   md: "size-[44px] rounded-[4px] text-[21px]",
   sm: "size-[36px] rounded-[4px] text-[16px]",
 };
 
 const GROUP_SIZE_CLASS: Record<AvatarSize, string> = {
-  lg: "size-[52px] rounded-[4px] p-[2px]",
+  lg: "size-12 rounded-[4px] p-[2px]",
   md: "size-[44px] rounded-[4px] p-[2px]",
   sm: "size-[36px] rounded-[4px] p-[2px]",
 };
 
-const GROUP_CELL_SIZE_CLASS: Record<AvatarSize, Record<"dense" | "sparse", string>> = {
-  lg: {
-    dense: "size-[15px] text-[9px]",
-    sparse: "size-[23px] text-[12px]",
-  },
-  md: {
-    dense: "size-[12px] text-[8px]",
-    sparse: "size-[19px] text-[10px]",
-  },
-  sm: {
-    dense: "size-[9px] text-[7px]",
-    sparse: "size-[15px] text-[8px]",
-  },
+const GROUP_CELL_SIZE_CLASS: Record<AvatarSize, string> = {
+  lg: "size-[13px] text-[8px]",
+  md: "size-[11px] text-[7px]",
+  sm: "size-[9px] text-[6px]",
 };
 
 const AVATAR_GLYPHS = [
@@ -206,27 +197,27 @@ export function GroupAvatarGrid({
   members: AvatarPerson[];
   size?: AvatarSize;
 }) {
-  const rows = groupRowsForMembers(groupVisualMembers(label, members));
-  const density = rows.some((row) => row.length >= 3) ? "dense" : "sparse";
+  const cells = groupVisualMembers(label, members);
 
   return (
     <span
       aria-label={label}
       className={cn(
-        "flex shrink-0 flex-col items-center justify-center gap-[1.5px] overflow-hidden bg-[#d8dadd]",
+        "grid shrink-0 grid-cols-3 grid-rows-3 place-items-center gap-[1.5px] overflow-hidden bg-[#d8dadd]",
         GROUP_SIZE_CLASS[size],
         className,
       )}
       data-testid="group-avatar-grid"
       data-wechat-avatar="group"
       data-wechat-grid="member-collage"
+      data-wechat-grid-shape="nine-grid"
       role="img"
       title={label}
     >
-      {rows.map((row) => (
+      {groupRowsForMembers(cells).map((row) => (
         <span
           aria-hidden="true"
-          className="flex justify-center gap-[1.5px]"
+          className="contents"
           data-testid="group-avatar-row"
           key={`${label}:row:${row.map((member) => member.id || member.label).join("|")}`}
         >
@@ -237,7 +228,7 @@ export function GroupAvatarGrid({
               <span
                 className={cn(
                   "relative flex items-center justify-center overflow-hidden rounded-[1.5px] font-semibold leading-none shadow-[inset_0_0_0_1px_rgba(0,0,0,0.04)]",
-                  GROUP_CELL_SIZE_CLASS[size][density],
+                  GROUP_CELL_SIZE_CLASS[size],
                 )}
                 data-avatar-seed={seed}
                 data-avatar-glyph={profile.glyph}
@@ -324,36 +315,22 @@ export function avatarProfileForIdentity(seed: string) {
 }
 
 export function groupVisualMembers(label: string, members: AvatarPerson[]): AvatarPerson[] {
-  return members.length > 0 ? members.slice(0, 9) : [{ id: label, label }];
+  const sourceMembers = members.length > 0 ? members.slice(0, 9) : [{ id: label, label }];
+  if (sourceMembers.length >= 9) {
+    return sourceMembers.slice(0, 9);
+  }
+  return [
+    ...sourceMembers,
+    ...Array.from({ length: 9 - sourceMembers.length }, (_, index) => ({
+      id: `${label}:fallback:${index + 1}`,
+      label: `${label} ${index + 1}`,
+    })),
+  ];
 }
 
 export function groupRowsForMembers(members: AvatarPerson[]): AvatarPerson[][] {
-  const count = members.length;
-  if (count <= 1) {
-    return [members];
-  }
-  if (count === 2) {
-    return [members];
-  }
-  if (count === 3) {
-    return [members.slice(0, 1), members.slice(1, 3)];
-  }
-  if (count === 4) {
-    return [members.slice(0, 2), members.slice(2, 4)];
-  }
-  if (count === 5) {
-    return [members.slice(0, 2), members.slice(2, 5)];
-  }
-  if (count === 6) {
-    return [members.slice(0, 3), members.slice(3, 6)];
-  }
-  if (count === 7) {
-    return [members.slice(0, 1), members.slice(1, 4), members.slice(4, 7)];
-  }
-  if (count === 8) {
-    return [members.slice(0, 2), members.slice(2, 5), members.slice(5, 8)];
-  }
-  return [members.slice(0, 3), members.slice(3, 6), members.slice(6, 9)];
+  const cells = members.slice(0, 9);
+  return [cells.slice(0, 3), cells.slice(3, 6), cells.slice(6, 9)].filter((row) => row.length > 0);
 }
 
 function hashText(value: string): number {

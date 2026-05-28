@@ -2,6 +2,10 @@ import type { RealmHttpClient } from "@realm/client-sdk";
 import type { SavedTuiDraft } from "./draft-store.ts";
 import { saveFailedDraft } from "./draft-store.ts";
 import type { TuiDictionary } from "./i18n.ts";
+import {
+  createRoleSendConfirmation,
+  formatRoleSendConfirmation,
+} from "./role-send-confirmation.ts";
 import type { TuiPendingRoleSend, TuiState } from "./types.ts";
 
 export async function sendFromState(
@@ -37,6 +41,27 @@ export async function sendWithDraftOnFailure(
     }
     throw error;
   }
+}
+
+export async function sendOneShotWithDraft(
+  client: RealmHttpClient,
+  state: TuiState,
+  content: string,
+  draftsDir: string | undefined,
+  dictionary: TuiDictionary,
+): Promise<void> {
+  const pending = createRoleSendConfirmation(state, content);
+  if (pending) {
+    const draft = await savePendingRoleDraft(
+      pending,
+      dictionary.draftRoleTakeoverCannotConfirm,
+      draftsDir,
+    );
+    throw new Error(
+      `${formatRoleSendConfirmation(pending)} ${dictionary.draftSaved(draft.record.id, draft.filePath)}`,
+    );
+  }
+  await sendWithDraftOnFailure(client, state, content, draftsDir, dictionary);
 }
 
 export async function confirmPendingRoleSend(

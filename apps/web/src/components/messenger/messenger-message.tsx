@@ -31,13 +31,13 @@ export function MessengerMessage({
   return (
     <>
       {showTimestamp ? (
-        <time className="mx-auto my-2.5 px-2 py-0.5 text-[12px] text-[#9a9a9d] tabular-nums">
+        <time className="mx-auto my-3 px-2 py-0.5 text-[13px] text-[#9a9a9d] tabular-nums">
           {formatTimelineTimestamp(message.createdAt, locale)}
         </time>
       ) : null}
       <article
         className={cn(
-          "group/message flex w-full items-start gap-2.5 px-0.5",
+          "group/message flex w-full items-start gap-3 px-0.5",
           isOwner ? "justify-end" : "justify-start",
         )}
         data-author={from}
@@ -71,8 +71,8 @@ export function MessengerMessage({
           <div className="relative inline-block max-w-full">
             <div
               className={cn(
-                "relative inline-block min-h-[40px] max-w-full rounded-[4px] px-[14px] py-[8px] text-left text-[16px] leading-[1.45] shadow-[0_1px_0_rgba(0,0,0,0.02)]",
-                "before:absolute before:top-[13px] before:h-0 before:w-0 before:border-y-[5px] before:border-y-transparent",
+                "relative inline-block min-h-[42px] max-w-full rounded-[4px] px-[15px] py-[9px] text-left text-[16px] leading-[1.45] shadow-[0_1px_0_rgba(0,0,0,0.02)]",
+                "before:absolute before:top-[14px] before:h-0 before:w-0 before:border-y-[5px] before:border-y-transparent",
                 isOwner
                   ? "bg-[var(--realm-bubble-outgoing)] text-[#10210a] before:right-[-7px] before:border-l-[7px] before:border-l-[var(--realm-bubble-outgoing)]"
                   : "bg-white text-[var(--realm-fg)] before:left-[-7px] before:border-r-[7px] before:border-r-white",

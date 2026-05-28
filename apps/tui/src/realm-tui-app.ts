@@ -1,14 +1,9 @@
 import { stdout as output } from "node:process";
 import { RealmHttpClient } from "@realm/client-sdk";
 import { parseTuiCommand, renderTuiHelp } from "./commands.ts";
-import { renderConfigPatchPreview, typedConfirmationMatches } from "./config-patch-preview.ts";
-import {
-  editDraft,
-  renderDraftCopyDetails,
-  renderDraftDetails,
-  renderDraftList,
-  retryDraft,
-} from "./draft-actions.ts";
+import { applyPendingConfigPatchFromTui } from "./config-patch-actions.ts";
+import { renderConfigPatchPreview } from "./config-patch-preview.ts";
+import { handleDraftCommand } from "./draft-command-handler.ts";
 import {
   createGodActionConfirmation,
   decideGodActionConfirmation,
@@ -20,6 +15,7 @@ import {
   decideIdentitySwitchConfirmation,
   formatIdentitySwitchConfirmation,
 } from "./identity-switch-confirmation.ts";
+import { inspectRoleMemoryForTui, inspectWorldStateForTui } from "./inspection-actions.ts";
 import { renderWhereami, slashToCommand } from "./interactive-helpers.ts";
 import { runInteractiveSession } from "./interactive-session.ts";
 import { loadTuiState } from "./realm-tui-state-loader.ts";
@@ -28,11 +24,21 @@ import {
   decideRoleSendConfirmation,
   formatRoleSendConfirmation,
 } from "./role-send-confirmation.ts";
-import { renderMemoryInspection, renderWorldStateInspection } from "./state-inspection.ts";
+import {
+  createRoleTurnConfirmation,
+  decideRoleTurnConfirmation,
+  formatRoleTurnConfirmation,
+} from "./role-turn-confirmation.ts";
+import { applyGodActionFromTui, createRuntimeRoom, runRoleTurnFromTui } from "./runtime-actions.ts";
+import {
+  loadSettingsItems as loadSettingsItemsForTui,
+  loadSettingsSummary as loadSettingsSummaryForTui,
+  updateDefaultModelSettings,
+} from "./settings-actions.ts";
 import type { TuiOptions } from "./tui-options.ts";
 import {
   confirmPendingRoleSend,
-  savePendingRoleDraft,
+  sendOneShotWithDraft,
   sendWithDraftOnFailure,
 } from "./tui-send-actions.ts";
 import type {
@@ -40,6 +46,7 @@ import type {
   TuiPendingGodAction,
   TuiPendingIdentitySwitch,
   TuiPendingRoleSend,
+  TuiPendingRoleTurn,
   TuiSettingsItem,
   TuiState,
 } from "./types.ts";
@@ -50,6 +57,7 @@ export class RealmTuiApp {
   private pendingGodAction: TuiPendingGodAction | undefined;
   private pendingIdentitySwitch: TuiPendingIdentitySwitch | undefined;
   private pendingRoleSend: TuiPendingRoleSend | undefined;
+  private pendingRoleTurn: TuiPendingRoleTurn | undefined;
   private selectedRoomId: string | undefined;
   private selectedWorldId: string | undefined;
   private state: TuiState | undefined;
@@ -69,38 +77,13 @@ export class RealmTuiApp {
   }
 
   async send(content: string): Promise<void> {
-    const state = await this.load();
-    const pending = createRoleSendConfirmation(state, content);
-    if (pending) {
-      const draft = await savePendingRoleDraft(
-        pending,
-        this.dictionary.draftRoleTakeoverCannotConfirm,
-        this.options.draftsDir,
-      );
-      throw new Error(
-        `${formatRoleSendConfirmation(pending)} ${this.dictionary.draftSaved(
-          draft.record.id,
-          draft.filePath,
-        )}`,
-      );
-    }
-    await sendWithDraftOnFailure(
+    await sendOneShotWithDraft(
       this.client,
-      state,
+      await this.load(),
       content,
       this.options.draftsDir,
       this.dictionary,
     );
-    await this.reload();
-  }
-
-  private async confirmPendingGodAction(pending: TuiPendingGodAction): Promise<void> {
-    await this.client.applyGodRoleAction(pending.worldId, {
-      action: pending.action,
-      idempotencyKey: `tui-god-${pending.action}-${pending.targetRoleId}-${Date.now()}`,
-      reason: pending.reason,
-      targetRoleId: pending.targetRoleId,
-    });
     await this.reload();
   }
 
@@ -110,23 +93,16 @@ export class RealmTuiApp {
   }
 
   async loadSettingsSummary(): Promise<void> {
-    const settings = await this.client.getSettings();
     this.state = {
       ...(await this.load()),
-      settingsSummary: `${settings.user.defaultProvider}/${settings.user.defaultModel}`,
+      settingsSummary: await loadSettingsSummaryForTui(this.client),
     };
   }
 
   async updateDefaultModel(provider: string, model: string): Promise<void> {
-    const settings = await this.client.getSettings();
-    const updated = await this.client.updateUserSettings({
-      ...settings.user,
-      defaultProvider: provider,
-      defaultModel: model,
-    });
     this.state = {
       ...(await this.load()),
-      settingsSummary: `${updated.user.defaultProvider}/${updated.user.defaultModel}`,
+      settingsSummary: await updateDefaultModelSettings(this.client, provider, model),
     };
   }
 
@@ -194,7 +170,8 @@ export class RealmTuiApp {
       if (decision === "confirm") {
         const pending = this.pendingGodAction;
         this.pendingGodAction = undefined;
-        await this.confirmPendingGodAction(pending);
+        await applyGodActionFromTui(this.client, pending);
+        await this.reload();
         return this.dictionary.godActionApplied(pending.action, pending.targetRoleLabel);
       }
       if (decision === "cancel") {
@@ -202,6 +179,24 @@ export class RealmTuiApp {
         return this.dictionary.godActionCancelled;
       }
       return formatGodActionConfirmation(this.pendingGodAction);
+    }
+    if (this.pendingRoleTurn) {
+      const decision = decideRoleTurnConfirmation(trimmed);
+      if (decision === "confirm") {
+        const pending = this.pendingRoleTurn;
+        this.pendingRoleTurn = undefined;
+        const notice = await this.runRoleTurn({
+          kind: "runRole",
+          ...(pending.prompt ? { prompt: pending.prompt } : {}),
+          roleId: pending.roleId,
+        });
+        return notice;
+      }
+      if (decision === "cancel") {
+        this.pendingRoleTurn = undefined;
+        return this.dictionary.roleTurnCancelled;
+      }
+      return formatRoleTurnConfirmation(this.pendingRoleTurn);
     }
     if (trimmed === "/help") {
       showHelp();
@@ -239,31 +234,35 @@ export class RealmTuiApp {
         return errorMessage(error);
       }
     }
-    if (command.kind === "drafts") {
-      return renderDraftList(this.options.draftsDir, this.dictionary);
-    }
-    if (command.kind === "draftDetails") {
-      return renderDraftDetails(command.draftId, this.options.draftsDir, this.dictionary);
-    }
-    if (command.kind === "editDraft") {
-      return editDraft(command.draftId, command.content, this.options.draftsDir, this.dictionary);
-    }
-    if (command.kind === "copyDraft") {
-      return renderDraftCopyDetails(command.draftId, this.options.draftsDir, this.dictionary);
-    }
-    if (command.kind === "retryDraft") {
+    const draftNotice = await (async () => {
       try {
-        const notice = await retryDraft(
+        return await handleDraftCommand(
+          command,
           this.client,
-          command.draftId,
           this.options.draftsDir,
           this.dictionary,
         );
-        await this.reload();
-        return notice;
       } catch (error) {
         return errorMessage(error);
       }
+    })();
+    if (draftNotice) {
+      if (command.kind === "retryDraft") {
+        await this.reload();
+      }
+      return draftNotice;
+    }
+    if (command.kind === "world") {
+      return this.switchWorld(command.worldId);
+    }
+    if (command.kind === "room") {
+      return this.switchRoom(command.roomId);
+    }
+    if (command.kind === "createRoom") {
+      return this.createRoom(command);
+    }
+    if (command.kind === "runRole") {
+      return this.requestRoleTurn(command);
     }
     if (command.kind === "identity") {
       return this.requestIdentitySwitch(command.identity);
@@ -291,6 +290,7 @@ export class RealmTuiApp {
       }
       this.pendingGodAction = pending;
       this.pendingRoleSend = undefined;
+      this.pendingRoleTurn = undefined;
       return formatGodActionConfirmation(pending);
     }
     await this.handle(command);
@@ -309,17 +309,10 @@ export class RealmTuiApp {
       return this.dictionary.godConsoleOpened;
     }
     if (value.startsWith("world:")) {
-      this.selectedWorldId = value.slice("world:".length);
-      this.selectedRoomId = undefined;
-      this.state = undefined;
-      const state = await this.load();
-      return this.dictionary.worldSwitched(state.world?.name ?? this.selectedWorldId);
+      return this.switchWorld(value.slice("world:".length));
     }
     if (value.startsWith("room:")) {
-      const roomId = value.slice("room:".length);
-      this.selectedRoomId = roomId;
-      this.state = await this.load(roomId);
-      return this.dictionary.roomSwitched(this.state.room?.name ?? roomId);
+      return this.switchRoom(value.slice("room:".length));
     }
     if (value.startsWith("role:")) {
       const identity = value.slice("role:".length);
@@ -329,28 +322,7 @@ export class RealmTuiApp {
   }
 
   async loadSettingsItems(): Promise<TuiSettingsItem[]> {
-    const settings = await this.client.getSettings();
-    const state = await this.load();
-    return [
-      {
-        currentValue: settings.user.defaultProvider,
-        description: this.dictionary.providerDescription,
-        id: "provider",
-        label: this.dictionary.provider,
-      },
-      {
-        currentValue: settings.user.defaultModel,
-        description: this.dictionary.modelDescription,
-        id: "model",
-        label: this.dictionary.model,
-      },
-      {
-        currentValue: state.identity,
-        description: this.dictionary.identityDescription,
-        id: "identity",
-        label: this.dictionary.identity,
-      },
-    ];
+    return loadSettingsItemsForTui(this.client, await this.load(), this.dictionary);
   }
 
   async load(roomOverride?: string): Promise<TuiState> {
@@ -384,21 +356,55 @@ export class RealmTuiApp {
       await this.updateDefaultModel(command.provider, command.model);
       return;
     }
-    if (command.kind === "room") {
-      this.state = await this.load(command.roomId);
-      return;
-    }
     if (command.kind === "assistant") {
       await this.proposeAssistant(command.goal);
       return;
     }
-    if (command.kind === "god") {
-      const pending = createGodActionConfirmation(await this.load(), command);
-      if (!pending) {
-        throw new Error(this.dictionary.cannotApplyGodWithoutWorld);
-      }
-      this.pendingGodAction = pending;
+  }
+
+  private async switchWorld(worldId: string): Promise<string> {
+    this.selectedWorldId = worldId;
+    this.selectedRoomId = undefined;
+    this.pendingGodAction = undefined;
+    this.pendingIdentitySwitch = undefined;
+    this.pendingRoleSend = undefined;
+    this.pendingRoleTurn = undefined;
+    this.state = undefined;
+    const state = await this.load();
+    this.state = { ...state, identity: "owner" };
+    return this.dictionary.worldSwitched(state.world?.name ?? worldId);
+  }
+
+  private async switchRoom(roomId: string): Promise<string> {
+    this.selectedRoomId = roomId;
+    this.state = await this.load(roomId);
+    return this.dictionary.roomSwitched(this.state.room?.name ?? roomId);
+  }
+
+  private async createRoom(command: Extract<TuiCommand, { kind: "createRoom" }>): Promise<string> {
+    const result = await createRuntimeRoom(
+      this.client,
+      await this.load(),
+      command,
+      this.dictionary,
+    );
+    if (result.roomId) {
+      this.selectedRoomId = result.roomId;
+      this.state = undefined;
+      await this.load(result.roomId);
     }
+    return result.notice;
+  }
+
+  private async runRoleTurn(command: Extract<TuiCommand, { kind: "runRole" }>): Promise<string> {
+    const notice = await runRoleTurnFromTui(
+      this.client,
+      await this.load(),
+      command,
+      this.dictionary,
+    );
+    await this.reload();
+    return notice;
   }
 
   private async reload(): Promise<void> {
@@ -420,54 +426,64 @@ export class RealmTuiApp {
     this.pendingIdentitySwitch = pending;
     this.pendingRoleSend = undefined;
     this.pendingGodAction = undefined;
+    this.pendingRoleTurn = undefined;
     return formatIdentitySwitchConfirmation(pending);
   }
 
-  private async inspectWorldState(path?: string): Promise<string> {
+  private async requestRoleTurn(
+    command: Extract<TuiCommand, { kind: "runRole" }>,
+  ): Promise<string> {
     const state = await this.load();
-    const inspection = renderWorldStateInspection(state.worldState, this.locale, path);
-    this.state = { ...state, stateInspection: inspection };
-    return this.dictionary.worldStateLoaded;
+    const pending = createRoleTurnConfirmation(state, command.roleId, command.prompt);
+    if (!pending) {
+      return state.roles.some((role) => role.id === command.roleId)
+        ? this.dictionary.cannotSendWithoutContext
+        : this.dictionary.unknownRole(command.roleId);
+    }
+    this.pendingRoleTurn = pending;
+    this.pendingRoleSend = undefined;
+    this.pendingGodAction = undefined;
+    return formatRoleTurnConfirmation(pending);
+  }
+
+  private async inspectWorldState(path?: string): Promise<string> {
+    const inspected = inspectWorldStateForTui(
+      await this.load(),
+      this.locale,
+      path,
+      this.dictionary,
+    );
+    this.state = inspected.state;
+    return inspected.notice;
   }
 
   private async inspectRoleMemory(roleId: string): Promise<string> {
-    const state = await this.load();
-    try {
-      if (!state.world) {
-        return this.dictionary.noWorld;
-      }
-      const memory = await this.client.readRoleMemory(state.world.id, roleId);
-      this.state = {
-        ...state,
-        memoryInspection: renderMemoryInspection(roleId, memory.content, this.locale),
-      };
-      return this.dictionary.memoryLoaded(roleId);
-    } catch (error) {
-      this.state = {
-        ...state,
-        memoryInspection: `${this.dictionary.memory}: ${roleId}\n${errorMessage(error)}`,
-      };
-      return errorMessage(error);
-    }
+    const inspected = await inspectRoleMemoryForTui(
+      this.client,
+      await this.load(),
+      roleId,
+      this.locale,
+      this.dictionary,
+    );
+    this.state = inspected.state;
+    return inspected.notice;
   }
 
   private async applyPendingConfigPatch(confirmation?: string): Promise<string> {
     const state = await this.load();
-    const patch = state.assistantProposal;
-    if (!patch) {
-      return this.dictionary.noConfigPatch;
-    }
-    if (!typedConfirmationMatches(patch, confirmation)) {
-      return this.dictionary.patchApplyNeedsConfirmation(patch.typedConfirmation ?? "");
-    }
-    const result = await this.client.applyConfigPatch(
-      patch.id,
-      confirmation ? { confirmation } : {},
+    const applied = await applyPendingConfigPatchFromTui(
+      this.client,
+      state.assistantProposal,
+      confirmation,
+      this.dictionary,
     );
+    if (!applied.result) {
+      return applied.notice;
+    }
     this.state = undefined;
     const reloaded = await this.load();
-    this.state = { ...reloaded, assistantProposal: undefined, lastPatchApply: result };
-    return this.dictionary.patchApplied(result.historyId);
+    this.state = { ...reloaded, assistantProposal: undefined, lastPatchApply: applied.result };
+    return applied.notice;
   }
 }
 

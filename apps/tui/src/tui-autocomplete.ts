@@ -7,6 +7,19 @@ export function buildTuiSlashCommands(state: TuiState, locale: TuiLocale = "en")
   return [
     { name: "send", description: dict.slashSendDescription, argumentHint: "<message>" },
     {
+      name: "world",
+      description: dict.slashWorldDescription,
+      argumentHint: "<world-id>",
+      getArgumentCompletions: (prefix) =>
+        state.worlds
+          .filter((world) => world.id.includes(prefix) || world.name.includes(prefix))
+          .map((world) => ({
+            value: world.id,
+            label: world.name,
+            description: world.mode.type,
+          })),
+    },
+    {
       name: "as",
       description: dict.slashAsDescription,
       argumentHint: "<identity>",
@@ -20,6 +33,17 @@ export function buildTuiSlashCommands(state: TuiState, locale: TuiLocale = "en")
         state.rooms
           .filter((room) => room.id.includes(prefix) || room.name.includes(prefix))
           .map((room) => ({ value: room.id, label: room.name, description: room.type })),
+    },
+    {
+      name: "create-room",
+      description: dict.slashCreateRoomDescription,
+      argumentHint: 'group "Room Name" [member-id...]',
+    },
+    {
+      name: "run-role",
+      description: dict.slashRunRoleDescription,
+      argumentHint: "<role-id> [prompt]",
+      getArgumentCompletions: (prefix) => roleCompletions(state, prefix),
     },
     { name: "state", description: dict.slashStateDescription, argumentHint: "[json-pointer]" },
     {

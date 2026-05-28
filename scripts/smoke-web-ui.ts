@@ -1,8 +1,14 @@
 import { constants } from "node:fs";
 import { access, cp, mkdir, mkdtemp, rm } from "node:fs/promises";
-import net from "node:net";
 import os from "node:os";
 import path from "node:path";
+import {
+  createAgentBrowserSmoke,
+  drain,
+  ensureCommand,
+  findAvailablePort,
+  readFlag,
+} from "./smoke-browser-utils.ts";
 
 const repoRoot = process.cwd();
 const cliPath = path.join(repoRoot, "apps", "cli", "src", "index.ts");
@@ -10,6 +16,20 @@ const examplePath = path.join(repoRoot, "examples", "cultivation-sim");
 const cdpPort = readFlag("--cdp-port") ?? process.env.REALM_CDP_PORT;
 const session = `realm-web-smoke-${Date.now()}`;
 const outputDir = path.join(os.tmpdir(), session);
+const {
+  assertPage,
+  browser,
+  browserEval,
+  clickInPage,
+  closeComposerTray,
+  ensureComposerTrayOpen,
+  pageText,
+  screenshot,
+  tryBrowser,
+  waitForHttp,
+  waitForPageExpression,
+  waitForSelector,
+} = createAgentBrowserSmoke(session, outputDir);
 
 await ensureCommand("agent-browser");
 await access(cliPath, constants.R_OK);
@@ -49,6 +69,11 @@ try {
 
   await clickInPage("[data-testid='create-world-primary']");
   await waitForSelector("[data-testid='create-world-name']");
+  await clickInPage("[data-testid='create-world-preset-workflow']");
+  await assertPage(
+    "Create World templates hydrate the world name and default room",
+    "(() => { const name = document.querySelector(\"[data-testid='create-world-name']\"); const room = document.querySelector(\"[data-testid='create-world-room']\"); return name?.value === 'Software Team' && room?.value === 'Standup'; })()",
+  );
   await browser("fill", "[data-testid='create-world-name']", "Smoke Realm");
   await clickInPage("[data-testid='create-world-preview']");
   await waitForSelector("[data-testid='patch-preview']");
@@ -60,8 +85,8 @@ try {
     "document.documentElement.textContent.includes('Smoke Realm')",
   );
   await assertPage(
-    "First viewport exposes project, world, room, identity, and running state",
-    "(() => { const title = document.querySelector(\"[data-testid='chat-title']\")?.textContent ?? ''; const project = document.querySelector(\"[data-testid='context-project']\")?.textContent?.trim() ?? ''; const world = document.querySelector(\"[data-testid='context-world']\")?.textContent?.trim() ?? ''; const identity = document.querySelector(\"[data-testid='context-identity']\")?.textContent?.trim() ?? ''; const running = document.querySelector(\"[data-testid='context-running-state']\")?.textContent ?? ''; return title.includes('All Hands') && project.length > 0 && world.length > 0 && identity.includes('Boss') && running.includes('Ready'); })()",
+    "WeChat header exposes the room while preserving project, world, identity, and running state for assistive tech",
+    "(() => { const title = document.querySelector(\"[data-testid='chat-title']\")?.textContent ?? ''; const project = document.querySelector(\"[data-testid='context-project']\")?.textContent?.trim() ?? ''; const world = document.querySelector(\"[data-testid='context-world']\")?.textContent?.trim() ?? ''; const identity = document.querySelector(\"[data-testid='context-identity']\")?.textContent?.trim() ?? ''; const running = document.querySelector(\"[data-testid='context-running-state']\")?.textContent ?? ''; return title.includes('Standup') && project.length > 0 && world.length > 0 && identity.includes('Boss') && running.includes('Ready'); })()",
   );
   await assertPage(
     "Empty WeChat transcript stays blank instead of showing dashboard copy",
@@ -69,20 +94,54 @@ try {
   );
   await assertPage(
     "Group conversations render real member avatars inside a WeChat-style grid",
-    "(() => { const grid = document.querySelector(\"[data-testid='group-avatar-grid']\"); const count = grid?.querySelectorAll(\"[data-testid='group-avatar-cell']\").length ?? 0; return count > 0 && count <= 9; })()",
+    "(() => { const grid = document.querySelector(\"[data-testid='group-avatar-grid']\"); const count = grid?.querySelectorAll(\"[data-testid='group-avatar-cell']\").length ?? 0; return count === 9; })()",
   );
   await assertPage(
     "Conversation list rows keep WeChat avatar/title/preview/time structure",
     "(() => { const rows = Array.from(document.querySelectorAll(\"[data-chat-row='conversation'][data-wechat-row='conversation']\")); return rows.length > 0 && rows.every((row) => row.querySelector(\"[data-wechat-avatar='person'], [data-wechat-avatar='group']\") !== null && Boolean(row.textContent?.trim())); })()",
   );
   await assertPage(
-    "Group avatars are laid out as a real WeChat member collage",
-    "(() => { const grid = document.querySelector(\"[data-testid='group-avatar-grid']\"); if (!grid) return false; const cells = grid.querySelectorAll(\"[data-testid='group-avatar-cell']\").length; const rows = grid.querySelectorAll(\"[data-testid='group-avatar-row']\").length; return grid.getAttribute('data-wechat-grid') === 'member-collage' && rows > 0 && rows <= 3 && cells > 0 && cells <= 9; })()",
+    "Group avatars are laid out as a WeChat nine-grid member collage",
+    "(() => { const grid = document.querySelector(\"[data-testid='group-avatar-grid']\"); if (!grid) return false; const cells = grid.querySelectorAll(\"[data-testid='group-avatar-cell']\").length; const rows = grid.querySelectorAll(\"[data-testid='group-avatar-row']\").length; return grid.getAttribute('data-wechat-grid') === 'member-collage' && grid.getAttribute('data-wechat-grid-shape') === 'nine-grid' && rows === 3 && cells === 9; })()",
   );
   await assertPage(
-    "Default messenger keeps Realm admin chrome off the WeChat chat surface",
-    "document.querySelector(\"[data-testid='role-turn-strip']\") === null && document.querySelector(\"[data-testid='impersonation-banner']\") === null",
+    "WeChat top bar keeps room chrome and assistive project/world/identity/running metadata",
+    "(() => { return document.querySelector(\"[data-testid='topbar-more']\") !== null && document.querySelector(\"[data-testid='context-project']\")?.textContent?.trim().length > 0 && document.querySelector(\"[data-testid='context-world']\")?.textContent?.trim().length > 0 && document.querySelector(\"[data-testid='context-identity']\")?.textContent?.includes('Boss') === true && document.querySelector(\"[data-testid='context-running-state']\")?.textContent?.includes('Ready') === true; })()",
   );
+  await clickInPage("[data-testid='topbar-more']");
+  await assertPage(
+    "WeChat More menu exposes Settings, God Controller, inspector, and command actions",
+    "document.querySelector(\"[data-testid='topbar-settings']\") !== null && document.querySelector(\"[data-testid='topbar-god']\") !== null && document.querySelector(\"[data-testid='topbar-world-inspector']\") !== null && document.querySelector(\"[data-testid='topbar-command']\") !== null",
+  );
+  await clickInPage("[data-testid='topbar-settings']");
+  await assertPage("WeChat top bar opens Settings", "document.body.innerText.includes('Settings')");
+  await browser("press", "Escape");
+  await browser("wait", "200");
+  await clickInPage("[data-testid='topbar-more']");
+  await clickInPage("[data-testid='topbar-world-inspector']");
+  await waitForSelector("[data-testid='world-inspector-sheet']");
+  await assertPage(
+    "WeChat top bar opens World Inspector",
+    "document.querySelector(\"[data-testid='world-state-json']\") !== null",
+  );
+  await browser("press", "Escape");
+  await browser("wait", "200");
+  await clickInPage("[data-testid='topbar-more']");
+  await clickInPage("[data-testid='topbar-god']");
+  await assertPage(
+    "WeChat top bar opens God Controller",
+    "document.body.innerText.includes('God Controller')",
+  );
+  await browser("press", "Escape");
+  await browser("wait", "200");
+  await clickInPage("[data-testid='topbar-more']");
+  await clickInPage("[data-testid='topbar-command']");
+  await assertPage(
+    "WeChat top bar opens command palette",
+    "document.body.innerText.includes('Realm Command Palette')",
+  );
+  await browser("press", "Escape");
+  await browser("wait", "200");
   await ensureComposerTrayOpen();
   await assertPage(
     "WeChat plus tray exposes role run, Settings, God Controller, and World Inspector controls",
@@ -331,164 +390,4 @@ try {
   await drain(server.stdout);
   await drain(server.stderr);
   await rm(projectDir, { force: true, recursive: true });
-}
-
-async function browser(...args: string[]): Promise<string> {
-  return run(["agent-browser", ...args, "--session", session]);
-}
-
-async function tryBrowser(...args: string[]): Promise<string | undefined> {
-  try {
-    return await browser(...args);
-  } catch {
-    return undefined;
-  }
-}
-
-async function screenshot(fileName: string): Promise<void> {
-  await browser("screenshot", path.join(outputDir, fileName));
-}
-
-async function browserEval(source: string): Promise<string> {
-  const encoded = Buffer.from(source, "utf8").toString("base64");
-  return browser("eval", "-b", encoded);
-}
-
-async function clickInPage(selector: string): Promise<void> {
-  const source = `
-    (() => {
-      const element = document.querySelector(${JSON.stringify(selector)});
-      if (!element) throw new Error("Missing selector: ${selector}");
-      if (element instanceof HTMLElement) element.focus();
-      const pointerOptions = { bubbles: true, button: 0, cancelable: true, pointerType: "mouse" };
-      const mouseOptions = { bubbles: true, button: 0, cancelable: true };
-      element.dispatchEvent(new PointerEvent("pointerdown", pointerOptions));
-      element.dispatchEvent(new MouseEvent("mousedown", mouseOptions));
-      element.dispatchEvent(new MouseEvent("mouseup", mouseOptions));
-      element.dispatchEvent(new PointerEvent("pointerup", pointerOptions));
-      element.click();
-      return true;
-    })();
-  `;
-  await browserEval(source);
-}
-
-async function pageText(selector: string): Promise<string> {
-  const result = await browserEval(
-    `document.querySelector(${JSON.stringify(selector)})?.textContent?.trim() ?? ""`,
-  );
-  return result.trim().replace(/^"|"$/g, "");
-}
-
-async function ensureComposerTrayOpen(): Promise<void> {
-  const result = await browserEval(
-    "document.querySelector(\"[data-testid='composer-action-tray']\") !== null",
-  );
-  if (result.includes("true")) {
-    return;
-  }
-  await clickInPage("[data-testid='composer-more']");
-  await waitForPageExpression(
-    "document.querySelector(\"[data-testid='composer-action-tray']\") !== null",
-  );
-}
-
-async function closeComposerTray(): Promise<void> {
-  const result = await browserEval(
-    "document.querySelector(\"[data-testid='composer-action-tray']\") !== null",
-  );
-  if (!result.includes("true")) {
-    return;
-  }
-  await clickInPage("[data-testid='composer-more']");
-  await browser("wait", "200");
-}
-
-async function assertPage(label: string, expression: string): Promise<void> {
-  const result = await browserEval(expression);
-  if (!result.includes("true")) {
-    throw new Error(`${label} failed. Result: ${result}`);
-  }
-}
-
-async function waitForSelector(selector: string): Promise<void> {
-  await waitForPageExpression(`document.querySelector(${JSON.stringify(selector)}) !== null`);
-}
-
-async function waitForPageExpression(expression: string): Promise<void> {
-  const startedAt = Date.now();
-  while (Date.now() - startedAt < 10_000) {
-    try {
-      const result = await browserEval(expression);
-      if (result.includes("true")) {
-        return;
-      }
-    } catch {
-      // Browser automation can be briefly unavailable during reload.
-    }
-    await new Promise((resolve) => setTimeout(resolve, 250));
-  }
-  throw new Error(`Timed out waiting for page expression: ${expression}`);
-}
-
-async function waitForHttp(target: string): Promise<void> {
-  const startedAt = Date.now();
-  while (Date.now() - startedAt < 15_000) {
-    try {
-      const response = await fetch(target);
-      if (response.ok) {
-        return;
-      }
-    } catch {
-      await new Promise((resolve) => setTimeout(resolve, 250));
-    }
-  }
-  throw new Error(`Timed out waiting for ${target}`);
-}
-
-async function run(command: string[]): Promise<string> {
-  const proc = Bun.spawn(command, { stderr: "pipe", stdout: "pipe" });
-  const [stdout, stderr, exitCode] = await Promise.all([
-    new Response(proc.stdout).text(),
-    new Response(proc.stderr).text(),
-    proc.exited,
-  ]);
-  if (exitCode !== 0) {
-    throw new Error(`${command.join(" ")} failed:\n${stderr || stdout}`);
-  }
-  return stdout.trim();
-}
-
-async function ensureCommand(command: string): Promise<void> {
-  const checker = os.platform() === "win32" ? "where" : "which";
-  await run([checker, command]);
-}
-
-async function findAvailablePort(start: number): Promise<number> {
-  for (let port = start; port < start + 100; port += 1) {
-    if (await canListen(port)) {
-      return port;
-    }
-  }
-  throw new Error(`No available port near ${start}`);
-}
-
-async function canListen(port: number): Promise<boolean> {
-  return new Promise((resolve) => {
-    const server = net.createServer();
-    server.once("error", () => resolve(false));
-    server.once("listening", () => {
-      server.close(() => resolve(true));
-    });
-    server.listen(port, "127.0.0.1");
-  });
-}
-
-async function drain(stream: ReadableStream<Uint8Array> | null): Promise<void> {
-  if (stream) await new Response(stream).text().catch(() => undefined);
-}
-
-function readFlag(flag: string): string | undefined {
-  const index = process.argv.indexOf(flag);
-  return index === -1 ? undefined : process.argv[index + 1];
 }

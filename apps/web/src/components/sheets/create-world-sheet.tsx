@@ -28,6 +28,32 @@ import type {
 } from "./config-action-types.ts";
 import { PatchPreview } from "./patch-preview.tsx";
 
+const WORLD_PRESETS = [
+  {
+    id: "cultivation",
+    mode: "game",
+    name: "Cultivation Demo",
+    roomName: "All Hands",
+  },
+  {
+    id: "workflow",
+    mode: "workflow",
+    name: "Software Team",
+    roomName: "Standup",
+  },
+  {
+    id: "blank",
+    mode: "sandbox",
+    name: "Blank Sandbox",
+    roomName: "All Hands",
+  },
+] as const satisfies Array<{
+  id: "blank" | "cultivation" | "workflow";
+  mode: WorldMode;
+  name: string;
+  roomName: string;
+}>;
+
 export function CreateWorldSheet({
   app,
   onOpenChange,
@@ -96,6 +122,13 @@ export function CreateWorldSheet({
     setRoomName("All Hands");
   }
 
+  function applyPreset(preset: (typeof WORLD_PRESETS)[number]) {
+    setName(preset.name);
+    setMode(preset.mode);
+    setRoomName(preset.roomName);
+    setProposal(undefined);
+  }
+
   return (
     <Sheet
       open={open}
@@ -107,6 +140,29 @@ export function CreateWorldSheet({
           <SheetDescription>{t("sheet.createWorld.description")}</SheetDescription>
         </SheetHeader>
         <form className="space-y-4 px-4" onSubmit={preview}>
+          <section className="space-y-2" aria-label={t("sheet.createWorld.presets")}>
+            <div className="text-[12px] text-[var(--realm-fg-muted)]">
+              {t("sheet.createWorld.presets")}
+            </div>
+            <div className="grid gap-2 sm:grid-cols-3">
+              {WORLD_PRESETS.map((preset) => (
+                <button
+                  className="min-h-[82px] rounded-lg bg-[#f7f7f8] p-3 text-left transition hover:bg-[#eeeeef] focus-visible:outline-[#07c160]"
+                  data-testid={`create-world-preset-${preset.id}`}
+                  key={preset.id}
+                  onClick={() => applyPreset(preset)}
+                  type="button"
+                >
+                  <span className="block font-medium text-[13px] text-[var(--realm-fg)]">
+                    {t(`sheet.createWorld.preset.${preset.id}.title`)}
+                  </span>
+                  <span className="mt-1 block text-[11px] text-[var(--realm-fg-muted)] leading-4">
+                    {t(`sheet.createWorld.preset.${preset.id}.body`)}
+                  </span>
+                </button>
+              ))}
+            </div>
+          </section>
           <label className="block space-y-1" htmlFor="create-world-name">
             <span className="text-[12px] text-[var(--realm-fg-muted)]">
               {t("sheet.createWorld.name")}
@@ -147,6 +203,7 @@ export function CreateWorldSheet({
               <Input
                 id="create-world-room"
                 autoComplete="off"
+                data-testid="create-world-room"
                 onChange={(event) => {
                   setRoomName(event.currentTarget.value);
                   setProposal(undefined);

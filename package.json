@@ -21,8 +21,11 @@
     "dist/pi-extension",
     "dist/web",
     "CHANGELOG.md",
+    "CODE_OF_CONDUCT.md",
+    "CONTRIBUTING.md",
     "README.md",
     "README.zh-CN.md",
+    "SECURITY.md",
     "LICENSE"
   ],
   "scripts": {

@@ -127,7 +127,7 @@ Project trust decisions are machine-local and stored in `~/.realm/trust.json`.
 
 - Local-first, project-scoped runtime.
 - Package-first Pi integration.
-- Web UI first, TUI-ready architecture.
+- Web UI first, with a Pi TUI commander for world, room, role, patch, and God flows.
 - Familiar messenger surface before advanced controls.
 - DRY, SOLID, high cohesion, low coupling.
 - Cross-platform and cross-machine by default.
@@ -164,6 +164,12 @@ Deploy with Wrangler:
 ```bash
 bun run deploy:docs
 ```
+
+## Community And Security
+
+- Contributing guide: [CONTRIBUTING.md](CONTRIBUTING.md)
+- Security policy: [SECURITY.md](SECURITY.md)
+- Code of conduct: [CODE_OF_CONDUCT.md](CODE_OF_CONDUCT.md)
 
 ## Release
 

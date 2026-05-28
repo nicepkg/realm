@@ -41,6 +41,8 @@ export type DocsPage = {
     composer: string;
     settings: string;
     god: string;
+    command: string;
+    inspector: string;
   };
   quickStart: {
     title: string;

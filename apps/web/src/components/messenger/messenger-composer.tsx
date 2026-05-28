@@ -48,8 +48,8 @@ export function MessengerComposer({
   const canSend = Boolean(app.selectedRoom && app.draft.trim() && !pendingIdentity);
 
   useEffect(() => {
-    resizeComposer(inputRef.current);
-  });
+    resizeComposer(inputRef.current, app.draft.length);
+  }, [app.draft.length]);
 
   async function submit(event: FormEvent<HTMLFormElement>) {
     await app.sendMessage(event);
@@ -64,10 +64,7 @@ export function MessengerComposer({
   }
 
   return (
-    <footer
-      className="shrink-0 border-[var(--realm-line)] border-t bg-[#f7f7f7]"
-      data-testid="composer"
-    >
+    <footer className="shrink-0 border-[#d9d9dc] border-t bg-[#f7f7f7]" data-testid="composer">
       <form className="w-full" onSubmit={submit}>
         {pendingIdentity && pendingIdentityLabel ? (
           <div
@@ -105,10 +102,10 @@ export function MessengerComposer({
             </span>
           </div>
         ) : null}
-        <div className="flex min-h-[72px] w-full items-end gap-3 px-4 py-3">
+        <div className="flex min-h-[72px] w-full items-center gap-2.5 px-5 py-3">
           <Button
             aria-label={t("workspace.voiceInput")}
-            className="size-10 rounded-full border-2 border-[#1f1f21] bg-transparent text-[#1f1f21] shadow-none hover:bg-white"
+            className="size-[42px] rounded-full border-2 border-[#1f1f21] bg-transparent text-[#1f1f21] shadow-none hover:bg-white"
             onClick={() => {
               inputRef.current?.focus();
             }}
@@ -116,12 +113,12 @@ export function MessengerComposer({
             type="button"
             variant="ghost"
           >
-            <AudioLines className="size-5" />
+            <AudioLines className="size-[21px]" />
           </Button>
           <div className="relative min-w-0 flex-1">
             <textarea
               aria-label={t("workspace.messageInput")}
-              className="max-h-32 min-h-[42px] w-full resize-none rounded-[4px] border-0 bg-white px-3.5 py-[11px] pr-10 text-[16px] leading-5 shadow-none outline-none placeholder:text-[#b0b0b3] focus-visible:!outline-none focus-visible:!ring-0"
+              className="max-h-32 min-h-[44px] w-full resize-none rounded-[4px] border-0 bg-white px-4 py-[11px] pr-11 text-[16px] leading-[22px] shadow-none outline-none placeholder:text-[#b0b0b3] focus-visible:!outline-none focus-visible:!ring-0"
               data-testid="message-input"
               disabled={!app.selectedRoom}
               name="message"
@@ -135,23 +132,23 @@ export function MessengerComposer({
             />
             <Mic
               aria-hidden="true"
-              className="absolute right-3 bottom-2.5 size-[18px] text-[#8a8a8f]"
+              className="absolute right-3 bottom-[12px] size-5 text-[#8a8a8f]"
             />
           </div>
           <Button
             aria-label={t("workspace.emoji")}
-            className="size-10 rounded-full border-2 border-[#1f1f21] text-[#1f1f21] shadow-none hover:bg-white"
+            className="size-[42px] rounded-full border-2 border-[#1f1f21] text-[#1f1f21] shadow-none hover:bg-white"
             onClick={() => app.setDraft(`${app.draft}${app.draft ? " " : ""}🙂`)}
             size="icon"
             type="button"
             variant="ghost"
           >
-            <Smile className="size-5" />
+            <Smile className="size-[21px]" />
           </Button>
           <Button
             aria-label={t("workspace.moreActions")}
             className={cn(
-              "size-10 rounded-full border-2 border-[#1f1f21] text-[#1f1f21] shadow-none hover:bg-white",
+              "size-[42px] rounded-full border-2 border-[#1f1f21] text-[#1f1f21] shadow-none hover:bg-white",
               canSend && "hidden",
             )}
             data-testid="composer-more"
@@ -160,11 +157,11 @@ export function MessengerComposer({
             type="button"
             variant="ghost"
           >
-            <CirclePlus className="size-5" />
+            <CirclePlus className="size-[21px]" />
           </Button>
           <Button
             className={cn(
-              "h-10 rounded-[4px] px-4 text-[14px] shadow-none",
+              "h-9 rounded-[4px] px-4 text-[14px] shadow-none",
               canSend
                 ? "bg-[var(--realm-green)] text-white hover:bg-[var(--realm-green-strong)]"
                 : "hidden",
@@ -224,7 +221,7 @@ function ComposerActionTray({
   const { t } = useI18n();
   return (
     <div
-      className="grid max-h-[212px] grid-cols-4 gap-x-3 gap-y-4 overflow-auto border-[var(--realm-line)] border-t bg-[#f2f2f4] px-5 py-4 sm:grid-cols-6 lg:grid-cols-8"
+      className="grid max-h-[228px] grid-cols-4 gap-x-3 gap-y-4 overflow-auto border-[#d9d9dc] border-t bg-[#f2f2f4] px-5 py-4 sm:grid-cols-6 lg:grid-cols-8"
       data-testid="composer-action-tray"
     >
       <IdentityButton
@@ -351,10 +348,10 @@ function ComposerActionButton({
   );
 }
 
-function resizeComposer(textarea: HTMLTextAreaElement | null) {
+function resizeComposer(textarea: HTMLTextAreaElement | null, contentLength?: number) {
   if (!textarea) {
     return;
   }
-  textarea.style.height = "auto";
+  textarea.style.height = contentLength === 0 ? "44px" : "auto";
   textarea.style.height = `${Math.min(textarea.scrollHeight, 128)}px`;
 }

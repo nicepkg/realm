@@ -13,6 +13,9 @@ describe("messenger chat header", () => {
           app={mockApp({ status: "idle" })}
           onBackToWorlds={() => undefined}
           onOpenCommandPalette={() => undefined}
+          onOpenGod={() => undefined}
+          onOpenSettings={() => undefined}
+          onOpenWorldInspector={() => undefined}
         />
       </I18nProvider>,
     );
@@ -33,6 +36,9 @@ describe("messenger chat header", () => {
           app={mockApp({ status: "running" })}
           onBackToWorlds={() => undefined}
           onOpenCommandPalette={() => undefined}
+          onOpenGod={() => undefined}
+          onOpenSettings={() => undefined}
+          onOpenWorldInspector={() => undefined}
         />
       </I18nProvider>,
     );

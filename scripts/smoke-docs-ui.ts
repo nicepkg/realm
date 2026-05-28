@@ -40,8 +40,12 @@ try {
     "document.querySelector('.product-preview')?.textContent?.includes('Create World') === true",
   );
   await assertPage(
-    "Docs home product preview uses a real-member WeChat group avatar collage",
-    "document.querySelector('.group-avatar')?.getAttribute('data-wechat-grid') === 'member-collage' && document.querySelectorAll('.group-avatar-row').length === 2 && document.querySelectorAll('.group-avatar i').length === 3",
+    "Docs home product preview uses a WeChat nine-grid group avatar collage",
+    "document.querySelector('.group-avatar')?.getAttribute('data-wechat-grid') === 'member-collage' && document.querySelector('.group-avatar')?.getAttribute('data-wechat-grid-shape') === 'nine-grid' && document.querySelectorAll('.group-avatar-row').length === 3 && document.querySelectorAll('.group-avatar i').length === 9",
+  );
+  await assertPage(
+    "Docs home product preview exposes WeChat top-bar actions through the ellipsis menu",
+    "(() => { const menu = document.querySelector('.topbar-menu'); if (!menu) return false; const text = menu.textContent ?? ''; return text.includes('Command') && text.includes('World Inspector') && text.includes('God') && text.includes('Settings'); })()",
   );
   await assertPage(
     "Docs home surfaces verification signals",

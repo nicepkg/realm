@@ -119,7 +119,7 @@ Realm 读取和写入项目里的：
 
 - 本地优先，项目自包含。
 - Pi package-first，不依赖全局 Pi CLI。
-- Web UI 先行，但架构预留 TUI。
+- Web UI 先行，同时提供 Pi TUI commander，覆盖世界、房间、角色、补丁和上帝流程。
 - 先给用户熟悉的聊天心智模型，再逐步露出高级能力。
 - 遵循 DRY、SOLID、高内聚、低耦合。
 - 跨平台、跨机器。
@@ -154,6 +154,12 @@ bun run build:docs
 ```bash
 bun run deploy:docs
 ```
+
+## 社区与安全
+
+- 贡献指南：[CONTRIBUTING.md](CONTRIBUTING.md)
+- 安全策略：[SECURITY.md](SECURITY.md)
+- 行为准则：[CODE_OF_CONDUCT.md](CODE_OF_CONDUCT.md)
 
 ## 发布
 
