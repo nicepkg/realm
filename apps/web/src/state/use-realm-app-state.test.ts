@@ -13,4 +13,8 @@ describe("realm app state identity safety", () => {
   test("falls back to Boss when a stale identity is no longer configured", () => {
     expect(resolveIdentityAfterRealmLoad("removed-role", ["owner", "leijun"], false)).toBe("owner");
   });
+
+  test("does not keep God as a normal composer identity", () => {
+    expect(resolveIdentityAfterRealmLoad("god", ["owner", "leijun"], false)).toBe("owner");
+  });
 });

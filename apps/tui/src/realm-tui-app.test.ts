@@ -29,6 +29,48 @@ describe("RealmTuiApp interactive safety", () => {
     expect(harness.state.identity).toBe("leijun");
   });
 
+  test("God is not available as a casual chat identity", async () => {
+    const app = new RealmTuiApp();
+    const harness = app as unknown as { state: TuiState };
+    harness.state = {
+      events: [],
+      identity: "owner",
+      messages: [],
+      projectName: "demo",
+      roles: [{ id: "leijun", displayName: "Lei Jun", model: "default", source: "config" }],
+      rooms: [],
+      worlds: [],
+    };
+
+    const notice = await app.handleInteractiveInput(
+      ":id god",
+      () => {},
+      async () => {},
+    );
+
+    expect(notice).toContain("ignored");
+    expect(harness.state.identity).toBe("owner");
+  });
+
+  test("role picker ignores God because God actions use the protected command", async () => {
+    const app = new RealmTuiApp();
+    const harness = app as unknown as { state: TuiState };
+    harness.state = {
+      events: [],
+      identity: "owner",
+      messages: [],
+      projectName: "demo",
+      roles: [{ id: "leijun", displayName: "Lei Jun", model: "default", source: "config" }],
+      rooms: [],
+      worlds: [],
+    };
+
+    const notice = await app.applyPaletteItem("role:god");
+
+    expect(notice).toContain("ignored");
+    expect(harness.state.identity).toBe("owner");
+  });
+
   test("memory command uses the operator role memory endpoint", async () => {
     const app = new RealmTuiApp();
     const harness = app as unknown as {
