@@ -1,4 +1,5 @@
 import { describe, expect, test } from "bun:test";
+import { tuiDictionaries } from "./i18n.ts";
 import {
   createRoleSendConfirmation,
   decideRoleSendConfirmation,
@@ -66,7 +67,20 @@ describe("TUI role send confirmation", () => {
       roomName: "All Hands",
       worldName: "Cultivation",
     });
-    expect(formatRoleSendConfirmation(pending)).toContain("Real operator: Boss");
+    expect(formatRoleSendConfirmation(pending, tuiDictionaries.en)).toContain(
+      "Real operator: Boss",
+    );
+  });
+
+  test("renders confirmation in zh-CN from the dictionary", () => {
+    const pending = createRoleSendConfirmation(baseState("leijun"), "hello");
+    if (!pending) {
+      throw new Error("expected pending role send confirmation");
+    }
+    const summary = formatRoleSendConfirmation(pending, tuiDictionaries["zh-CN"]);
+    expect(summary).toContain("真实操作者：Boss");
+    expect(summary).toContain("输入 y 确认");
+    expect(summary).not.toContain("Real operator");
   });
 
   test("parses confirmation decisions", () => {

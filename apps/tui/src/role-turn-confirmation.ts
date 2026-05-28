@@ -7,6 +7,7 @@ export type RoleTurnConfirmationDecision = "confirm" | "cancel" | "pending";
 export function createRoleTurnConfirmation(
   state: TuiState,
   roleId: string,
+  dict: TuiDictionary,
   prompt?: string,
 ): TuiPendingRoleTurn | undefined {
   if (!(state.world && state.room)) {
@@ -18,9 +19,9 @@ export function createRoleTurnConfirmation(
   }
   return {
     model: role.model,
-    permissionSummary: summarizePermissions(state),
+    permissionSummary: summarizePermissions(state, dict),
     prompt,
-    provider: resolveProvider(state.providerModel),
+    provider: resolveProvider(state.providerModel, dict),
     roleId,
     roleLabel: displayName(roleId, state.roles),
     roomId: state.room.id,
@@ -43,30 +44,39 @@ export function decideRoleTurnConfirmation(input: string): RoleTurnConfirmationD
 
 export function formatRoleTurnConfirmation(
   pending: TuiPendingRoleTurn,
-  dict?: TuiDictionary,
+  dict: TuiDictionary,
 ): string {
-  const prompt = pending.prompt ? ` Prompt: ${pending.prompt}` : "";
-  const cancelLine = dict?.roleTurnCancelHint ?? "Ctrl+C cancels the active turn.";
+  const modelLine = dict.roleTurnModelPermissions(
+    pending.provider,
+    pending.model,
+    pending.permissionSummary,
+  );
+  const promptSuffix = pending.prompt ? ` ${dict.roleTurnPromptLine(pending.prompt)}` : "";
   return [
-    `Run ${pending.roleLabel} in ${pending.roomName}?`,
-    `World: ${pending.worldName}. Real operator: Boss.`,
-    `Model: ${pending.provider} / ${pending.model}. Permissions: ${pending.permissionSummary}.${prompt}`,
-    "Type y to confirm or n to cancel.",
-    cancelLine,
+    dict.roleTurnRunPrompt(pending.roleLabel, pending.roomName),
+    dict.confirmWorldOperator(pending.worldName),
+    `${modelLine}${promptSuffix}`,
+    dict.confirmYesNo,
+    dict.roleTurnCancelHint,
   ].join(" ");
 }
 
-function summarizePermissions(state: TuiState): string {
+function summarizePermissions(state: TuiState, dict: TuiDictionary): string {
   const policy = state.policySummary;
   if (!policy) {
-    return "trust tier unknown";
+    return dict.permissionTrustUnknown;
   }
-  return `trust ${policy.trustTier}, ${policy.allowedCapabilities} allowed / ${policy.deniedCapabilities} denied / ${policy.highRiskAllowed} high-risk`;
+  return dict.permissionSummary(
+    policy.trustTier,
+    policy.allowedCapabilities,
+    policy.deniedCapabilities,
+    policy.highRiskAllowed,
+  );
 }
 
-function resolveProvider(providerModel: string | undefined): string {
+function resolveProvider(providerModel: string | undefined, dict: TuiDictionary): string {
   if (!providerModel) {
-    return "default";
+    return dict.defaultValue;
   }
   const [provider] = providerModel.split(/[:/]/, 1);
   return provider?.trim() || providerModel;

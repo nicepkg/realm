@@ -58,7 +58,7 @@ export async function sendOneShotWithDraft(
       draftsDir,
     );
     throw new Error(
-      `${formatRoleSendConfirmation(pending)} ${dictionary.draftSaved(draft.record.id, draft.filePath)}`,
+      `${formatRoleSendConfirmation(pending, dictionary)} ${dictionary.draftSaved(draft.record.id, draft.filePath)}`,
     );
   }
   await sendWithDraftOnFailure(client, state, content, draftsDir, dictionary);

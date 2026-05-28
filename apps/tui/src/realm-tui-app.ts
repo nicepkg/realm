@@ -175,7 +175,7 @@ export class RealmTuiApp {
       const pending = createRoleSendConfirmation(state, command.content);
       if (pending) {
         this.pending.roleSend = pending;
-        return formatRoleSendConfirmation(pending);
+        return formatRoleSendConfirmation(pending, this.dictionary);
       }
       try {
         await sendWithDraftOnFailure(
@@ -260,7 +260,7 @@ export class RealmTuiApp {
       this.pending.godAction = pending;
       this.pending.roleSend = undefined;
       this.pending.roleTurn = undefined;
-      return formatGodActionConfirmation(pending);
+      return formatGodActionConfirmation(pending, this.dictionary);
     }
     await this.handle(command);
     return this.dictionary.commandApplied;

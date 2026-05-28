@@ -1,4 +1,5 @@
 import type { RoleSummary } from "@realm/api-contract";
+import type { TuiDictionary } from "./i18n.ts";
 import type { TuiPendingRoleSend, TuiState } from "./types.ts";
 
 export type RoleSendConfirmationDecision = "confirm" | "cancel" | "pending";
@@ -35,11 +36,14 @@ export function decideRoleSendConfirmation(input: string): RoleSendConfirmationD
   return "pending";
 }
 
-export function formatRoleSendConfirmation(pending: TuiPendingRoleSend): string {
+export function formatRoleSendConfirmation(
+  pending: TuiPendingRoleSend,
+  dict: TuiDictionary,
+): string {
   return [
-    `Send as ${pending.identityLabel} to ${pending.roomName}?`,
-    `World: ${pending.worldName}. Real operator: Boss.`,
-    "Type y to confirm or n to cancel.",
+    dict.roleSendPrompt(pending.identityLabel, pending.roomName),
+    dict.confirmWorldOperator(pending.worldName),
+    dict.confirmYesNo,
   ].join(" ");
 }
 

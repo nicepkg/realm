@@ -1,4 +1,5 @@
 import type { RoleSummary } from "@realm/api-contract";
+import type { TuiDictionary } from "./i18n.ts";
 import type { TuiCommand, TuiPendingGodAction, TuiState } from "./types.ts";
 
 export type GodActionConfirmationDecision = "confirm" | "cancel" | "pending";
@@ -35,11 +36,14 @@ export function decideGodActionConfirmation(
   return "pending";
 }
 
-export function formatGodActionConfirmation(pending: TuiPendingGodAction): string {
+export function formatGodActionConfirmation(
+  pending: TuiPendingGodAction,
+  dict: TuiDictionary,
+): string {
   return [
-    `God ${pending.action} ${pending.targetRoleLabel} in ${pending.worldName}?`,
-    `Reason: ${pending.reason}.`,
-    `Type ${pending.targetRoleId} to confirm, or cancel to abort.`,
+    dict.godActionPrompt(pending.action, pending.targetRoleLabel, pending.worldName),
+    dict.godActionReasonLine(pending.reason),
+    dict.confirmTypeRoleId(pending.targetRoleId),
   ].join(" ");
 }
 

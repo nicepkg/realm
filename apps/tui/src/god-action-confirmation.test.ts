@@ -4,6 +4,7 @@ import {
   decideGodActionConfirmation,
   formatGodActionConfirmation,
 } from "./god-action-confirmation.ts";
+import { tuiDictionaries } from "./i18n.ts";
 import type { TuiCommand, TuiState } from "./types.ts";
 
 describe("TUI God action confirmation", () => {
@@ -46,7 +47,26 @@ describe("TUI God action confirmation", () => {
       worldId: "cultivation",
       worldName: "Cultivation",
     });
-    expect(formatGodActionConfirmation(pending)).toContain("Type leijun to confirm");
+    expect(formatGodActionConfirmation(pending, tuiDictionaries.en)).toContain(
+      "Type leijun to confirm",
+    );
+  });
+
+  test("renders confirmation in zh-CN from the dictionary", () => {
+    const command: Extract<TuiCommand, { kind: "god" }> = {
+      action: "mute",
+      kind: "god",
+      reason: "Out of character spam",
+      targetRoleId: "leijun",
+    };
+    const pending = createGodActionConfirmation(state, command);
+    if (!pending) {
+      throw new Error("expected pending god action");
+    }
+    const summary = formatGodActionConfirmation(pending, tuiDictionaries["zh-CN"]);
+    expect(summary).toContain("输入 leijun 确认");
+    expect(summary).toContain("原因：Out of character spam");
+    expect(summary).not.toContain("Type leijun to confirm");
   });
 
   test("requires exact role id and allows cancel words", () => {

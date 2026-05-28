@@ -107,7 +107,7 @@ async function resolveRoleSend(
     context.pending.roleSend = undefined;
     return context.dictionary.roleSendCancelled;
   }
-  return formatRoleSendConfirmation(pending);
+  return formatRoleSendConfirmation(pending, context.dictionary);
 }
 
 async function resolveIdentitySwitch(
@@ -125,7 +125,7 @@ async function resolveIdentitySwitch(
     context.pending.identitySwitch = undefined;
     return context.dictionary.roleSendCancelled;
   }
-  return formatIdentitySwitchConfirmation(pending);
+  return formatIdentitySwitchConfirmation(pending, context.dictionary);
 }
 
 async function resolveGodAction(
@@ -144,7 +144,7 @@ async function resolveGodAction(
     context.pending.godAction = undefined;
     return context.dictionary.godActionCancelled;
   }
-  return formatGodActionConfirmation(pending);
+  return formatGodActionConfirmation(pending, context.dictionary);
 }
 
 async function resolveRoleTurn(
@@ -201,7 +201,7 @@ export function armIdentitySwitch(
   pending.roleSend = undefined;
   pending.godAction = undefined;
   pending.roleTurn = undefined;
-  return { kind: "notice", notice: formatIdentitySwitchConfirmation(confirmation) };
+  return { kind: "notice", notice: formatIdentitySwitchConfirmation(confirmation, dictionary) };
 }
 
 /**
@@ -215,7 +215,12 @@ export function armRoleTurn(
   command: Extract<TuiCommand, { kind: "runRole" }>,
   dictionary: TuiDictionary,
 ): string {
-  const confirmation = createRoleTurnConfirmation(state, command.roleId, command.prompt);
+  const confirmation = createRoleTurnConfirmation(
+    state,
+    command.roleId,
+    dictionary,
+    command.prompt,
+  );
   if (!confirmation) {
     return state.roles.some((role) => role.id === command.roleId)
       ? dictionary.cannotSendWithoutContext

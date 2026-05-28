@@ -1,4 +1,5 @@
 import type { RoleSummary } from "@realm/api-contract";
+import type { TuiDictionary } from "./i18n.ts";
 
 export type TuiPendingIdentitySwitch = {
   identity: string;
@@ -33,10 +34,13 @@ export function decideIdentitySwitchConfirmation(input: string): "confirm" | "ca
   return "pending";
 }
 
-export function formatIdentitySwitchConfirmation(pending: TuiPendingIdentitySwitch): string {
+export function formatIdentitySwitchConfirmation(
+  pending: TuiPendingIdentitySwitch,
+  dict: TuiDictionary,
+): string {
   return [
-    `Switch composer identity to ${pending.identityLabel} (${pending.identity}).`,
-    "Messages will appear from that role; real operator remains Boss.",
-    "Type y to confirm or cancel to abort.",
+    dict.identitySwitchPrompt(pending.identityLabel, pending.identity),
+    dict.identitySwitchOperatorNote,
+    dict.identitySwitchConfirmHint,
   ].join(" ");
 }
