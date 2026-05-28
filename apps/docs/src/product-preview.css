@@ -1,10 +1,11 @@
 .product-preview {
-  align-self: center;
+  align-self: stretch;
   display: grid;
-  gap: 14px;
-  grid-template-columns: minmax(200px, 0.84fr) minmax(300px, 1.16fr);
+  gap: 16px;
+  grid-template-columns: minmax(260px, 0.74fr) minmax(520px, 1.26fr);
   min-width: 0;
   position: relative;
+  width: 100%;
 }
 
 .manager-preview,
@@ -106,7 +107,7 @@
 
 .chat-preview {
   background: #ededee;
-  min-height: 360px;
+  min-height: 350px;
   position: relative;
 }
 
@@ -225,7 +226,7 @@
 
 @media (max-width: 1080px) {
   .product-preview {
-    grid-template-columns: minmax(220px, 0.78fr) minmax(340px, 1.22fr);
+    grid-template-columns: minmax(220px, 0.82fr) minmax(360px, 1.18fr);
   }
 }
 

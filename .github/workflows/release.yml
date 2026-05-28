@@ -100,3 +100,23 @@ jobs:
         with:
           files: release/*
           fail_on_unmatched_files: true
+
+  npm-publish:
+    name: Publish npm package
+    needs: package
+    runs-on: ubuntu-latest
+    env:
+      NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
+    steps:
+      - uses: actions/download-artifact@v5
+        with:
+          name: realm-npm-package
+          path: release
+      - name: Skip npm publish when token is unavailable
+        if: env.NODE_AUTH_TOKEN == ''
+        run: echo "NPM_TOKEN is not configured; npm package artifact is ready."
+      - name: Publish to npm
+        if: env.NODE_AUTH_TOKEN != ''
+        run: |
+          printf '//registry.npmjs.org/:_authToken=%s\n' "$NODE_AUTH_TOKEN" > ~/.npmrc
+          npm publish release/*.tgz --access public
