@@ -10,6 +10,7 @@ import {
   Settings2,
   Sparkles,
 } from "lucide-react";
+import { useState } from "react";
 import { GroupAvatarGrid } from "@/components/messenger/messenger-primitives.tsx";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -17,6 +18,7 @@ import { Input } from "@/components/ui/input";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { Skeleton } from "@/components/ui/skeleton";
 import { useI18n } from "@/i18n/index.tsx";
+import { filterWorldsForManager } from "@/view-models/world-manager-view-model.ts";
 import type { RealmAppController } from "./types.ts";
 
 export function WorldManagerPage({
@@ -34,6 +36,8 @@ export function WorldManagerPage({
 }) {
   const { t } = useI18n();
   const worldCount = app.state.worlds.length;
+  const [worldSearch, setWorldSearch] = useState("");
+  const visibleWorlds = filterWorldsForManager(app.state.worlds, app.state.roles, worldSearch);
   const health = app.state.status === "error" ? t("manager.healthAttention") : t("common.ready");
 
   return (
@@ -152,9 +156,12 @@ export function WorldManagerPage({
               <Input
                 aria-label={t("manager.searchWorlds")}
                 className="h-8 border-0 bg-transparent px-0 shadow-none focus-visible:ring-0"
+                data-testid="world-search"
                 id="world-search"
                 name="world-search"
+                onChange={(event) => setWorldSearch(event.currentTarget.value)}
                 placeholder={t("manager.searchWorlds")}
+                value={worldSearch}
               />
             </label>
           </div>
@@ -181,7 +188,15 @@ export function WorldManagerPage({
                   </Button>
                 </div>
               ) : null}
-              {app.state.worlds.map((world) => (
+              {app.state.status !== "loading" && worldCount > 0 && visibleWorlds.length === 0 ? (
+                <div className="p-10 text-center" data-testid="world-search-empty">
+                  <div className="mx-auto mb-3 flex size-11 items-center justify-center rounded-lg bg-[#f0f0f2]">
+                    <Search className="size-5 text-[#6e6e73]" />
+                  </div>
+                  <div className="font-medium">{t("manager.noSearchResults")}</div>
+                </div>
+              ) : null}
+              {visibleWorlds.map((world) => (
                 <button
                   className="grid w-full grid-cols-[48px_minmax(0,1fr)_auto] items-center gap-3 border-[var(--realm-line)] border-b px-4 py-4 text-left transition hover:bg-[#f5f5f7]"
                   data-testid={`world-row-${world.id}`}

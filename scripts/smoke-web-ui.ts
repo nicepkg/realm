@@ -66,6 +66,13 @@ try {
     "World Manager renders create-world first screen",
     "document.querySelector(\"[data-testid='world-manager']\")?.textContent?.includes('Create World') === true",
   );
+  await browser("fill", "[data-testid='world-search']", "zz-no-world");
+  await waitForSelector("[data-testid='world-search-empty']");
+  await assertPage(
+    "World Manager search filters the world list in the browser",
+    "document.querySelector(\"[data-testid='world-search-empty']\")?.textContent?.includes('No matching worlds') === true",
+  );
+  await browser("fill", "[data-testid='world-search']", "");
 
   await clickInPage("[data-testid='create-world-primary']");
   await waitForSelector("[data-testid='create-world-name']");
