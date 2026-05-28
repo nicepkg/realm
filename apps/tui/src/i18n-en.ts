@@ -177,6 +177,7 @@ export const tuiEn: TuiDictionary = {
   transcriptOlder: (count) => `↑ ${count} older (PgUp / Ctrl+P)`,
   trustTier: "Trust tier",
   useCtrlCToExit: "Use Ctrl+C to exit the Pi TUI.",
+  pressCtrlCAgain: "Press Ctrl+C again to exit.",
   visibleRoles: "Visible roles",
   world: "World",
   worldState: "World state",

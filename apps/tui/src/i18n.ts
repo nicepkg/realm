@@ -151,6 +151,7 @@ export type TuiDictionary = {
   traceWorldEvent: (title: string) => string;
   trustTier: string;
   useCtrlCToExit: string;
+  pressCtrlCAgain: string;
   visibleRoles: string;
   world: string;
   worldState: string;

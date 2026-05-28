@@ -153,10 +153,14 @@ export async function runInteractiveSession(
       .then((notice) => render(notice));
   };
 
-  const removeCtrlCListener = installCtrlCStop(tui, (notice) => {
-    footer.setText(notice);
-    tui.requestRender(true);
-  });
+  const removeCtrlCListener = installCtrlCStop(
+    tui,
+    t(controller.locale).pressCtrlCAgain,
+    (notice) => {
+      footer.setText(notice);
+      tui.requestRender(true);
+    },
+  );
   tui.addInputListener((data) => {
     const action = resolveTuiKeybinding(data, { editorHasText: editor.getText().length > 0 });
     if (!action) {
@@ -206,7 +210,11 @@ export async function runInteractiveSession(
   });
 }
 
-function installCtrlCStop(tui: TUI, onFirstPress: (notice: string) => void): () => void {
+function installCtrlCStop(
+  tui: TUI,
+  pressAgainNotice: string,
+  onFirstPress: (notice: string) => void,
+): () => void {
   let firstPressAt = 0;
   const onRawInput = (chunk: Buffer | string) => {
     const data = typeof chunk === "string" ? chunk : chunk.toString("utf8");
@@ -219,7 +227,7 @@ function installCtrlCStop(tui: TUI, onFirstPress: (notice: string) => void): () 
       return;
     }
     firstPressAt = now;
-    onFirstPress("Press Ctrl+C again to exit.");
+    onFirstPress(pressAgainNotice);
   };
   process.stdin.on("data", onRawInput);
   return () => process.stdin.removeListener("data", onRawInput);

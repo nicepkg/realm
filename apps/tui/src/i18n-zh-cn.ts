@@ -174,6 +174,7 @@ export const tuiZhCn: TuiDictionary = {
   transcriptOlder: (count) => `↑ 还有 ${count} 条更早（PgUp / Ctrl+P）`,
   trustTier: "信任级别",
   useCtrlCToExit: "按 Ctrl+C 退出 Pi TUI。",
+  pressCtrlCAgain: "再次按 Ctrl+C 退出。",
   visibleRoles: "可见角色",
   world: "世界",
   worldState: "世界状态",
