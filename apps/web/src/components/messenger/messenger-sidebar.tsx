@@ -3,7 +3,7 @@ import {
   ContactRound,
   Menu,
   MessageCircle,
-  PlusCircle,
+  Plus,
   Settings2,
   UsersRound,
 } from "lucide-react";
@@ -68,7 +68,7 @@ export function MessengerSidebar({
             onClick={onCreateRoom}
             type="button"
           >
-            <PlusCircle className="size-[21px]" />
+            <Plus className="size-[22px]" />
           </button>
         </div>
         <div className="flex h-[70px] items-center justify-between border-[#d9d9dc] border-t bg-[#f2f2f2] px-6 text-[15px] text-[var(--realm-fg-muted)]">
@@ -101,7 +101,7 @@ function ConversationRows({ app }: { app: RealmAppController }) {
       {app.conversations.map((conversation) => (
         <button
           className={cn(
-            "relative grid h-[76px] w-full grid-cols-[48px_minmax(0,1fr)_58px] items-center gap-3 px-5 text-left transition after:absolute after:right-0 after:bottom-0 after:left-[88px] after:h-px after:bg-[#e5e5e7] hover:bg-[#f3f3f4]",
+            "relative grid h-[82px] w-full grid-cols-[56px_minmax(0,1fr)_62px] items-center gap-3 px-5 text-left transition after:absolute after:right-0 after:bottom-0 after:left-[96px] after:h-px after:bg-[#e5e5e7] hover:bg-[#f3f3f4]",
             conversation.id === app.selectedRoom?.id && "bg-[#dedede] hover:bg-[#dedede]",
           )}
           data-chat-row="conversation"
@@ -112,7 +112,7 @@ function ConversationRows({ app }: { app: RealmAppController }) {
           type="button"
         >
           <span className="relative">
-            <RoomAvatar room={conversation.room} roles={app.state.roles} size="lg" />
+            <RoomAvatar room={conversation.room} roles={app.state.roles} size="xl" />
           </span>
           <span className="min-w-0 self-center">
             <span className="block truncate font-medium text-[16px] leading-[22px] text-[#1f1f21]">
@@ -146,7 +146,7 @@ function RoleRows({
       {app.state.roles.map((role) => (
         <button
           className={cn(
-            "relative grid h-[76px] w-full grid-cols-[48px_minmax(0,1fr)_auto] items-center gap-3 px-5 text-left transition after:absolute after:right-0 after:bottom-0 after:left-[88px] after:h-px after:bg-[#e5e5e7] hover:bg-[#f3f3f4]",
+            "relative grid h-[82px] w-full grid-cols-[56px_minmax(0,1fr)_auto] items-center gap-3 px-5 text-left transition after:absolute after:right-0 after:bottom-0 after:left-[96px] after:h-px after:bg-[#e5e5e7] hover:bg-[#f3f3f4]",
             role.id === app.runRoleId && "bg-[#dedede] hover:bg-[#dedede]",
           )}
           data-testid={`role-row-${role.id}`}
@@ -158,7 +158,7 @@ function RoleRows({
             identity={role.id}
             label={role.displayName}
             roles={app.state.roles}
-            size="lg"
+            size="xl"
           />
           <span className="min-w-0">
             <span className="block truncate font-medium text-[16px] text-[#1f1f21]">
@@ -183,7 +183,7 @@ function WorldRows({ app }: { app: RealmAppController }) {
       {app.state.worlds.map((world) => (
         <button
           className={cn(
-            "relative grid h-[76px] w-full grid-cols-[48px_minmax(0,1fr)_auto] items-center gap-3 px-5 text-left transition after:absolute after:right-0 after:bottom-0 after:left-[88px] after:h-px after:bg-[#e5e5e7] hover:bg-[#f3f3f4]",
+            "relative grid h-[82px] w-full grid-cols-[56px_minmax(0,1fr)_auto] items-center gap-3 px-5 text-left transition after:absolute after:right-0 after:bottom-0 after:left-[96px] after:h-px after:bg-[#e5e5e7] hover:bg-[#f3f3f4]",
             world.id === app.selectedWorld?.id && "bg-[#dedede] hover:bg-[#dedede]",
           )}
           data-selected={world.id === app.selectedWorld?.id ? "true" : "false"}
@@ -202,7 +202,7 @@ function WorldRows({ app }: { app: RealmAppController }) {
                 label: app.state.roles.find((role) => role.id === roleId)?.displayName ?? roleId,
               })),
             ]}
-            size="lg"
+            size="xl"
           />
           <span className="min-w-0">
             <span className="block truncate font-medium text-[16px] text-[#1f1f21]">

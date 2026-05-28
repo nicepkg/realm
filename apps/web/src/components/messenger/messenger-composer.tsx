@@ -1,10 +1,10 @@
 import type { RoleSummary } from "@realm/api-contract";
 import {
   AudioLines,
-  CirclePlus,
   Command,
   Database,
   Mic,
+  Plus,
   Settings,
   ShieldCheck,
   Smile,
@@ -163,7 +163,7 @@ export function MessengerComposer({
             type="button"
             variant="ghost"
           >
-            <CirclePlus className="size-[21px]" />
+            <Plus className="size-[22px]" />
           </Button>
           <Button
             className={cn(

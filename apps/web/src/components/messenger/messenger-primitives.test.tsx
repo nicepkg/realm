@@ -12,10 +12,13 @@ describe("messenger avatar primitives", () => {
     const first = avatarProfileForIdentity("guchenfeng");
     const second = avatarProfileForIdentity("guchenfeng");
     const other = avatarProfileForIdentity("leijun");
+    const owner = avatarProfileForIdentity("Boss");
 
     expect(first).toEqual(second);
     expect(typeof first.glyph).toBe("string");
     expect(other).not.toEqual(first);
+    expect(owner.background).not.toBe("#07c160");
+    expect(owner.background).not.toBe("#32b768");
   });
 
   test("builds WeChat-style group avatar rows from room members", () => {

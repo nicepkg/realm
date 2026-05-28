@@ -1,7 +1,7 @@
 import type { RoleSummary, Room } from "@realm/api-contract";
 import { cn } from "@/lib/utils.ts";
 
-type AvatarSize = "sm" | "md" | "lg";
+type AvatarSize = "sm" | "md" | "lg" | "xl";
 type AvatarPerson = {
   id: string;
   label: string;
@@ -11,18 +11,21 @@ const AVATAR_SIZE_CLASS: Record<AvatarSize, string> = {
   lg: "size-12 rounded-[4px] text-[23px]",
   md: "size-[44px] rounded-[4px] text-[21px]",
   sm: "size-[36px] rounded-[4px] text-[16px]",
+  xl: "size-[56px] rounded-[5px] text-[26px]",
 };
 
 const GROUP_SIZE_CLASS: Record<AvatarSize, string> = {
   lg: "size-12 rounded-[4px] p-[2px]",
   md: "size-[44px] rounded-[4px] p-[2px]",
   sm: "size-[36px] rounded-[4px] p-[2px]",
+  xl: "size-[56px] rounded-[5px] p-[2px]",
 };
 
 const GROUP_CELL_SIZE_CLASS: Record<AvatarSize, string> = {
   lg: "size-[13px] text-[8px]",
   md: "size-[11px] text-[7px]",
   sm: "size-[9px] text-[6px]",
+  xl: "size-[16px] text-[9px]",
 };
 
 const AVATAR_GLYPHS = [
@@ -62,14 +65,14 @@ const AVATAR_GLYPHS = [
 const AVATAR_COLORS = [
   { background: "#ff6b81", color: "#ffffff" },
   { background: "#4d96ff", color: "#ffffff" },
-  { background: "#07c160", color: "#ffffff" },
+  { background: "#38bdf8", color: "#ffffff" },
   { background: "#ffb020", color: "#261900" },
   { background: "#8e6cf7", color: "#ffffff" },
   { background: "#18a0a8", color: "#ffffff" },
   { background: "#ff7a45", color: "#ffffff" },
   { background: "#5c6f82", color: "#ffffff" },
   { background: "#f05a7e", color: "#ffffff" },
-  { background: "#32b768", color: "#ffffff" },
+  { background: "#ff5c8a", color: "#ffffff" },
 ];
 
 const DEFAULT_AVATAR_COLOR = { background: "#8e6cf7", color: "#ffffff" };

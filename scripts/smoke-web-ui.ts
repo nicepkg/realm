@@ -101,6 +101,10 @@ try {
     "(() => { const rows = Array.from(document.querySelectorAll(\"[data-chat-row='conversation'][data-wechat-row='conversation']\")); return rows.length > 0 && rows.every((row) => row.querySelector(\"[data-wechat-avatar='person'], [data-wechat-avatar='group']\") !== null && Boolean(row.textContent?.trim())); })()",
   );
   await assertPage(
+    "Conversation list keeps WeChat row density and large square avatars",
+    "(() => { const row = document.querySelector(\"[data-chat-row='conversation'][data-wechat-row='conversation']\"); const avatar = row?.querySelector(\"[data-wechat-avatar='person'], [data-wechat-avatar='group']\"); if (!row || !avatar) return false; const rowRect = row.getBoundingClientRect(); const avatarRect = avatar.getBoundingClientRect(); return rowRect.height >= 80 && rowRect.height <= 84 && avatarRect.width >= 54 && avatarRect.height >= 54; })()",
+  );
+  await assertPage(
     "Group avatars are laid out as a WeChat nine-grid member collage",
     "(() => { const grid = document.querySelector(\"[data-testid='group-avatar-grid']\"); if (!grid) return false; const cells = grid.querySelectorAll(\"[data-testid='group-avatar-cell']\").length; const rows = grid.querySelectorAll(\"[data-testid='group-avatar-row']\").length; return grid.getAttribute('data-wechat-grid') === 'member-collage' && grid.getAttribute('data-wechat-grid-shape') === 'nine-grid' && rows === 3 && cells === 9; })()",
   );
@@ -317,6 +321,10 @@ try {
   await assertPage(
     "Incoming and outgoing bubbles use WeChat white and green colors",
     "(() => { const incoming = document.querySelector(\"article[data-author='assistant'] [data-testid='message-bubble']\"); const outgoing = document.querySelector(\"article[data-author='user'] [data-testid='message-bubble']\"); if (!incoming || !outgoing) return false; const inBg = getComputedStyle(incoming).backgroundColor; const outBg = getComputedStyle(outgoing).backgroundColor; return inBg === 'rgb(255, 255, 255)' && outBg === 'rgb(149, 236, 105)'; })()",
+  );
+  await assertPage(
+    "Fallback person avatars stay visually distinct from the outgoing bubble",
+    "(() => { const ownerAvatar = document.querySelector(\"article[data-author='user'] [data-wechat-avatar='person']\"); if (!ownerAvatar) return false; const bg = getComputedStyle(ownerAvatar).backgroundColor; return bg !== 'rgb(149, 236, 105)' && bg !== 'rgb(7, 193, 96)'; })()",
   );
   await assertPage(
     "Chat bubble actions keep visibility metadata off the default WeChat surface",
