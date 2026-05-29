@@ -1,5 +1,8 @@
 import type { RoleSummary } from "@realm/api-contract";
 import type { TuiDictionary } from "./i18n.ts";
+// Membership rule lives in ONE place within the TUI (role-turn-confirmation.ts);
+// role-send reuses it so a non-member send is refused with the same precondition.
+import { roleIsMemberOfRoom, type TuiRoleTurnBlocked } from "./role-turn-confirmation.ts";
 import type { TuiPendingRoleSend, TuiState } from "./types.ts";
 
 export type RoleSendConfirmationDecision = "confirm" | "cancel" | "pending";
@@ -7,17 +10,21 @@ export type RoleSendConfirmationDecision = "confirm" | "cancel" | "pending";
 export function createRoleSendConfirmation(
   state: TuiState,
   content: string,
-): TuiPendingRoleSend | undefined {
+): TuiPendingRoleSend | TuiRoleTurnBlocked | undefined {
   if (state.identity === "owner") {
     return undefined;
   }
   if (!state.world || !state.room) {
     return undefined;
   }
+  const identityLabel = displayName(state.identity, state.roles);
+  if (!roleIsMemberOfRoom(state, state.identity)) {
+    return { blocked: "not-member", roleLabel: identityLabel, roomName: state.room.name };
+  }
   return {
     content,
     identity: state.identity,
-    identityLabel: displayName(state.identity, state.roles),
+    identityLabel,
     roomId: state.room.id,
     roomName: state.room.name,
     worldId: state.world.id,

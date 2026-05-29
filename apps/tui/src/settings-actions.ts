@@ -7,6 +7,17 @@ export async function loadSettingsSummary(client: RealmHttpClient): Promise<stri
   return `${settings.user.defaultProvider}/${settings.user.defaultModel}`;
 }
 
+/**
+ * Reads the current default provider/model as a structured pair. Used by the
+ * `:model` gate to echo the before/after of a model change before writing.
+ */
+export async function loadDefaultModel(
+  client: RealmHttpClient,
+): Promise<{ provider: string; model: string }> {
+  const settings = await client.getSettings();
+  return { provider: settings.user.defaultProvider, model: settings.user.defaultModel };
+}
+
 export async function updateDefaultModelSettings(
   client: RealmHttpClient,
   provider: string,

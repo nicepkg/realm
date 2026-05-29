@@ -51,6 +51,11 @@ export async function sendOneShotWithDraft(
   dictionary: TuiDictionary,
 ): Promise<void> {
   const pending = createRoleSendConfirmation(state, content);
+  if (pending && "blocked" in pending) {
+    // Non-member identity: refuse with a named reason; do not stage a draft for a
+    // send the membership precondition would never let confirm.
+    throw new Error(dictionary.roleNotInRoom(pending.roleLabel, pending.roomName));
+  }
   if (pending) {
     const draft = await savePendingRoleDraft(
       pending,

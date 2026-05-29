@@ -20,8 +20,18 @@ describe("RealmTuiApp interactive safety", () => {
     expect(notice).toContain("Switch composer identity");
     expect(harness.state.identity).toBe("owner");
 
-    const confirmed = await app.handleInteractiveInput(
+    // A bare "y" must NOT commit a dangerous identity takeover by accidental
+    // Enter — it stays pending until the operator types the exact role id.
+    const stillPending = await app.handleInteractiveInput(
       "y",
+      () => {},
+      async () => {},
+    );
+    expect(stillPending).toContain("Switch composer identity");
+    expect(harness.state.identity).toBe("owner");
+
+    const confirmed = await app.handleInteractiveInput(
+      "leijun",
       () => {},
       async () => {},
     );
@@ -227,8 +237,18 @@ describe("RealmTuiApp interactive safety", () => {
     expect(prompt).toContain("Run Lei Jun");
     expect(request).toBeUndefined();
 
-    const confirmed = await app.handleInteractiveInput(
+    // A bare "y" must NOT trigger the turn by accidental Enter — the SDK stays
+    // untouched until the operator types the exact role id.
+    const stillPending = await app.handleInteractiveInput(
       "y",
+      () => {},
+      async () => {},
+    );
+    expect(stillPending).toContain("Run Lei Jun");
+    expect(request).toBeUndefined();
+
+    const confirmed = await app.handleInteractiveInput(
+      "leijun",
       () => {},
       async () => {},
     );

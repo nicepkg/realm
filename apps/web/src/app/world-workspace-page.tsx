@@ -1,10 +1,11 @@
-import { DesktopMessenger } from "@/components/messenger/desktop-messenger.tsx";
+import { MessengerShell } from "@/components/messenger/messenger-shell.tsx";
 import type { RealmAppController } from "./types.ts";
 
 export function WorldWorkspacePage({
   app,
-  onBackToWorlds,
-  onCreateRoom,
+  onCreateWorld,
+  onNewDm,
+  onNewGroup,
   onOpenGod,
   onOpenWorldInspector,
   onOpenCommandPalette,
@@ -12,8 +13,9 @@ export function WorldWorkspacePage({
   onOpenSettings,
 }: {
   app: RealmAppController;
-  onBackToWorlds: () => void;
-  onCreateRoom: () => void;
+  onCreateWorld: () => void;
+  onNewDm: () => void;
+  onNewGroup: () => void;
   onOpenGod: () => void;
   onOpenWorldInspector: () => void;
   onOpenCommandPalette: () => void;
@@ -21,15 +23,16 @@ export function WorldWorkspacePage({
   onOpenSettings: () => void;
 }) {
   return (
-    <DesktopMessenger
+    <MessengerShell
       app={app}
-      onBackToWorlds={onBackToWorlds}
-      onCreateRoom={onCreateRoom}
-      onOpenGod={onOpenGod}
-      onOpenWorldInspector={onOpenWorldInspector}
-      onOpenCommandPalette={onOpenCommandPalette}
+      onCreateWorld={onCreateWorld}
       onInspectRole={onInspectRole}
+      onNewDm={onNewDm}
+      onNewGroup={onNewGroup}
+      onOpenCommandPalette={onOpenCommandPalette}
+      onOpenGod={onOpenGod}
       onOpenSettings={onOpenSettings}
+      onOpenWorldInspector={onOpenWorldInspector}
     />
   );
 }

@@ -5,6 +5,7 @@ import type {
   AppliedConfigPatch,
   ConfigActionSheetKind,
   PatchAppliedHandler,
+  RoomType,
 } from "./config-action-types.ts";
 import { ConfigRollbackNotice } from "./config-rollback-notice.tsx";
 import { CreateRoomSheet } from "./create-room-sheet.tsx";
@@ -13,12 +14,18 @@ import { CreateWorldSheet } from "./create-world-sheet.tsx";
 type ConfigActionSheetsProps = {
   app: RealmAppController;
   onWorldCreated?: (worldId: string) => void;
+  /** Preset for the room-creation sheet (新建私聊 → dm, 发起群聊 → group). */
+  initialRoomType?: RoomType;
+  /** Tab the create-world sheet opens on (Create World → preset, Import → import). */
+  createWorldTab?: "import" | "preset";
   open: ConfigActionSheetKind | undefined;
   onOpenChange: (open: ConfigActionSheetKind | undefined) => void;
 };
 
 export function ConfigActionSheets({
   app,
+  createWorldTab,
+  initialRoomType = "group",
   onOpenChange,
   onWorldCreated,
   open,
@@ -43,6 +50,7 @@ export function ConfigActionSheets({
     <>
       <CreateWorldSheet
         app={app}
+        initialTab={createWorldTab}
         open={open === "create-world"}
         onOpenChange={onOpenChange}
         onPatchApplied={handlePatchApplied}
@@ -54,7 +62,12 @@ export function ConfigActionSheets({
         onOpenChange={onOpenChange}
         onPatchApplied={handlePatchApplied}
       />
-      <CreateRoomSheet app={app} open={open === "create-room"} onOpenChange={onOpenChange} />
+      <CreateRoomSheet
+        app={app}
+        initialType={initialRoomType}
+        open={open === "create-room"}
+        onOpenChange={onOpenChange}
+      />
       <ConfigRollbackNotice
         patch={lastAppliedPatch}
         onDismiss={() => setLastAppliedPatch(undefined)}

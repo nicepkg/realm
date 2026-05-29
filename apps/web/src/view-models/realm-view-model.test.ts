@@ -1,5 +1,8 @@
 import { describe, expect, test } from "bun:test";
 import type { Message, RealmEvent, RoleSummary, Room } from "@realm/api-contract";
+import type { StringMessageKey } from "../i18n/messages.ts";
+import { en } from "../i18n/messages-en.ts";
+import { zhCN } from "../i18n/messages-zh-cn.ts";
 import {
   buildConversationRows,
   describeTraceEvent,
@@ -8,8 +11,10 @@ import {
   latestProjectPatches,
   latestWorkflowApprovals,
   roomTypeLabel,
-  turnStatusLabel,
 } from "./realm-view-model.ts";
+
+/** English test translator: resolves static keys straight from the en dict. */
+const t = (key: StringMessageKey): string => en[key] as string;
 
 describe("realm web view model", () => {
   test("builds desktop chat conversation rows from rooms and latest messages", () => {
@@ -37,13 +42,11 @@ describe("realm web view model", () => {
     expect(rows[0]).toMatchObject({
       id: "main",
       title: "All Hands",
-      badge: "all",
       lastMessage: "Lei Jun: newer",
     });
     expect(rows[1]).toMatchObject({
       id: "dm-leijun",
       subtitle: "Boss, Lei Jun",
-      badge: "dm",
       lastMessage: "",
     });
   });
@@ -73,6 +76,38 @@ describe("realm web view model", () => {
     expect(rows[0]?.lastMessage).toBe("Mentor: newer");
   });
 
+  test("filters the conversation list to the viewer account's perspective", () => {
+    const roles: RoleSummary[] = [
+      { id: "leijun", displayName: "Lei Jun", model: "default", source: "config" },
+      { id: "guchenfeng", displayName: "Gu Chenfeng", model: "default", source: "config" },
+    ];
+    const rooms: Room[] = [
+      { id: "main", worldId: "w", type: "world-main", name: "All Hands", memberIds: [] },
+      {
+        id: "dm-leijun",
+        worldId: "w",
+        type: "dm",
+        name: "Boss / Lei Jun",
+        memberIds: ["owner", "leijun"],
+      },
+      {
+        id: "group-rivals",
+        worldId: "w",
+        type: "group",
+        name: "Rivals",
+        memberIds: ["owner", "guchenfeng"],
+      },
+    ];
+
+    // Owner (operator god-eye) sees every room.
+    const ownerRows = buildConversationRows(rooms, [], roles, undefined, "owner");
+    expect(ownerRows.map((row) => row.id).sort()).toEqual(["dm-leijun", "group-rivals", "main"]);
+
+    // Lei Jun's account sees the all-hands room + only rooms it belongs to.
+    const leijunRows = buildConversationRows(rooms, [], roles, undefined, "leijun");
+    expect(leijunRows.map((row) => row.id).sort()).toEqual(["dm-leijun", "main"]);
+  });
+
   test("maps identity and room labels for familiar messenger wording", () => {
     const roles: RoleSummary[] = [
       { id: "guchenfeng", displayName: "Gu Chenfeng", model: "default", source: "config" },
@@ -81,8 +116,8 @@ describe("realm web view model", () => {
     expect(displayNameForIdentity("owner", roles)).toBe("Boss");
     expect(displayNameForIdentity("god", roles)).toBe("God");
     expect(displayNameForIdentity("guchenfeng", roles)).toBe("Gu Chenfeng");
-    expect(roomTypeLabel("god-channel")).toBe("god");
-    expect(turnStatusLabel("running")).toBe("role running");
+    expect(roomTypeLabel(t, "god-channel")).toBe("God");
+    expect(roomTypeLabel(t, "world-main")).toBe("All");
   });
 
   test("localizes system identity labels in conversation previews", () => {
@@ -121,6 +156,24 @@ describe("realm web view model", () => {
     expect(describeTraceEvent(event)).toEqual({
       title: "Streaming: leijun",
       body: "stream",
+    });
+  });
+
+  test("localizes trace titles while keeping machine values verbatim", () => {
+    const tZh = (key: StringMessageKey): string => zhCN[key] as string;
+    const event: RealmEvent = {
+      type: "turn.delta",
+      eventId: "event-zh",
+      seq: 1,
+      schemaVersion: 1,
+      aggregateId: "turn-1",
+      createdAt: "2026-05-26T01:00:00.000Z",
+      delta: { turnId: "turn-1", roleId: "leijun", delta: "片段" },
+    };
+
+    expect(describeTraceEvent(event, tZh)).toEqual({
+      title: "流式输出: leijun",
+      body: "片段",
     });
   });
 
@@ -231,9 +284,57 @@ describe("realm web view model", () => {
     };
 
     expect(describeTraceEvent(event)).toEqual({
-      title: "Turn completed: leijun",
+      // CL-5: the machine status "completed" is localized to the human "Done"
+      // bucket; "package" adapterKind is not a product-facing kind so it passes
+      // through verbatim in the runtime line.
+      title: "Turn Done: leijun",
       body: "Model: gpt-5 | Runtime: package (@earendil-works/pi-agent-core 1.2.3), fallback not-used | Usage: 18 tokens (in 10, out 5, cache 2/1, $0.000033)",
     });
+  });
+
+  test("localizes tool status and never leaks the raw tool-call id as body (I18N-2/CL-5)", () => {
+    const tZh = (key: StringMessageKey): string => zhCN[key] as string;
+    const event: RealmEvent = {
+      type: "tool.called",
+      eventId: "event-tool",
+      seq: 1,
+      schemaVersion: 1,
+      aggregateId: "turn-1",
+      traceId: "trace-1",
+      createdAt: "2026-05-26T01:00:00.000Z",
+      toolCall: {
+        id: "8f3c2a1e-0000-4000-8000-000000000000",
+        name: "network.fetch",
+        status: "denied",
+      },
+    };
+
+    // Status is localized; the raw UUID never appears, replaced by a human "no detail".
+    expect(describeTraceEvent(event, tZh)).toEqual({
+      title: "工具 已拒绝: network.fetch",
+      body: "无详情",
+    });
+  });
+
+  test("localizes the fake runtime adapter kind while leaving others verbatim (CL-5)", () => {
+    const fakeRuntime: RealmEvent = {
+      type: "turn.completed",
+      eventId: "event-fake",
+      seq: 1,
+      schemaVersion: 1,
+      aggregateId: "turn-1",
+      createdAt: "2026-05-26T01:00:00.000Z",
+      turn: {
+        id: "turn-1",
+        worldId: "cultivation",
+        roomId: "main",
+        actorId: "leijun",
+        status: "completed",
+        runtime: { adapterKind: "fake" },
+      },
+    };
+
+    expect(describeTraceEvent(fakeRuntime).body).toContain("Runtime: Demo runtime");
   });
 
   test("keeps latest workflow approvals and project patches by id", () => {

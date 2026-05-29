@@ -57,7 +57,7 @@ describe("TUI role send confirmation", () => {
   test("prompts with displayed author, world, room, and real operator", () => {
     const pending = createRoleSendConfirmation(baseState("leijun"), "hello");
     expect(pending).toBeDefined();
-    if (!pending) {
+    if (!pending || "blocked" in pending) {
       throw new Error("expected pending role send confirmation");
     }
     expect(pending).toMatchObject({
@@ -74,7 +74,7 @@ describe("TUI role send confirmation", () => {
 
   test("renders confirmation in zh-CN from the dictionary", () => {
     const pending = createRoleSendConfirmation(baseState("leijun"), "hello");
-    if (!pending) {
+    if (!pending || "blocked" in pending) {
       throw new Error("expected pending role send confirmation");
     }
     const summary = formatRoleSendConfirmation(pending, tuiDictionaries["zh-CN"]);

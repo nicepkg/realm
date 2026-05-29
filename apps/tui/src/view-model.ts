@@ -1,4 +1,5 @@
 import type { Message, RealmEvent, RoleSummary, Room } from "@realm/api-contract";
+import { formatActiveTurnStatus, type TuiActiveTurn } from "./active-turn.ts";
 import { renderConfigPatchPreview } from "./config-patch-preview.ts";
 import { type TuiLocale, t } from "./i18n.ts";
 import { previewJson } from "./state-inspection.ts";
@@ -18,6 +19,15 @@ export type RenderTuiOptions = {
    * older history while the window size stays constant.
    */
   scrollOffset?: number;
+  /**
+   * In-flight role turn the TUI is driving. When set, the status line and a
+   * dedicated running row show `running <role> · m:ss`, ticked by `now`,
+   * regardless of whether the polled event log has produced `turn.started` yet
+   * (so the running frame appears the instant the operator confirms).
+   */
+  activeTurn?: TuiActiveTurn;
+  /** Wall-clock used to compute the active turn's elapsed counter. */
+  now?: number;
 };
 
 export function renderTui(
@@ -28,17 +38,43 @@ export function renderTui(
   const width = normalizeWidth(options.width);
   const window = Math.max(1, options.transcriptWindow ?? DEFAULT_TRANSCRIPT_WINDOW);
   const scrollOffset = Math.max(0, options.scrollOffset ?? 0);
+  const now = options.now ?? Date.now();
   return [
-    renderStatus(state, locale, width),
+    renderStatus(state, locale, width, options.activeTurn, now),
     divider(width),
     renderConversations(state.rooms, state.room, locale, width),
     divider(width),
     renderMessages(state.messages, state.roles, locale, width, window, scrollOffset),
     divider(width),
     renderContext(state, locale, width),
+    ...renderActiveTurn(options.activeTurn, locale, width, now),
     divider(width),
     renderShortcuts(state, locale, width),
   ].join("\n");
+}
+
+/**
+ * Dedicated in-flight running block shown in the main pane while a turn runs:
+ * the ticking `running <role> · m:ss` line plus the explicit Ctrl+C cancel hint.
+ * Returns an empty array (no divider, no rows) when no turn is active so an idle
+ * TUI is unchanged.
+ */
+function renderActiveTurn(
+  activeTurn: TuiActiveTurn | undefined,
+  locale: TuiLocale,
+  width: number,
+  now: number,
+): string[] {
+  if (!activeTurn) {
+    return [];
+  }
+  const dict = t(locale);
+  return [
+    divider(width),
+    dict.running,
+    fit(`  ${formatActiveTurnStatus(activeTurn, dict, now)}`, width),
+    fit(`  ${dict.turnCancelActiveHint}`, width),
+  ];
 }
 
 /**
@@ -55,7 +91,13 @@ export function clampScrollOffset(
   return Math.min(Math.max(0, desiredOffset), maxOffset);
 }
 
-function renderStatus(state: TuiState, locale: TuiLocale, width: number): string {
+function renderStatus(
+  state: TuiState,
+  locale: TuiLocale,
+  width: number,
+  activeTurn: TuiActiveTurn | undefined,
+  now: number,
+): string {
   const dict = t(locale);
   const world = state.world ? `${state.world.name} (${state.world.mode.type})` : dict.noWorld;
   const room = state.room ? state.room.name : dict.noRoom;
@@ -66,7 +108,7 @@ function renderStatus(state: TuiState, locale: TuiLocale, width: number): string
       width,
     ),
     fit(
-      `${dict.provider}: ${state.providerModel ?? dict.noValue} | ${dict.running}: ${renderRunState(state.events, dict)}`,
+      `${dict.provider}: ${state.providerModel ?? dict.noValue} | ${dict.running}: ${renderRunState(state.events, dict, activeTurn, now)}`,
       width,
     ),
   ].join("\n");
@@ -197,7 +239,18 @@ function latestTrace(events: RealmEvent[], dict: ReturnType<typeof t>): string {
   return dict.traceEvent(event.type);
 }
 
-export function renderRunState(events: RealmEvent[], dict: ReturnType<typeof t>): string {
+export function renderRunState(
+  events: RealmEvent[],
+  dict: ReturnType<typeof t>,
+  activeTurn?: TuiActiveTurn,
+  now: number = Date.now(),
+): string {
+  // A TUI-tracked active turn wins: it shows the ticking elapsed counter and is
+  // present the instant the operator confirms, before the polled log catches up
+  // with `turn.started`. Cleared once the app folds in a terminal outcome.
+  if (activeTurn) {
+    return formatActiveTurnStatus(activeTurn, dict, now);
+  }
   const activeTurns = new Map<string, string>();
   for (const event of events) {
     if (event.type === "turn.started") {

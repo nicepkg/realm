@@ -4,7 +4,7 @@ import os from "node:os";
 import path from "node:path";
 import type { ConfigAssistantPlanner } from "@realm/assistant";
 import { initProject } from "@realm/config";
-import { FakePiBridge } from "@realm/pi-bridge";
+import { FakePiBridge, fakeReply } from "@realm/pi-bridge";
 import { RealmApplicationService } from "./index.ts";
 import { CapturingPiBridge, HangingPiBridge, waitFor } from "./index-test-helpers.ts";
 
@@ -295,7 +295,7 @@ describe("RealmApplicationService", () => {
       timeoutMs: 500,
     });
 
-    expect(result.message.content).toBe("[leijun] Hello");
+    expect(result.message.content).toBe(fakeReply("leijun", 0));
     expect(service.listEvents().map((event) => event.type)).toContain("turn.started");
     expect(service.listEvents().map((event) => event.type)).toContain("message.created");
     expect(service.listEvents().map((event) => event.type)).toContain("turn.completed");

@@ -24,8 +24,12 @@ describe("world inspector sheet", () => {
     expect(html).toContain("Realm Project");
     expect(html).toContain("Cultivation Sim");
     expect(html).toContain("v7");
-    expect(html).toContain("&quot;season&quot;");
-    expect(html).toContain("&quot;spring&quot;");
+    // The state tab now leads with a flattened key→value table (raw JSON moved
+    // behind a sub-tab), so the values render as plain cells, not quoted JSON.
+    expect(html).toContain('data-testid="state-layer-summary"');
+    expect(html).toContain('data-testid="state-layer-table"');
+    expect(html).toContain("season");
+    expect(html).toContain("spring");
   });
 
   test("renders recent trace events in the event timeline", () => {
@@ -36,7 +40,9 @@ describe("world inspector sheet", () => {
     );
 
     expect(html).toContain('data-testid="world-event-timeline"');
-    expect(html).toContain("World event: Sudden Storm");
+    // I18N-1: the inspector now threads `t`, so the trace title localizes to the
+    // default (zh-CN) locale; the event title itself stays verbatim machine data.
+    expect(html).toContain("世界事件: Sudden Storm");
     expect(html).toContain("manual");
   });
 
@@ -49,11 +55,13 @@ describe("world inspector sheet", () => {
 
     expect(html).toContain('data-testid="world-access-audit"');
     expect(html).toContain('data-testid="world-access-denial-row"');
-    expect(html).toContain("Tool denied");
+    // zh-CN is the default locale after the rebuild; localized labels render in
+    // Chinese. The denial structure and raw reason strings are unchanged.
+    expect(html).toContain("工具被拒");
     expect(html).toContain("memory.write");
     expect(html).toContain("memory.write is denied by host policy");
-    expect(html).toContain("host/runtime policy is authoritative");
-    expect(html).toContain("Audit denied");
+    expect(html).toContain("以 host/runtime 策略为准");
+    expect(html).toContain("审计拒绝");
     expect(html).toContain("network.fetch");
   });
 

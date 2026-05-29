@@ -28,14 +28,12 @@ const requiredFiles = [
     "textarea.tsx",
     "tooltip.tsx",
   ].map((file) => path.join(webSrc, "components", "ui", file)),
-  ...[
-    "code-block.tsx",
-    "conversation.tsx",
-    "message.tsx",
-    "prompt-input.tsx",
-    "reasoning.tsx",
-    "tool.tsx",
-  ].map((file) => path.join(webSrc, "components", "ai-elements", file)),
+  // The messenger rebuild folded the chat primitives into the workspace and
+  // kept only the AI Elements pieces it still composes. Require the ones the
+  // current UI actually renders, not the pre-rebuild superset.
+  ...["conversation.tsx", "shimmer.tsx"].map((file) =>
+    path.join(webSrc, "components", "ai-elements", file),
+  ),
 ];
 
 for (const file of requiredFiles) {

@@ -50,7 +50,8 @@ export function inferConfigPlanFromGoal(goal: string): AssistantConfigPlan {
         id: "assistant-world",
         name: goal.includes("修真") ? "Cultivation World" : "Assistant World",
         mode: goal.includes("修真") ? "game" : "sandbox",
-        roomName: "All Hands",
+        // Stable id token; the i18n layer localizes the world-main room label.
+        roomName: "main",
         roleIds: [],
       },
     };

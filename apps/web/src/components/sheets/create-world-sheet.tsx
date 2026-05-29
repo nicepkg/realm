@@ -19,8 +19,11 @@ import {
   SheetHeader,
   SheetTitle,
 } from "@/components/ui/sheet";
+import { Spinner } from "@/components/ui/spinner";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { useI18n } from "@/i18n/index.tsx";
+import type { StringMessageKey } from "@/i18n/messages.ts";
+import { worldModeLabel } from "@/view-models/labels.ts";
 import type {
   ConfigActionSheetKind,
   PatchAppliedHandler,
@@ -34,30 +37,31 @@ const WORLD_PRESETS = [
   {
     id: "cultivation",
     mode: "game",
-    name: "Cultivation Demo",
-    roomName: "All Hands",
+    nameKey: "sheet.createWorld.preset.cultivation.title",
+    roomNameKey: "sheet.createWorld.preset.cultivation.roomName",
   },
   {
     id: "workflow",
     mode: "workflow",
-    name: "Software Team",
-    roomName: "Standup",
+    nameKey: "sheet.createWorld.preset.workflow.title",
+    roomNameKey: "sheet.createWorld.preset.workflow.roomName",
   },
   {
     id: "blank",
     mode: "sandbox",
-    name: "Blank Sandbox",
-    roomName: "All Hands",
+    nameKey: "sheet.createWorld.preset.blank.title",
+    roomNameKey: "sheet.createWorld.preset.blank.roomName",
   },
 ] as const satisfies Array<{
   id: "blank" | "cultivation" | "workflow";
   mode: WorldMode;
-  name: string;
-  roomName: string;
+  nameKey: StringMessageKey;
+  roomNameKey: StringMessageKey;
 }>;
 
 export function CreateWorldSheet({
   app,
+  initialTab,
   onOpenChange,
   onPatchApplied,
   onWorldCreated,
@@ -65,6 +69,12 @@ export function CreateWorldSheet({
 }: {
   app: RealmAppController;
   open: boolean;
+  /**
+   * Which tab the sheet opens on. The Manager threads this so its "Create World"
+   * (preset) and "Import" buttons map 1:1 to a distinct landing tab instead of
+   * firing the identical handler under different labels (mapping).
+   */
+  initialTab?: "import" | "preset";
   onOpenChange: (open: ConfigActionSheetKind | undefined) => void;
   onPatchApplied: PatchAppliedHandler;
   onWorldCreated?: (worldId: string) => void;
@@ -72,9 +82,12 @@ export function CreateWorldSheet({
   const { t } = useI18n();
   const [name, setName] = useState("");
   const [mode, setMode] = useState<WorldMode>("sandbox");
-  const [roomName, setRoomName] = useState("All Hands");
+  const [roomName, setRoomName] = useState(() => t("workspace.allHands"));
   const [proposal, setProposal] = useState<ConfigPatchProposal | undefined>();
   const [busy, setBusy] = useState(false);
+  // Which button kicked off the current async write, so only that control shows
+  // its pending label + spinner (apply/revise feedback lives in PatchPreview).
+  const [pending, setPending] = useState<"preview" | "import" | undefined>();
   const [error, setError] = useState<string | undefined>();
   const [importTemplateId, setImportTemplateId] = useState("");
   const [importBody, setImportBody] = useState("");
@@ -90,6 +103,7 @@ export function CreateWorldSheet({
       return;
     }
     setBusy(true);
+    setPending("preview");
     setError(undefined);
     try {
       const response = await app.client.proposeWorld({
@@ -97,13 +111,14 @@ export function CreateWorldSheet({
         mode,
         name: name.trim(),
         roleIds: app.state.roles.map((role) => role.id),
-        roomName: roomName.trim() || "All Hands",
+        roomName: roomName.trim() || t("workspace.allHands"),
       });
       setProposal(response.patch);
     } catch (caught) {
       setError(caught instanceof Error ? caught.message : String(caught));
     } finally {
       setBusy(false);
+      setPending(undefined);
     }
   }
 
@@ -119,6 +134,7 @@ export function CreateWorldSheet({
       return;
     }
     setBusy(true);
+    setPending("import");
     setError(undefined);
     try {
       const goal = importBody.trim()
@@ -130,6 +146,7 @@ export function CreateWorldSheet({
       setError(caught instanceof Error ? caught.message : String(caught));
     } finally {
       setBusy(false);
+      setPending(undefined);
     }
   }
 
@@ -178,13 +195,13 @@ export function CreateWorldSheet({
     onOpenChange(undefined);
     setProposal(undefined);
     setName("");
-    setRoomName("All Hands");
+    setRoomName(t("workspace.allHands"));
   }
 
   function applyPreset(preset: (typeof WORLD_PRESETS)[number]) {
-    setName(preset.name);
+    setName(t(preset.nameKey));
     setMode(preset.mode);
-    setRoomName(preset.roomName);
+    setRoomName(t(preset.roomNameKey));
     setProposal(undefined);
   }
 
@@ -198,7 +215,10 @@ export function CreateWorldSheet({
           <SheetTitle>{t("sheet.createWorld.title")}</SheetTitle>
           <SheetDescription>{t("sheet.createWorld.description")}</SheetDescription>
         </SheetHeader>
-        <Tabs className="px-4" defaultValue="preset">
+        {/* `key` forces a fresh uncontrolled Tabs each time the sheet opens, so
+         * the active tab honors the intent the caller threaded in (`initialTab`)
+         * rather than sticking on whatever was last selected. */}
+        <Tabs className="px-4" defaultValue={initialTab ?? "preset"} key={`${open}:${initialTab}`}>
           <TabsList className="grid w-full grid-cols-2">
             <TabsTrigger data-testid="create-world-tab-preset" value="preset">
               {t("sheet.createWorld.tabPreset")}
@@ -263,8 +283,14 @@ export function CreateWorldSheet({
                 disabled={!canImport || busy}
                 type="submit"
               >
-                <FileText className="size-4" />
-                {t("sheet.createWorld.importValidate")}
+                {pending === "import" ? (
+                  <Spinner data-testid="create-world-import-preview-spinner" />
+                ) : (
+                  <FileText className="size-4" />
+                )}
+                {pending === "import"
+                  ? t("sheet.createWorld.previewing")
+                  : t("sheet.createWorld.importValidate")}
               </Button>
             </form>
           </TabsContent>
@@ -320,7 +346,7 @@ export function CreateWorldSheet({
                     <SelectContent>
                       {["sandbox", "workflow", "debate", "game", "simulation"].map((item) => (
                         <SelectItem key={item} value={item}>
-                          {item}
+                          {worldModeLabel(t, item)}
                         </SelectItem>
                       ))}
                     </SelectContent>
@@ -353,8 +379,14 @@ export function CreateWorldSheet({
                 disabled={!canPreview || busy}
                 type="submit"
               >
-                <FileText className="size-4" />
-                {t("sheet.config.preview")}
+                {pending === "preview" ? (
+                  <Spinner data-testid="create-world-preview-spinner" />
+                ) : (
+                  <FileText className="size-4" />
+                )}
+                {pending === "preview"
+                  ? t("sheet.createWorld.previewing")
+                  : t("sheet.config.preview")}
               </Button>
             </form>
           </TabsContent>

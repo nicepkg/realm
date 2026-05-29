@@ -1,7 +1,28 @@
-import type { Message, RealmEvent, RoleSummary, Room, WorldSummary } from "@realm/api-contract";
+import type {
+  Message,
+  RealmEvent,
+  RoleSummary,
+  Room,
+  StatePatchResult,
+  WorldSummary,
+} from "@realm/api-contract";
 
 export type AppSection = "chats" | "roles" | "worlds" | "settings";
 export type GodRoleAction = "kill" | "mute" | "revive";
+
+/**
+ * A God/admin ruling result scoped to where it was issued. Scoping lets the
+ * timeline drop a stale notice the moment the operator switches world or room,
+ * so a ruling applied in one world never bleeds into an unrelated conversation
+ * (FB-3). `roomId` is optional because a ruling targets a world, not a room, but
+ * we remember the room it was issued from so a room switch within the same world
+ * also clears the notice.
+ */
+export type GodActionResult = {
+  worldId: string;
+  roomId?: string;
+  result: StatePatchResult;
+};
 
 /**
  * Optimistic message bubble shown immediately on send, before the server
@@ -40,6 +61,14 @@ export type TurnRunState = {
   error?: string;
   /** True when the failure is a trust/policy gate that the trust banner can fix. */
   trustRelated?: boolean;
+  /**
+   * Live assistant token text streamed for the active turn (FB-401). The pipeline
+   * emits `turn.delta` events carrying real token text; we accumulate them here so
+   * the primary chat bubble shows the answer forming instead of an opaque
+   * "thinking…" shimmer. Reset to undefined on a fresh run and on every terminal
+   * transition so a finished/failed/cancelled turn never leaves stale tokens.
+   */
+  streamedText?: string;
 };
 
 export type AppState = {
@@ -74,6 +103,52 @@ export const initialState: AppState = {
 };
 
 export const idleTurnRun: TurnRunState = { status: "idle" };
+
+/**
+ * Accumulate the live token text for an active turn from the event log (FB-401).
+ * Walks every `turn.delta` event whose payload matches `turnId` and concatenates
+ * its `delta` text in stream order. Pure + idempotent: the full deltas are always
+ * folded from the authoritative event log, so re-running it after a reload (which
+ * replays the same events) yields the identical string rather than double-counting.
+ * Returns undefined when no tokens have arrived yet so the bubble can keep its
+ * pre-first-token shimmer.
+ */
+export function accumulateStreamedText(
+  events: RealmEvent[],
+  turnId: string | undefined,
+): string | undefined {
+  if (!turnId) {
+    return undefined;
+  }
+  let text = "";
+  for (const event of events) {
+    if (event.type === "turn.delta" && event.delta.turnId === turnId) {
+      text += event.delta.delta;
+    }
+  }
+  return text.length > 0 ? text : undefined;
+}
+
+/**
+ * Resolve which role should be bound to the run-turn control for a room (MC-R4-1).
+ * The run target must be a VISIBLE, room-scoped choice that can actually post into
+ * the room, so we clamp it to a member of the room: keep the current selection if
+ * it is already a member, otherwise default to the room's first role member. When
+ * the room has no role members we fall back to the configured first role so the
+ * control still names a concrete (if non-member) role rather than going blank —
+ * the run gate downstream then blocks it with a clear reason.
+ */
+export function resolveRoomRunRoleId(
+  memberIds: string[],
+  roleIds: string[],
+  currentRunRoleId: string,
+): string {
+  const memberRoleIds = roleIds.filter((id) => memberIds.includes(id));
+  if (memberRoleIds.includes(currentRunRoleId)) {
+    return currentRunRoleId;
+  }
+  return memberRoleIds[0] ?? roleIds[0] ?? "";
+}
 
 type TurnFailureKey =
   | "roleTurn.failedReadOnly"
@@ -147,6 +222,33 @@ export function appendSentMessage(
     conversationMessages: [...current.conversationMessages, message],
     messages: options.isActiveRoom ? [...current.messages, message] : current.messages,
   };
+}
+
+const VIEWER_STORAGE_PREFIX = "realm-viewer:";
+
+/** localStorage key for the last viewer account (perspective) of a world. */
+export function viewerStorageKey(worldId: string): string {
+  return `${VIEWER_STORAGE_PREFIX}${worldId}`;
+}
+
+/** Restore the viewer account persisted for a world, defaulting to owner. */
+export function readViewerIdentity(worldId: string | undefined): string {
+  if (!worldId || typeof localStorage === "undefined") {
+    return "owner";
+  }
+  return localStorage.getItem(viewerStorageKey(worldId)) ?? "owner";
+}
+
+/**
+ * Decide whether a persisted viewer identity should be *offered* as a resume
+ * suggestion rather than silently re-activated on world entry (L4-01). Owner is
+ * always restored silently (returning to yourself is safe); a non-owner role is
+ * never auto-activated — it is surfaced as a pending suggestion the operator must
+ * confirm through the gated takeover dialog. Returns the role id to suggest, or
+ * undefined when there is nothing to offer.
+ */
+export function pendingResumeFromStoredIdentity(stored: string): string | undefined {
+  return stored === "owner" ? undefined : stored;
 }
 
 export function resolveIdentityAfterRealmLoad(

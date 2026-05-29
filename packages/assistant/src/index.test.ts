@@ -25,7 +25,7 @@ describe("assistant config planner", () => {
         id: "assistant-world",
         name: "Cultivation World",
         mode: "game",
-        roomName: "All Hands",
+        roomName: "main",
         roleIds: [],
       },
     });

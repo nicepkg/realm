@@ -15,8 +15,6 @@ export function createAgentBrowserSmoke(session: string, outputDir: string) {
     browser,
     browserEval: (source: string) => browserEval(browser, source),
     clickInPage: (selector: string) => clickInPage(browser, selector),
-    closeComposerTray: () => closeComposerTray(browser),
-    ensureComposerTrayOpen: () => ensureComposerTrayOpen(browser),
     pageText: (selector: string) => pageText(browser, selector),
     screenshot: (fileName: string) => browser("screenshot", path.join(outputDir, fileName)),
     tryBrowser: async (...args: string[]) => {
@@ -111,33 +109,6 @@ async function pageText(
     `document.querySelector(${JSON.stringify(selector)})?.textContent?.trim() ?? ""`,
   );
   return result.trim().replace(/^"|"$/g, "");
-}
-
-async function ensureComposerTrayOpen(browser: (...args: string[]) => Promise<string>) {
-  const result = await browserEval(
-    browser,
-    "document.querySelector(\"[data-testid='composer-action-tray']\") !== null",
-  );
-  if (result.includes("true")) {
-    return;
-  }
-  await clickInPage(browser, "[data-testid='composer-more']");
-  await waitForPageExpression(
-    browser,
-    "document.querySelector(\"[data-testid='composer-action-tray']\") !== null",
-  );
-}
-
-async function closeComposerTray(browser: (...args: string[]) => Promise<string>) {
-  const result = await browserEval(
-    browser,
-    "document.querySelector(\"[data-testid='composer-action-tray']\") !== null",
-  );
-  if (!result.includes("true")) {
-    return;
-  }
-  await clickInPage(browser, "[data-testid='composer-more']");
-  await browser("wait", "200");
 }
 
 async function waitForPageExpression(

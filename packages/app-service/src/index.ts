@@ -196,6 +196,11 @@ export class RealmApplicationService {
     return this.configQueryService.getProject();
   }
 
+  /** Active turn runtime so clients can flag mock-runtime preview mode. */
+  getRuntimeInfo(): { adapterKind: string } {
+    return { adapterKind: this.piBridge.adapterMetadata?.().adapterKind ?? "pi" };
+  }
+
   getSettings(): Promise<SettingsSnapshot> {
     return this.settingsService.getSettings();
   }

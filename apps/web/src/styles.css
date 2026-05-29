@@ -1,3 +1,6 @@
+/* biome-ignore-all lint/complexity/noImportantStyles: the prefers-reduced-motion
+ * guard and view-transition resets must override Tailwind utilities and inline
+ * animations, which only `!important` reliably does. */
 @import "tailwindcss";
 @import "tw-animate-css";
 
@@ -26,17 +29,6 @@
   --radius-md: calc(var(--radius) - 2px);
   --radius-lg: var(--radius);
   --radius-xl: calc(var(--radius) + 4px);
-}
-
-@theme {
-  --color-realm-primary: #07c160;
-  --color-realm-primary-text: #087a43;
-  --color-realm-primary-dark: #67e89a;
-  --color-realm-surface: #fafafa;
-  --color-realm-surface-muted: #f4f4f5;
-  --color-realm-border: #e4e4e7;
-  --color-realm-warning: #d97706;
-  --color-realm-danger: #dc2626;
 }
 
 :root {
@@ -107,4 +99,180 @@ select {
 *:focus-visible {
   outline: 2px solid #07c160;
   outline-offset: 2px;
+}
+
+/* ───────────────────────── Motion system ─────────────────────────
+ * Calm, product-grade motion (taste dial: product = 3). One token set,
+ * one reduced-motion guard, a few shared keyframes. Every animation
+ * references the tokens; nothing animates layout (transform/opacity only).
+ */
+:root {
+  --realm-motion-fast: 140ms;
+  --realm-motion-base: 220ms;
+  --realm-motion-slow: 320ms;
+  --realm-ease-out: cubic-bezier(0.22, 1, 0.36, 1);
+  --realm-ease-spring: cubic-bezier(0.34, 1.56, 0.64, 1);
+}
+
+/* Hard accessibility gate — must win over every animation/transition. */
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+    scroll-behavior: auto !important;
+  }
+  ::view-transition-group(*),
+  ::view-transition-old(*),
+  ::view-transition-new(*) {
+    animation: none !important;
+  }
+}
+
+@keyframes realm-bubble-in {
+  from {
+    opacity: 0;
+    transform: translateY(6px) scale(0.96);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0) scale(1);
+  }
+}
+
+@keyframes realm-shake {
+  0%,
+  100% {
+    transform: translateX(0);
+  }
+  25% {
+    transform: translateX(-2px);
+  }
+  75% {
+    transform: translateX(2px);
+  }
+}
+
+@keyframes realm-dot {
+  0%,
+  80%,
+  100% {
+    opacity: 0.3;
+    transform: translateY(0);
+  }
+  40% {
+    opacity: 1;
+    transform: translateY(-3px);
+  }
+}
+
+@keyframes realm-skeleton {
+  from {
+    background-position: 200% 0;
+  }
+  to {
+    background-position: -200% 0;
+  }
+}
+
+@keyframes realm-breathe {
+  0%,
+  100% {
+    transform: scale(1);
+  }
+  50% {
+    transform: scale(1.04);
+  }
+}
+
+@keyframes realm-fade-rise {
+  from {
+    opacity: 0;
+    transform: translateY(8px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+/* Bubble / list-item entrance. Direction sets the scale origin so the
+ * bubble grows out of its own corner. Apply only to NEW arrivals. */
+.realm-bubble-in {
+  animation: realm-bubble-in var(--realm-motion-base) var(--realm-ease-out) both;
+}
+.realm-bubble-in-out {
+  transform-origin: bottom right;
+}
+.realm-bubble-in-in {
+  transform-origin: bottom left;
+}
+.realm-shake {
+  animation: realm-shake 180ms ease-in-out;
+}
+
+/* Press feedback for any clickable surface — transform only, no reflow. */
+.realm-press {
+  transition: transform var(--realm-motion-fast) var(--realm-ease-out);
+}
+.realm-press:active {
+  transform: scale(0.97);
+}
+
+/* Staggered one-shot entrance for empty/onboarding regions. */
+.realm-rise {
+  animation: realm-fade-rise var(--realm-motion-base) var(--realm-ease-out) both;
+}
+
+/* Directional shimmer skeleton (replaces flat pulse). */
+.realm-skeleton {
+  background: linear-gradient(
+    90deg,
+    var(--realm-surface-muted) 25%,
+    var(--realm-hover) 50%,
+    var(--realm-surface-muted) 75%
+  );
+  background-size: 200% 100%;
+  animation: realm-skeleton 1.4s ease-in-out infinite;
+}
+
+/* Subtle "alive" loop for empty-state icon badges (≤4% scale). */
+.realm-breathe {
+  animation: realm-breathe 4s ease-in-out infinite;
+}
+
+/* Typing/thinking indicator: three rising dots. */
+.realm-dots span {
+  animation: realm-dot 1.1s ease-in-out infinite;
+}
+.realm-dots span:nth-child(2) {
+  animation-delay: 0.15s;
+}
+.realm-dots span:nth-child(3) {
+  animation-delay: 0.3s;
+}
+
+/* Native View Transition crossfade for pane/mode swaps (feature-detected). */
+::view-transition-old(messenger-pane),
+::view-transition-new(messenger-pane),
+::view-transition-old(realm-mode),
+::view-transition-new(realm-mode) {
+  animation-duration: 160ms;
+  animation-timing-function: var(--realm-ease-out);
+}
+
+/* Name the swapping pane only below the 3-pane breakpoint. On desktop both
+ * panes are visible, so naming both would clash; below lg exactly one pane is
+ * rendered (the other is display:none and never captured). */
+@media (max-width: 1023px) {
+  .realm-mobile-pane:not(.hidden) {
+    view-transition-name: messenger-pane;
+  }
+}
+
+/* Manager ⇄ workspace full-page swap (only one page mounts at a time). */
+.realm-mode-root {
+  view-transition-name: realm-mode;
 }

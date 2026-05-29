@@ -5,6 +5,7 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Separator } from "@/components/ui/separator";
+import { Spinner } from "@/components/ui/spinner";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { useI18n } from "@/i18n/index.tsx";
 import type { PatchApplyResult, PatchRevisionInput } from "./config-action-types.ts";
@@ -15,6 +16,7 @@ import {
   isConflictError,
   summarizePatchOperations,
 } from "./patch-preview-model.ts";
+import { ConfigHistory, OperationList } from "./patch-preview-sections.tsx";
 
 export function PatchPreview({
   busy,
@@ -148,6 +150,7 @@ export function PatchPreview({
           ))}
         </ul>
       </div>
+      <OperationList operations={proposal.operations} t={t} />
       {requiresConfirmation ? (
         <label className="block space-y-1" htmlFor={`confirm-${proposal.id}`}>
           <span className="text-[12px] text-[var(--realm-fg-muted)]">
@@ -218,6 +221,7 @@ export function PatchPreview({
           </div>
         </div>
       ) : null}
+      <ConfigHistory applyResult={applyResult} proposal={activeProposal} t={t} />
       {rollbackResult ? (
         <div
           className="rounded-md bg-[#e6f7ee] p-2 text-[#087a43] text-[12px]"
@@ -233,7 +237,8 @@ export function PatchPreview({
           onClick={() => void applyPatch()}
           type="button"
         >
-          {t("sheet.config.apply")}
+          {busy ? <Spinner data-testid="config-patch-apply-spinner" /> : null}
+          {busy ? t("sheet.config.applying") : t("sheet.config.apply")}
         </Button>
         {onRevise ? (
           <Button
@@ -243,7 +248,8 @@ export function PatchPreview({
             type="button"
             variant="secondary"
           >
-            {t("sheet.config.preview")}
+            {revising ? <Spinner data-testid="config-patch-revise-spinner" /> : null}
+            {revising ? t("sheet.config.revising") : t("sheet.config.preview")}
           </Button>
         ) : null}
         {applyResult ? (

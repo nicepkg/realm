@@ -6,6 +6,7 @@ import {
   buildPiRpcArgs,
   buildRealmAgentTools,
   FakePiBridge,
+  fakeReply,
   JsonlDecoder,
   mapAgentEventToBridgeEvents,
   mapPiRpcRecordToBridgeEvents,
@@ -32,13 +33,15 @@ describe("FakePiBridge", () => {
     expect((await iterator.next()).value).toMatchObject({ type: "session.started" });
     await bridge.sendPrompt(handle.id, { message: "Hello" });
     expect((await iterator.next()).value).toMatchObject({ type: "prompt.accepted" });
+    // Mock runtime emits an in-character Chinese line, not the English echo.
+    const expected = fakeReply("leijun", 0);
     expect((await iterator.next()).value).toMatchObject({
       type: "assistant.delta",
-      delta: "[leijun] Hello",
+      delta: expected,
     });
     expect((await iterator.next()).value).toMatchObject({
       type: "assistant.message",
-      content: "[leijun] Hello",
+      content: expected,
     });
     await bridge.dispose(handle.id);
   });

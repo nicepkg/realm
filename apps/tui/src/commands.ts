@@ -100,11 +100,15 @@ export function parseTuiCommand(input: string): TuiCommand {
       return { kind: "locale", locale: normalized };
     }
   }
-  if ((head === ":run-role" || head === "run-role") && rest) {
+  if (head === ":run-role" || head === "run-role") {
+    // No role id: surface the room-member roles to pick from (DISC-R7-4) rather
+    // than falling through to `send` and silently posting "run-role" as a chat
+    // message. An empty roleId is the picker signal the app resolves.
+    const prompt = tail.slice(1).join(" ").trim();
     return {
       kind: "runRole",
-      ...(tail.slice(1).join(" ").trim() ? { prompt: tail.slice(1).join(" ").trim() } : {}),
-      roleId: tail[0] ?? rest,
+      ...(prompt ? { prompt } : {}),
+      roleId: tail[0]?.trim() ?? "",
     };
   }
   if (head === ":state" || head === "state") {
@@ -131,6 +135,9 @@ export function parseTuiCommand(input: string): TuiCommand {
     if (action && GOD_ROLE_ACTIONS.has(action) && targetRoleId && reason) {
       return { action, kind: "god", reason, targetRoleId };
     }
+  }
+  if (head === ":rollback" || head === "rollback" || head === "/rollback") {
+    return { kind: "rollback", ...(rest ? { historyId: rest } : {}) };
   }
   if ((head === ":send" || head === "send") && rest) {
     return { kind: "send", content: rest };
@@ -203,6 +210,7 @@ export function renderTuiHelp(locale: TuiLocale = "en"): string {
       "  :memory <role-id>       查看角色记忆",
       "  :god <action> <role> <reason>",
       "                         受保护的上帝动作；需输入角色 id 确认",
+      "  :rollback [history-id]  将配置回滚到某个历史记录",
       "  :drafts                查看失败草稿",
       "  :draft <id>            查看草稿详情",
       "  :edit-draft <id> <msg>  修改草稿内容",
@@ -247,6 +255,7 @@ export function renderTuiHelp(locale: TuiLocale = "en"): string {
     "  :memory <role-id>       inspect role memory",
     "  :god <action> <role> <reason>",
     "                         guarded God action; type role id to confirm",
+    "  :rollback [history-id]  roll config back to a history entry",
     "  :drafts                list failed drafts",
     "  :draft <id>            show draft details",
     "  :edit-draft <id> <msg>  edit draft content",

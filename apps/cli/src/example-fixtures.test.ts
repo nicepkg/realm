@@ -22,8 +22,14 @@ describe("example fixtures", () => {
     const guChenfeng = roles.find((role) => role.id === "guchenfeng");
 
     expect(project).toMatchObject({
-      project: { name: "Cultivation Sim" },
-      defaults: { world: "cultivation" },
+      version: 1,
+      project: { name: "云岭修仙界" },
+      defaults: { world: "cultivation", modelProfile: "default" },
+      security: {
+        requireTrust: true,
+        allowProjectShellByDefault: false,
+        allowNetworkByDefault: false,
+      },
     });
     expect(world).toMatchObject({
       id: "cultivation",

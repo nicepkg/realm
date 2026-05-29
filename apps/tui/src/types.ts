@@ -123,4 +123,5 @@ export type TuiCommand =
   | { kind: "patchApply"; confirmation?: string }
   | { kind: "patchReject" }
   | { kind: "god"; action: TuiGodRoleAction; targetRoleId: string; reason: string }
+  | { kind: "rollback"; historyId?: string }
   | { kind: "assistant"; goal: string };

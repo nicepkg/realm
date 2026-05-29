@@ -1,11 +1,9 @@
-import type { RoleSummary } from "@realm/api-contract";
-import { AlertCircle, CheckCircle2, LockKeyhole, ScrollText, ShieldCheck } from "lucide-react";
-import type { ReactNode } from "react";
+import { LockKeyhole, ScrollText, ShieldCheck } from "lucide-react";
 import { useEffect, useMemo, useState } from "react";
 import type { RealmAppController } from "@/app/types.ts";
 import { IdentityAvatar } from "@/components/messenger/messenger-primitives.tsx";
 import { Badge } from "@/components/ui/badge";
-import { Button } from "@/components/ui/button";
+import { ScrollArea } from "@/components/ui/scroll-area";
 import {
   Sheet,
   SheetContent,
@@ -15,6 +13,8 @@ import {
 } from "@/components/ui/sheet";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { useI18n } from "@/i18n/index.tsx";
+import { InspectorNotice, MetricLine, ProfileRows, SkillRow } from "./role-inspector-profile.tsx";
+import { SubTabButton } from "./world-inspector-sheet.tsx";
 
 type PolicyMatrix = Awaited<ReturnType<RealmAppController["client"]["getEffectivePolicy"]>>;
 
@@ -23,9 +23,28 @@ type RoleInspectorSheetProps = {
   roleId: string | undefined;
   open: boolean;
   onOpenChange: (open: boolean) => void;
+  /**
+   * Seed the God controller with a role and open it. Threaded down so the
+   * inspector's "Request adjudication" action lands operators on a pre-targeted
+   * ruling sheet instead of a blank one.
+   */
+  onOpenGod?: (roleId?: string) => void;
+  /**
+   * Hand off to the shell-owned run-turn preview after staging this role. Lets
+   * the inspector's "Run turn" reuse the one gated preview->confirm cycle every
+   * other surface uses, instead of dead-ending after setRunRoleId.
+   */
+  onRequestRunTurn?: () => void;
 };
 
-export function RoleInspectorSheet({ app, onOpenChange, open, roleId }: RoleInspectorSheetProps) {
+export function RoleInspectorSheet({
+  app,
+  onOpenChange,
+  onOpenGod,
+  onRequestRunTurn,
+  open,
+  roleId,
+}: RoleInspectorSheetProps) {
   const { t } = useI18n();
   const role = app.state.roles.find((candidate) => candidate.id === roleId);
   const [memory, setMemory] = useState<string | undefined>();
@@ -126,29 +145,106 @@ export function RoleInspectorSheet({ app, onOpenChange, open, roleId }: RoleInsp
               </div>
             ) : null}
             <TabsContent className="mt-4 space-y-3" value="memory">
-              <InspectorNotice
-                icon={<ScrollText className="size-4" />}
-                title={t("inspector.memoryScope")}
-              >
-                {t("inspector.memoryPortability")}
-              </InspectorNotice>
-              <pre
-                className="max-h-[360px] overflow-auto rounded-[6px] bg-[#f7f7f8] p-3 text-[12px] leading-5"
-                data-testid="role-memory-content"
-              >
-                {loading ? t("common.loading") : memory?.trim() || t("inspector.emptyMemory")}
-              </pre>
+              <MemoryTab loading={loading} memory={memory} />
             </TabsContent>
             <TabsContent className="mt-4 space-y-3" value="capabilities">
               <PolicySummary loading={loading} policy={policy} rolePolicy={rolePolicy} />
             </TabsContent>
             <TabsContent className="mt-4 space-y-3" value="profile">
-              <ProfileRows app={app} role={role} />
+              <ProfileRows
+                app={app}
+                onOpenChange={onOpenChange}
+                onOpenGod={onOpenGod}
+                onRequestRunTurn={onRequestRunTurn}
+                role={role}
+              />
             </TabsContent>
           </Tabs>
         )}
       </SheetContent>
     </Sheet>
+  );
+}
+
+/**
+ * Memory tab with progressive disclosure mirroring the world-state tab: a calm
+ * summary (size + an explicit green role-private visibility chip) and readable
+ * prose by default, with the raw memory text behind a "raw" sub-tab. Replaces
+ * the old raw-<pre>-by-default treatment so the primary view stays legible.
+ */
+function MemoryTab({ loading, memory }: { loading: boolean; memory: string | undefined }) {
+  const { t } = useI18n();
+  const [layer, setLayer] = useState<"readable" | "raw">("readable");
+  const trimmed = memory?.trim() ?? "";
+  const size = trimmed.length;
+
+  return (
+    <div className="space-y-3" data-testid="role-memory-tab">
+      <section
+        className="space-y-2 rounded-[6px] bg-[#f7f7f8] p-3 text-[12px]"
+        data-testid="role-memory-summary"
+      >
+        <div className="flex items-center gap-2">
+          <ScrollText className="size-3.5 text-[#087a43]" />
+          <span className="font-medium text-[#1f1f21]">{t("inspector.memoryScope")}</span>
+          <Badge className="border-transparent bg-white text-[#555]" data-testid="role-memory-size">
+            {t("inspector.memoryChars")(size)}
+          </Badge>
+        </div>
+        <div className="text-[var(--realm-fg-muted)]">{t("inspector.memoryPortability")}</div>
+        <div className="flex items-center gap-1.5 text-[11px] text-[#6e6e73]">
+          <span className="shrink-0">{t("inspector.visibleTo")}</span>
+          <span
+            className="inline-flex items-center gap-1 rounded-full bg-[#e8f6ee] px-1.5 py-0.5 text-[#087a43]"
+            data-testid="role-memory-visibility"
+          >
+            <LockKeyhole className="size-3" />
+            {t("inspector.memoryVisibilityPrivate")}
+          </span>
+        </div>
+      </section>
+
+      <div className="flex items-center gap-1 rounded-[6px] bg-[#f0f0f2] p-0.5 text-[12px]">
+        <SubTabButton
+          active={layer === "readable"}
+          label={t("inspector.memoryReadable")}
+          onClick={() => setLayer("readable")}
+          testId="role-memory-subtab-readable"
+        />
+        <SubTabButton
+          active={layer === "raw"}
+          label={t("inspector.memoryRaw")}
+          onClick={() => setLayer("raw")}
+          testId="role-memory-subtab-raw"
+        />
+      </div>
+
+      {layer === "readable" ? (
+        <ScrollArea className="h-[300px] rounded-[6px] bg-[#f7f7f8]">
+          <div
+            className="whitespace-pre-wrap break-words p-3 text-[13px] leading-6 text-[#1f1f21]"
+            data-testid="role-memory-content"
+          >
+            {loading ? (
+              <span className="text-[var(--realm-fg-muted)]">{t("common.loading")}</span>
+            ) : (
+              trimmed || (
+                <span className="text-[var(--realm-fg-muted)]">{t("inspector.emptyMemory")}</span>
+              )
+            )}
+          </div>
+        </ScrollArea>
+      ) : (
+        <ScrollArea className="h-[300px] rounded-[6px] bg-[#f7f7f8]">
+          <pre
+            className="m-0 whitespace-pre-wrap break-words p-3 font-mono text-[12px] leading-5"
+            data-testid="role-memory-raw"
+          >
+            {loading ? t("common.loading") : trimmed || t("inspector.emptyMemory")}
+          </pre>
+        </ScrollArea>
+      )}
+    </div>
   );
 }
 
@@ -206,85 +302,5 @@ function PolicySummary({
         ))}
       </div>
     </>
-  );
-}
-
-function ProfileRows({ app, role }: { app: RealmAppController; role: RoleSummary }) {
-  const { t } = useI18n();
-  return (
-    <div className="space-y-2" data-testid="role-profile-summary">
-      <MetricLine label={t("common.world")} value={app.selectedWorld?.name ?? "-"} />
-      <MetricLine label={t("common.room")} value={app.selectedRoom?.name ?? "-"} />
-      <MetricLine label={t("inspector.roleId")} value={role.id} />
-      <MetricLine label={t("inspector.model")} value={role.model ?? t("common.default")} />
-      <Button
-        className="mt-2 w-full"
-        onClick={() => app.setIdentity(role.id)}
-        type="button"
-        variant={app.identity === role.id ? "default" : "secondary"}
-      >
-        {app.identity === role.id ? t("common.active") : t("workspace.takeOver")}
-      </Button>
-    </div>
-  );
-}
-
-function InspectorNotice({
-  children,
-  icon,
-  title,
-}: {
-  children: string;
-  icon: ReactNode;
-  title: string;
-}) {
-  return (
-    <div className="flex gap-2 rounded-[6px] bg-[#f7f7f8] p-3 text-[12px]">
-      <span className="mt-0.5 shrink-0 text-[#087a43]">{icon}</span>
-      <div>
-        <div className="font-medium text-[#1f1f21]">{title}</div>
-        <div className="mt-1 text-[var(--realm-fg-muted)]">{children}</div>
-      </div>
-    </div>
-  );
-}
-
-function MetricLine({ label, value }: { label: string; value: number | string }) {
-  return (
-    <div className="flex items-center justify-between rounded-[6px] bg-[#f7f7f8] px-3 py-2 text-[13px]">
-      <span className="text-[var(--realm-fg-muted)]">{label}</span>
-      <span className="truncate pl-4 font-medium text-[#1f1f21]">{value}</span>
-    </div>
-  );
-}
-
-function SkillRow({
-  label,
-  tone,
-  value,
-}: {
-  label: string;
-  tone: "allow" | "deny";
-  value: string;
-}) {
-  const { t } = useI18n();
-  return (
-    <div className="rounded-[6px] border border-[var(--realm-line)] p-3 text-[12px]">
-      <div className="flex items-center gap-2">
-        {tone === "allow" ? (
-          <CheckCircle2 className="size-4 text-[#087a43]" />
-        ) : (
-          <AlertCircle className="size-4 text-[#b45309]" />
-        )}
-        <span className="min-w-0 flex-1 truncate font-medium">{label}</span>
-        <Badge className="border-transparent bg-[#f7f7f8] text-[#555]">
-          {tone === "allow" ? t("inspector.allowed") : t("inspector.denied")}
-        </Badge>
-      </div>
-      <div className="mt-1 flex gap-1 text-[var(--realm-fg-muted)]">
-        {tone === "deny" ? <LockKeyhole className="mt-0.5 size-3 shrink-0" /> : null}
-        <span className="line-clamp-2">{value}</span>
-      </div>
-    </div>
   );
 }

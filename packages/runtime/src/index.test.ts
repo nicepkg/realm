@@ -1,6 +1,7 @@
 import { describe, expect, test } from "bun:test";
 import {
   FakePiBridge,
+  fakeReply,
   type PiBridge,
   type PiBridgeEvent,
   type PiPromptInput,
@@ -54,7 +55,7 @@ describe("PiRoleTurnRunner", () => {
       timeoutMs: 500,
     });
 
-    expect(result.message.content).toBe("[leijun] Hello");
+    expect(result.message.content).toBe(fakeReply("leijun", 0));
     expect(eventStore.list().map((event) => event.type)).toEqual([
       "turn.started",
       "turn.delta",

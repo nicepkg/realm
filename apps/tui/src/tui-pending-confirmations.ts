@@ -115,7 +115,7 @@ async function resolveIdentitySwitch(
   pending: TuiPendingIdentitySwitch,
   trimmed: string,
 ): Promise<string> {
-  const decision = decideIdentitySwitchConfirmation(trimmed);
+  const decision = decideIdentitySwitchConfirmation(trimmed, pending);
   if (decision === "confirm") {
     context.pending.identitySwitch = undefined;
     context.setState({ ...(await context.load()), identity: pending.identity });
@@ -152,7 +152,7 @@ async function resolveRoleTurn(
   pending: TuiPendingRoleTurn,
   trimmed: string,
 ): Promise<string> {
-  const decision = decideRoleTurnConfirmation(trimmed);
+  const decision = decideRoleTurnConfirmation(trimmed, pending);
   if (decision === "confirm") {
     context.pending.roleTurn = undefined;
     return context.runRoleTurn({
@@ -225,6 +225,10 @@ export function armRoleTurn(
     return state.roles.some((role) => role.id === command.roleId)
       ? dictionary.cannotSendWithoutContext
       : dictionary.unknownRole(command.roleId);
+  }
+  if ("blocked" in confirmation) {
+    // Non-member role: refuse with a named reason; never arm a confirmable turn.
+    return dictionary.roleNotInRoom(confirmation.roleLabel, confirmation.roomName);
   }
   pending.roleTurn = confirmation;
   pending.roleSend = undefined;

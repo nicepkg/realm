@@ -1,6 +1,6 @@
 version: 1
 id: cultivation
-name: Cultivation Sim
+name: 云岭修仙界
 mode:
   type: simulation
   time:
@@ -8,16 +8,16 @@ mode:
 rooms:
   main:
     type: world-main
-    name: All Hands
+    name: 全员议事
   sect-hall:
     type: group
-    name: Sect Hall
+    name: 宗门大殿
   infirmary:
     type: group
-    name: Infirmary
+    name: 医馆
   god:
     type: god-channel
-    name: God / Fate
+    name: 天道裁决
 roles:
   - id: leijun
     model: default

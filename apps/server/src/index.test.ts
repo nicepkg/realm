@@ -3,7 +3,7 @@ import { mkdir, mkdtemp, writeFile } from "node:fs/promises";
 import os from "node:os";
 import path from "node:path";
 import { initProject } from "@realm/config";
-import { FakePiBridge } from "@realm/pi-bridge";
+import { FakePiBridge, fakeReply } from "@realm/pi-bridge";
 import { createRealmServer } from "./index.ts";
 
 describe("Realm server API", () => {
@@ -226,7 +226,7 @@ describe("Realm server API", () => {
     const payload = (await response.json()) as { message: { content: string } };
 
     expect(response.status).toBe(201);
-    expect(payload.message.content).toBe("[leijun] Hello");
+    expect(payload.message.content).toBe(fakeReply("leijun", 0));
   });
 
   test("commits admin state patches through the API", async () => {

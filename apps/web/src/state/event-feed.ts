@@ -1,14 +1,24 @@
 const INITIAL_RECONNECT_DELAY_MS = 500;
 const MAX_RECONNECT_DELAY_MS = 10_000;
 
+/** Honest connection state surfaced to the UI: live stream vs. recovering. */
+export type EventFeedStatus = "open" | "reconnecting";
+
 /**
  * Connect to the realm event stream and invoke `onEvent` for each event seq.
  * The connection self-heals: on error the EventSource is torn down and a new
  * one is opened from the last seen seq with exponential backoff, so a dropped
  * SSE connection (idle timeout, proxy reset, sleep/wake) silently recovers
- * instead of freezing the UI. Returns a disposer that stops reconnecting.
+ * instead of freezing the UI. `onStatus` (optional) reports honest connection
+ * transitions so the UI can show a calm "reconnecting" affordance instead of
+ * silently freezing — `"open"` on connect, `"reconnecting"` on drop/backoff.
+ * Returns a disposer that stops reconnecting.
  */
-export function connectEventFeed(onEvent: (seq?: number) => void, afterSeq = 0): () => void {
+export function connectEventFeed(
+  onEvent: (seq?: number) => void,
+  afterSeq = 0,
+  onStatus?: (status: EventFeedStatus) => void,
+): () => void {
   if (!("EventSource" in window)) {
     return () => {};
   }
@@ -27,6 +37,7 @@ export function connectEventFeed(onEvent: (seq?: number) => void, afterSeq = 0):
     source = current;
     current.onopen = () => {
       reconnectDelay = INITIAL_RECONNECT_DELAY_MS;
+      onStatus?.("open");
     };
     current.onmessage = (event) => {
       const seq = readEventSeq(event.data);
@@ -40,6 +51,7 @@ export function connectEventFeed(onEvent: (seq?: number) => void, afterSeq = 0):
       if (source === current) {
         source = undefined;
       }
+      onStatus?.("reconnecting");
       scheduleReconnect();
     };
   };

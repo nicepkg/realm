@@ -183,7 +183,10 @@ export const createWorldPatchInputSchema = z.object({
   id: z.string().min(1),
   name: z.string().min(1),
   mode: z.enum(["debate", "workflow", "game", "simulation", "sandbox"]).default("sandbox"),
-  roomName: z.string().min(1).default("All Hands"),
+  // Stable id token, not a user-facing English string: the i18n layer
+  // (roomDisplayName) renders the localized all-hands label for a world-main
+  // room whose name is "main". Keeps the domain layer free of display text.
+  roomName: z.string().min(1).default("main"),
   roleIds: z.array(z.string().min(1)).default([]),
 });
 

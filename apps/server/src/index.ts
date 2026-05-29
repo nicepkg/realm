@@ -66,7 +66,9 @@ export function createRealmServer(options: RealmServerOptions): Hono {
     ),
   );
 
-  app.get("/api/health", (context) => context.json({ ok: true }));
+  app.get("/api/health", (context) =>
+    context.json({ ok: true, runtime: service.getRuntimeInfo() }),
+  );
   app.get("/api/project", async (context) => context.json(await service.getProject()));
   app.get("/api/settings", async (context) => context.json(await service.getSettings()));
   app.get("/api/settings/export", async (context) => context.json(await service.exportSettings()));

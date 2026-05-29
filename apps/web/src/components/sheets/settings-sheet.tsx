@@ -28,6 +28,7 @@ import {
   type SettingsSnapshot,
   settingsDraftChanged,
 } from "@/view-models/settings-view-model.ts";
+import { SettingsExportImport } from "./settings-export-import.tsx";
 import type { WorkspaceSheetKind } from "./workspace-sheets.tsx";
 
 type LoadState =
@@ -154,6 +155,16 @@ export function SettingsSheet({
               saveState={saveState}
             />
             <ProviderList providers={buildProviderRows(loadState.snapshot.user)} />
+            <SettingsExportImport
+              app={app}
+              onImported={(snapshot) =>
+                setLoadState({
+                  draft: buildSettingsDraft(snapshot.user),
+                  snapshot,
+                  status: "ready",
+                })
+              }
+            />
             <ProjectSettingsSummary app={app} snapshot={loadState.snapshot} />
             <SettingsPaths paths={loadState.snapshot.paths} />
           </div>

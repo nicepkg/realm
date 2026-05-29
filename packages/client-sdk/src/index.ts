@@ -23,6 +23,7 @@ import {
   extensionStateQueryResponseSchema,
   godRoleActionRequestSchema,
   godRoleActionResponseSchema,
+  healthResponseSchema,
   listAuditsResponseSchema,
   listEventsResponseSchema,
   listMessagesResponseSchema,
@@ -75,6 +76,9 @@ export class RealmHttpClient extends RealmWorkflowClient {
   }
   async getConfigStatus(): Promise<z.infer<typeof configStatusResponseSchema>> {
     return this.get("/api/config/status", configStatusResponseSchema);
+  }
+  async getHealth(): Promise<z.infer<typeof healthResponseSchema>> {
+    return this.get("/api/health", healthResponseSchema);
   }
   async getSettings(): Promise<z.infer<typeof settingsResponseSchema>> {
     return this.get("/api/settings", settingsResponseSchema);

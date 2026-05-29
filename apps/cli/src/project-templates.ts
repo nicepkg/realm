@@ -1,6 +1,8 @@
 import { mkdir, writeFile } from "node:fs/promises";
 import path from "node:path";
 import { type projectLayout, writeYamlFile } from "@realm/config";
+import { detectInitLocale, type InitLocale } from "./init-locale.ts";
+import { type TemplateStrings, templateStrings } from "./project-template-strings.ts";
 
 type Layout = ReturnType<typeof projectLayout>;
 
@@ -21,42 +23,62 @@ export const projectTemplateIds = ["cultivation", "software-company"] as const;
 
 export type ProjectTemplateId = (typeof projectTemplateIds)[number];
 
-export async function writeTemplate(layout: Layout, template: string): Promise<void> {
+/**
+ * Write a built-in template. Display strings (world / room / role / event
+ * names) are seeded in the operator's locale — Chinese under a `zh*` system,
+ * English otherwise — while every `id` and `mode.type` enum stays stable and
+ * English so config, routing, and i18n keys never shift. The `locale` argument
+ * exists for tests; production callers let it auto-detect like the TUI does.
+ */
+export async function writeTemplate(
+  layout: Layout,
+  template: string,
+  locale: InitLocale = detectInitLocale(),
+): Promise<void> {
+  const strings = templateStrings(locale);
   if (template === "cultivation") {
-    await writeCultivationTemplate(layout);
+    await writeCultivationTemplate(layout, strings);
     return;
   }
   if (template === "software-company") {
-    await writeSoftwareCompanyTemplate(layout);
+    await writeSoftwareCompanyTemplate(layout, strings);
     return;
   }
   throw new Error(`Unknown template: ${template}`);
 }
 
-async function writeCultivationTemplate(layout: Layout): Promise<void> {
+async function writeCultivationTemplate(layout: Layout, strings: TemplateStrings): Promise<void> {
   const worldDir = path.join(layout.worldsDir, "cultivation");
   await mkdir(worldDir, { recursive: true });
-  await writeCultivationWorld(worldDir);
-  await Promise.all(cultivationRoles.map((role) => writeRole(layout, role)));
+  await writeCultivationWorld(worldDir, strings.cultivation);
+  await Promise.all(cultivationRoles(strings.cultivation).map((role) => writeRole(layout, role)));
 }
 
-async function writeSoftwareCompanyTemplate(layout: Layout): Promise<void> {
+async function writeSoftwareCompanyTemplate(
+  layout: Layout,
+  strings: TemplateStrings,
+): Promise<void> {
   const worldDir = path.join(layout.worldsDir, "software-company");
   await mkdir(worldDir, { recursive: true });
-  await writeSoftwareCompanyWorld(worldDir);
+  await writeSoftwareCompanyWorld(worldDir, strings.softwareCompany);
   await Promise.all([
-    ...softwareCompanyRoles.map((role) => writeRole(layout, role)),
-    ...softwareCompanySkills.map((skill) => writeWorldSkill(worldDir, skill)),
+    ...softwareCompanyRoles(strings.softwareCompany).map((role) => writeRole(layout, role)),
+    ...softwareCompanySkills(strings.softwareCompany).map((skill) =>
+      writeWorldSkill(worldDir, skill),
+    ),
   ]);
 }
 
-async function writeCultivationWorld(worldDir: string): Promise<void> {
+async function writeCultivationWorld(
+  worldDir: string,
+  strings: TemplateStrings["cultivation"],
+): Promise<void> {
   await writeYamlFile(path.join(worldDir, "world.yaml"), {
     version: 1,
     id: "cultivation",
-    name: "Cultivation Demo",
+    name: strings.worldName,
     mode: { type: "game", time: { kind: "manual" } },
-    rooms: { main: { type: "world-main", name: "All Hands" } },
+    rooms: { main: { type: "world-main", name: strings.roomMain } },
     roles: [
       { id: "leijun", model: "default" },
       { id: "guchenfeng", model: "default" },
@@ -74,8 +96,11 @@ async function writeCultivationWorld(worldDir: string): Promise<void> {
   await writeYamlFile(path.join(worldDir, "initial-state.yaml"), {
     publicState: {
       roles: {
-        leijun: { name: "Lei Jun", realm: "Qi Refining 7" },
-        guchenfeng: { name: "Gu Chenfeng", realm: "Qi Refining 5" },
+        leijun: { name: strings.roles.leijun.displayName, realm: strings.roles.leijun.realm },
+        guchenfeng: {
+          name: strings.roles.guchenfeng.displayName,
+          realm: strings.roles.guchenfeng.realm,
+        },
       },
     },
     privateState: {},
@@ -109,7 +134,7 @@ async function writeCultivationWorld(worldDir: string): Promise<void> {
     naturalEvents: [
       {
         id: "minor-fortune",
-        title: "Minor Fortune",
+        title: strings.events["minor-fortune"].title,
         severity: "minor",
         target: "random-role",
       },
@@ -118,7 +143,7 @@ async function writeCultivationWorld(worldDir: string): Promise<void> {
   await writeYamlFile(path.join(worldDir, "god.yaml"), {
     version: 1,
     id: "god",
-    role: "World arbiter responsible for state patches, natural events, and rule enforcement.",
+    role: strings.godRole,
   });
   await writeYamlFile(path.join(worldDir, "roles.yaml"), {
     version: 1,
@@ -129,18 +154,21 @@ async function writeCultivationWorld(worldDir: string): Promise<void> {
   });
 }
 
-async function writeSoftwareCompanyWorld(worldDir: string): Promise<void> {
-  const roleRefs = softwareCompanyRoles.map((role) => ({ id: role.id, model: "default" }));
+async function writeSoftwareCompanyWorld(
+  worldDir: string,
+  strings: TemplateStrings["softwareCompany"],
+): Promise<void> {
+  const roleRefs = softwareCompanyRoles(strings).map((role) => ({ id: role.id, model: "default" }));
   await writeYamlFile(path.join(worldDir, "world.yaml"), {
     version: 1,
     id: "software-company",
-    name: "Software Company",
+    name: strings.worldName,
     mode: { type: "workflow", time: { kind: "manual" } },
     rooms: {
-      main: { type: "world-main", name: "All Hands" },
-      triage: { type: "group", name: "Triage" },
-      reviews: { type: "group", name: "Review Room" },
-      god: { type: "god-channel", name: "God / Workflow Judge" },
+      main: { type: "world-main", name: strings.rooms.main },
+      triage: { type: "group", name: strings.rooms.triage },
+      reviews: { type: "group", name: strings.rooms.reviews },
+      god: { type: "god-channel", name: strings.rooms.god },
     },
     roles: roleRefs,
     god: {
@@ -153,7 +181,10 @@ async function writeSoftwareCompanyWorld(worldDir: string): Promise<void> {
       },
     },
   });
-  await writeYamlFile(path.join(worldDir, "initial-state.yaml"), softwareCompanyInitialState());
+  await writeYamlFile(
+    path.join(worldDir, "initial-state.yaml"),
+    softwareCompanyInitialState(strings),
+  );
   await writeYamlFile(path.join(worldDir, "state.schema.yaml"), baseStateSchema());
   await writeYamlFile(path.join(worldDir, "visibility.yaml"), {
     version: 1,
@@ -200,19 +231,30 @@ async function writeSoftwareCompanyWorld(worldDir: string): Promise<void> {
   await writeYamlFile(path.join(worldDir, "events.yaml"), {
     version: 1,
     workflowEvents: [
-      { id: "scope-change", title: "Scope Change", severity: "medium", target: "current-task" },
-      { id: "test-failure", title: "Test Failure", severity: "high", target: "implementation" },
-      { id: "release-risk", title: "Release Risk", severity: "high", target: "release" },
+      {
+        id: "scope-change",
+        title: strings.events["scope-change"].title,
+        severity: "medium",
+        target: "current-task",
+      },
+      {
+        id: "test-failure",
+        title: strings.events["test-failure"].title,
+        severity: "high",
+        target: "implementation",
+      },
+      {
+        id: "release-risk",
+        title: strings.events["release-risk"].title,
+        severity: "high",
+        target: "release",
+      },
     ],
   });
   await writeYamlFile(path.join(worldDir, "god.yaml"), {
     version: 1,
     id: "workflow-god",
-    role: [
-      "Adjudicate workflow state without doing implementation work directly.",
-      "Track tasks, artifacts, reviews, approvals, and risks through structured patches.",
-      "Require explicit owner approval before project writes, shell commands, or risky tool use.",
-    ],
+    role: strings.godRole,
   });
   await writeYamlFile(path.join(worldDir, "roles.yaml"), { version: 1, roles: roleRefs });
 }
@@ -259,12 +301,15 @@ function baseStateSchema(): Record<string, unknown> {
   };
 }
 
-function softwareCompanyInitialState(): Record<string, unknown> {
+function softwareCompanyInitialState(
+  strings: TemplateStrings["softwareCompany"],
+): Record<string, unknown> {
+  const roles = softwareCompanyRoles(strings);
   return {
     publicState: {
       project: {
         phase: "planning",
-        objective: "Discuss, implement, review, verify, and document project changes.",
+        objective: strings.objective,
       },
       artifacts: [],
       tasks: [],
@@ -272,16 +317,14 @@ function softwareCompanyInitialState(): Record<string, unknown> {
       approvals: [],
       risks: [],
       roles: Object.fromEntries(
-        softwareCompanyRoles.map((role) => [
+        roles.map((role) => [
           role.id,
           { name: role.displayName, status: "available", currentTask: null },
         ]),
       ),
     },
     privateState: {
-      roles: Object.fromEntries(
-        softwareCompanyRoles.map((role) => [role.id, { workingNotes: [], concerns: [] }]),
-      ),
+      roles: Object.fromEntries(roles.map((role) => [role.id, { workingNotes: [], concerns: [] }])),
     },
     hiddenState: {
       ownerNotes: [],
@@ -297,106 +340,52 @@ function softwareCompanyInitialState(): Record<string, unknown> {
         currentSprint: "p7-development-workflow",
         approvalRequiredFor: ["fs.project.write", "shell.run", "network.fetch", "config.write"],
       },
-      roles: Object.fromEntries(
-        softwareCompanyRoles.map((role) => [role.id, { alive: true, muted: false }]),
-      ),
+      roles: Object.fromEntries(roles.map((role) => [role.id, { alive: true, muted: false }])),
     },
   };
 }
 
-const cultivationRoles: RoleTemplate[] = [
-  {
-    id: "leijun",
-    displayName: "Lei Jun",
-    summary: "Founder mindset with product, operations, marketing, and engineering instincts.",
-    prompt:
-      "Think like Lei Jun: practical product judgment, long-term patience, operational discipline, and user-first communication. Avoid empty slogans; ground advice in tradeoffs and execution.",
-  },
-  {
-    id: "guchenfeng",
-    displayName: "Gu Chenfeng",
-    summary: "A resilient cultivation-world protagonist who learns through pressure and risk.",
-    prompt:
-      "Think like Gu Chenfeng: resilient, observant, willing to take calculated risks, and honest about fear. Treat setbacks as material for growth, not as excuses.",
-  },
-];
+/** Stable role id order for the cultivation template. */
+const CULTIVATION_ROLE_IDS = ["leijun", "guchenfeng"] as const;
 
-const softwareCompanyRoles: RoleTemplate[] = [
-  {
-    id: "product-manager",
-    displayName: "Product Manager",
-    summary: "Clarifies user goals, scope, acceptance criteria, and tradeoffs.",
-    prompt:
-      "Act as a pragmatic product manager. Convert vague requests into concrete outcomes, user journeys, constraints, acceptance criteria, and release tradeoffs. Keep scope honest and call out missing decisions.",
-  },
-  {
-    id: "architect",
-    displayName: "Architect",
-    summary: "Designs maintainable architecture boundaries and integration contracts.",
-    prompt:
-      "Act as a senior software architect. Protect cohesion, dependency direction, runtime boundaries, extension points, and migration paths. Prefer explicit interfaces over hidden coupling.",
-  },
-  {
-    id: "engineer",
-    displayName: "Engineer",
-    summary: "Implements small, testable, maintainable changes.",
-    prompt:
-      "Act as a senior implementation engineer. Favor small vertical slices, readable names, focused modules, and tests that prove behavior. Never hide risk behind vague implementation notes.",
-  },
-  {
-    id: "qa",
-    displayName: "QA",
-    summary: "Finds edge cases, broken flows, and acceptance gaps.",
-    prompt:
-      "Act as a QA specialist. Think in workflows, regressions, edge cases, data loss, recovery, accessibility, and cross-platform behavior. Ask how a real user would break the change.",
-  },
-  {
-    id: "test-expert",
-    displayName: "Test Expert",
-    summary: "Designs unit, integration, smoke, and manual verification strategy.",
-    prompt:
-      "Act as a test strategy expert. Separate unit, integration, end-to-end, smoke, and manual checks. Tie every important requirement to evidence that would prove it.",
-  },
-  {
-    id: "security-reviewer",
-    displayName: "Security Reviewer",
-    summary: "Reviews trust boundaries, secrets, tool access, and unsafe defaults.",
-    prompt:
-      "Act as a security reviewer. Focus on secrets, policy bypass, prompt/tool injection, path traversal, shell/network access, auditability, and unsafe defaults. Recommend narrow mitigations.",
-  },
-  {
-    id: "doc-writer",
-    displayName: "Doc Writer",
-    summary: "Turns behavior into clear docs, examples, and release notes.",
-    prompt:
-      "Act as a technical documentation writer. Explain the user path first, then concepts, then reference details. Keep docs accurate, concrete, and easy to scan.",
-  },
-  {
-    id: "release-manager",
-    displayName: "Release Manager",
-    summary: "Coordinates verification, changelog, packaging, and release readiness.",
-    prompt:
-      "Act as a release manager. Track readiness, test evidence, known risks, rollback options, packaging, versioning, and whether the release can be shipped responsibly.",
-  },
-];
+/** Stable role id order for the software-company template. */
+const SOFTWARE_COMPANY_ROLE_IDS = [
+  "product-manager",
+  "architect",
+  "engineer",
+  "qa",
+  "test-expert",
+  "security-reviewer",
+  "doc-writer",
+  "release-manager",
+] as const;
 
-const softwareCompanySkills: WorldSkillTemplate[] = [
-  {
-    id: "artifact-template",
-    title: "Artifact Template",
-    body: [
-      "Use this skill when drafting a spec, task brief, review request, or release note.",
-      "Always include: context, decision, constraints, acceptance evidence, risks, and owner.",
-      "Keep artifacts short enough to be reviewed in chat, then expand only when needed.",
-    ].join("\n"),
-  },
-  {
-    id: "review-checklist",
-    title: "Review Checklist",
-    body: [
-      "Use this skill when reviewing a proposed implementation or plan.",
-      "Check: requirement fit, boundary quality, DRY/SOLID, cross-platform behavior, tests, docs, rollback, and observability.",
-      "Separate blocking issues from follow-up improvements.",
-    ].join("\n"),
-  },
-];
+/** Stable world-skill id order for the software-company template. */
+const SOFTWARE_COMPANY_SKILL_IDS = ["artifact-template", "review-checklist"] as const;
+
+/**
+ * Build the cultivation role templates for a locale. Ids stay English/stable;
+ * only the display name / summary / prompt come from the localized table.
+ */
+function cultivationRoles(strings: TemplateStrings["cultivation"]): RoleTemplate[] {
+  return CULTIVATION_ROLE_IDS.map((id) => {
+    const role = strings.roles[id];
+    return { id, displayName: role.displayName, summary: role.summary, prompt: role.prompt };
+  });
+}
+
+/** Build the software-company role templates for a locale (ids stable). */
+function softwareCompanyRoles(strings: TemplateStrings["softwareCompany"]): RoleTemplate[] {
+  return SOFTWARE_COMPANY_ROLE_IDS.map((id) => {
+    const role = strings.roles[id];
+    return { id, displayName: role.displayName, summary: role.summary, prompt: role.prompt };
+  });
+}
+
+/** Build the software-company world skills for a locale (ids stable). */
+function softwareCompanySkills(strings: TemplateStrings["softwareCompany"]): WorldSkillTemplate[] {
+  return SOFTWARE_COMPANY_SKILL_IDS.map((id) => {
+    const skill = strings.skills[id];
+    return { id, title: skill.title, body: skill.body };
+  });
+}

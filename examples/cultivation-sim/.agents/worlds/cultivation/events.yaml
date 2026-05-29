@@ -1,16 +1,16 @@
 version: 1
 naturalEvents:
   - id: spirit-rain
-    title: Spirit Rain
+    title: 灵雨降世
     severity: medium
     target: all-roles
     effects:
       publicState.world.ambientQi: surging
   - id: herb-blight
-    title: Herb Blight
+    title: 药圃枯萎
     severity: high
     target: sect.herbs
   - id: border-raid
-    title: Border Raid
+    title: 边境突袭
     severity: high
     target: random-role

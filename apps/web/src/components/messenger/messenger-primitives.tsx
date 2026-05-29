@@ -1,6 +1,22 @@
 import type { RoleAvatar, RoleSummary, Room } from "@realm/api-contract";
 import { cn } from "@/lib/utils.ts";
 
+/**
+ * Localized labels for the two protocol-id pseudo-identities (`owner` / `god`).
+ * Real render sites thread the translated strings (`t("common.boss")` /
+ * `t("common.god")`); the English literals here are only a last-resort fallback
+ * for non-localized callers (and keep avatar monograms deterministic).
+ */
+export type IdentityLabels = {
+  owner: string;
+  god: string;
+};
+
+const DEFAULT_IDENTITY_LABELS: IdentityLabels = {
+  god: "God",
+  owner: "Boss",
+};
+
 type AvatarSize = "sm" | "md" | "lg" | "xl";
 type AvatarPerson = {
   avatar?: RoleAvatar;
@@ -53,22 +69,27 @@ const DEFAULT_AVATAR_COLOR = { background: "#8a909a", color: "#ffffff" };
 
 export function RoomAvatar({
   className,
+  labels,
   roles = [],
   room,
   size = "md",
 }: {
   className?: string;
+  labels?: IdentityLabels;
   roles?: RoleSummary[];
   room: Room;
   size?: AvatarSize;
 }) {
   if (room.type === "dm") {
-    const member = roomMembersForAvatar(room, roles).find((person) => person.id !== "owner");
+    const member = roomMembersForAvatar(room, roles, labels).find(
+      (person) => person.id !== "owner",
+    );
     return (
       <IdentityAvatar
         className={className}
         identity={member?.id ?? room.id}
         label={member?.label ?? room.name}
+        labels={labels}
         roles={roles}
         size={size}
       />
@@ -79,7 +100,7 @@ export function RoomAvatar({
       <GroupAvatarGrid
         className={className}
         label={room.name}
-        members={roomMembersForAvatar(room, roles)}
+        members={roomMembersForAvatar(room, roles, labels)}
         size={size}
       />
     );
@@ -106,16 +127,18 @@ export function IdentityAvatar({
   className,
   identity,
   label,
+  labels,
   roles = [],
   size = "md",
 }: {
   className?: string;
   identity?: string;
   label?: string;
+  labels?: IdentityLabels;
   roles?: RoleSummary[];
   size?: AvatarSize;
 }) {
-  const displayLabel = label ?? (identity ? labelForIdentity(identity, roles) : "Realm");
+  const displayLabel = label ?? (identity ? labelForIdentity(identity, roles, labels) : "Realm");
   const explicitAvatar = identity ? avatarForIdentity(identity, roles) : undefined;
   const profile = avatarProfileForIdentity(displayLabel || identity || "Realm");
   const avatarKind = explicitAvatar?.image ? "image" : "monogram";
@@ -244,9 +267,16 @@ export function SystemNotice({ title, body }: { title: string; body: string }) {
   );
 }
 
-export function labelForIdentity(identity: string, roles: RoleSummary[]) {
+export function labelForIdentity(
+  identity: string,
+  roles: RoleSummary[],
+  labels: IdentityLabels = DEFAULT_IDENTITY_LABELS,
+) {
   if (identity === "owner") {
-    return "Boss";
+    return labels.owner;
+  }
+  if (identity === "god") {
+    return labels.god;
   }
   return roles.find((role) => role.id === identity)?.displayName ?? identity;
 }
@@ -255,7 +285,11 @@ function avatarForIdentity(identity: string, roles: RoleSummary[]): RoleAvatar |
   return roles.find((role) => role.id === identity)?.avatar;
 }
 
-export function roomMembersForAvatar(room: Room, roles: RoleSummary[]): AvatarPerson[] {
+export function roomMembersForAvatar(
+  room: Room,
+  roles: RoleSummary[],
+  labels: IdentityLabels = DEFAULT_IDENTITY_LABELS,
+): AvatarPerson[] {
   const roleIds = roles.map((role) => role.id);
   const fallbackIds =
     room.type === "world-main" || room.type === "group" ? ["owner", ...roleIds] : room.memberIds;
@@ -274,7 +308,7 @@ export function roomMembersForAvatar(room: Room, roles: RoleSummary[]): AvatarPe
     return {
       ...(avatar ? { avatar } : {}),
       id,
-      label: labelForIdentity(id, roles),
+      label: labelForIdentity(id, roles, labels),
     };
   });
 }

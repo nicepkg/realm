@@ -89,10 +89,33 @@ export type TuiDictionary = {
   roleSwitched: (identity: string) => string;
   roleTurnCancelHint: string;
   roleTurnCancelled: string;
+  // Two-phase running feedback (mirrors the Web in-flight turn lifecycle).
+  turnRunning: (role: string, elapsed: string) => string;
+  turnStarted: (role: string) => string;
+  turnSucceeded: (role: string) => string;
+  turnFailed: (role: string) => string;
+  turnCancelActiveHint: string;
+  // `:run-role` with no role id lists current room-member roles instead of erroring.
+  runRoleNeedsRole: string;
+  runRoleAvailableRoles: (roles: string) => string;
+  runRoleNoMembers: string;
   // Confirmation dialog lines. Threaded into the four format*Confirmation
   // functions so destructive/identity gates render in the active locale.
   confirmYesNo: string;
   confirmTypeRoleId: (roleId: string) => string;
+  confirmTypeWorldId: (worldId: string) => string;
+  // Simulation / model / rollback safety gates (TUI-only; mirror the Web gates).
+  simTickConfirmPrompt: (world: string, ticks: number) => string;
+  simForkConfirmPrompt: (world: string, label: string) => string;
+  simIrreversibleNote: string;
+  simActionCancelled: string;
+  modelChangePrompt: (current: string, next: string) => string;
+  modelChangeCancelled: string;
+  modelChanged: (providerModel: string) => string;
+  rollbackNeedsHistoryId: string;
+  rollbackHint: string;
+  configRolledBack: (historyId: string, paths: string) => string;
+  slashRollbackDescription: string;
   permissionTrustUnknown: string;
   permissionSummary: (trust: string, allowed: number, denied: number, highRisk: number) => string;
   roleTurnRunPrompt: (role: string, room: string) => string;
@@ -100,6 +123,10 @@ export type TuiDictionary = {
   roleTurnModelPermissions: (provider: string, model: string, permissions: string) => string;
   roleTurnPromptLine: (prompt: string) => string;
   roleSendPrompt: (identity: string, room: string) => string;
+  // Surfaced when a role turn / role send targets a room the role is not a
+  // member of — mirrors the Web `roomMembersForAvatar` precondition. Named
+  // reason so the operator sees WHY the action was refused (never a silent no-op).
+  roleNotInRoom: (roleLabel: string, roomName: string) => string;
   identitySwitchPrompt: (label: string, identity: string) => string;
   identitySwitchOperatorNote: string;
   identitySwitchConfirmHint: string;

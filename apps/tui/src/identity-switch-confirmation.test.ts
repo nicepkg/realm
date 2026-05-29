@@ -18,12 +18,19 @@ describe("TUI identity switch confirmation", () => {
     if (!pending) {
       throw new Error("expected pending identity switch");
     }
-    expect(formatIdentitySwitchConfirmation(pending, tuiDictionaries.en)).toContain(
-      "real operator remains Boss",
-    );
-    expect(decideIdentitySwitchConfirmation("y")).toBe("confirm");
-    expect(decideIdentitySwitchConfirmation("cancel")).toBe("cancel");
-    expect(decideIdentitySwitchConfirmation("maybe")).toBe("pending");
+    const summary = formatIdentitySwitchConfirmation(pending, tuiDictionaries.en);
+    expect(summary).toContain("real operator remains Boss");
+    expect(summary).toContain("Type leijun to confirm");
+    // A bare affirmation must NOT commit a dangerous identity takeover by
+    // accidental Enter — only typing the exact role id confirms.
+    expect(decideIdentitySwitchConfirmation("y", pending)).toBe("pending");
+    expect(decideIdentitySwitchConfirmation("yes", pending)).toBe("pending");
+    expect(decideIdentitySwitchConfirmation("confirm", pending)).toBe("pending");
+    expect(decideIdentitySwitchConfirmation("yes do it", pending)).toBe("pending");
+    expect(decideIdentitySwitchConfirmation("leijun", pending)).toBe("confirm");
+    expect(decideIdentitySwitchConfirmation("cancel", pending)).toBe("cancel");
+    expect(decideIdentitySwitchConfirmation("n", pending)).toBe("cancel");
+    expect(decideIdentitySwitchConfirmation("maybe", pending)).toBe("pending");
     expect(createIdentitySwitchConfirmation("owner", [])).toBeUndefined();
   });
 

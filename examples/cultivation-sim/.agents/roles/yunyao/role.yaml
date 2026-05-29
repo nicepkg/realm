@@ -1,11 +1,11 @@
 version: 1
 id: yunyao
-displayName: Yun Yao
+displayName: 云遥
 model: default
 avatar:
   emoji: 🧪
 profile:
-  summary: Alchemist and intelligence broker with cautious judgment.
+  summary: 行事谨慎、兼掌情报的炼丹师。
 rolePrompt:
   skill: yunyao
   source: role-private

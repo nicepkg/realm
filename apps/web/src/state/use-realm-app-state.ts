@@ -1,23 +1,27 @@
-import type { StatePatchResult } from "@realm/api-contract";
 import { RealmHttpClient } from "@realm/client-sdk";
-import { type FormEvent, useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { roomMembersForAvatar } from "@/components/messenger/messenger-primitives.tsx";
 import { useI18n } from "@/i18n/index.tsx";
-import { connectEventFeed } from "@/state/event-feed.ts";
+import { connectEventFeed, type EventFeedStatus } from "@/state/event-feed.ts";
+import {
+  type FailedDraftStore,
+  rehydrateFailedDraft,
+  stashFailedDraft,
+} from "@/state/failed-draft-store.ts";
 import {
   type AppSection,
   type AppState,
-  appendSentMessage,
-  classifyTurnFailure,
-  type GodRoleAction,
-  idleTurnRun,
   initialState,
   type LoadRealmOptions,
-  latestDenialReason,
-  type PendingMessage,
+  pendingResumeFromStoredIdentity,
+  readViewerIdentity,
   resolveIdentityAfterRealmLoad,
-  type SendError,
-  type TurnRunState,
+  resolveRoomRunRoleId,
+  viewerStorageKey,
 } from "@/state/realm-app-state-model.ts";
+import { useConversationPrefs } from "@/state/use-conversation-prefs.ts";
+import { useMessageSend } from "@/state/use-message-send.ts";
+import { useTurnActions } from "@/state/use-turn-actions.ts";
 import { buildConversationRows, isTraceEvent } from "@/view-models/realm-view-model.ts";
 
 export type {
@@ -35,20 +39,39 @@ export function useRealmAppState() {
   const [activeSection, setActiveSection] = useState<AppSection>("chats");
   const [draft, setDraft] = useState("");
   const [identity, setIdentity] = useState("owner");
+  // The "logged-in" account whose perspective the whole messenger renders
+  // (WeChat-style account switch). `owner` = Boss operator god-eye view; a role
+  // id = that role account's view (Boss remains the audited real operator).
+  const [viewerIdentity, setViewerIdentityState] = useState("owner");
   const [runRoleId, setRunRoleId] = useState("");
   const [selectedWorldId, setSelectedWorldId] = useState<string | undefined>();
   const [selectedRoomId, setSelectedRoomId] = useState<string | undefined>();
-  const [turnRun, setTurnRun] = useState<TurnRunState>(idleTurnRun);
-  const [godAction, setGodAction] = useState<GodRoleAction>("mute");
-  const [godActionRoleId, setGodActionRoleId] = useState("");
-  const [godActionReason, setGodActionReason] = useState("");
-  const [godActionResult, setGodActionResult] = useState<StatePatchResult | undefined>();
-  const [pendingMessages, setPendingMessages] = useState<PendingMessage[]>([]);
-  const [sendError, setSendError] = useState<SendError | undefined>();
+  // A persisted non-owner viewer identity is never silently re-activated on world
+  // entry (L4-01). It is stashed here as a suggestion the operator can confirm
+  // through the gated takeover dialog via `resumeIdentity`.
+  const [pendingResumeIdentity, setPendingResumeIdentity] = useState<string | undefined>();
+  // Recovery store for unsent text after a failed send (EP-1). Navigation clears
+  // the pending send state, which holds the only surviving copy of the draft; we
+  // fold that draft here keyed by (world, room, identity) so returning to the
+  // exact room/identity rehydrates the composer instead of losing the text.
+  const [failedDrafts, setFailedDrafts] = useState<FailedDraftStore>(() => new Map());
+  // Honest in-flight feedback for a room/world switch: true between the optimistic
+  // id selection and the awaited realm load, so the header can show a calm pending
+  // treatment instead of silently rendering stale content (FB2-01/FB2-05).
+  const [switching, setSwitching] = useState(false);
+  // Honest SSE liveness: `reconnecting` while the event stream is recovering from a
+  // drop (idle timeout, proxy reset, sleep/wake) so the header can surface a calm
+  // non-blocking affordance instead of looking frozen (FB2-03).
+  const [connection, setConnection] = useState<EventFeedStatus>("open");
+  const connectionRef = useRef<EventFeedStatus>("open");
   const latestEventSeqRef = useRef(0);
   const reloadTimerRef = useRef<ReturnType<typeof setTimeout> | undefined>(undefined);
   const selectedRoomIdRef = useRef<string | undefined>(undefined);
   selectedRoomIdRef.current = selectedRoomId;
+  // Reconcile the god-action target role after a realm load, indirected through a
+  // ref so `loadRealm` stays decoupled from the turn/god subsystem (which itself
+  // depends on `loadRealm`) and keeps a stable `[client]` dependency.
+  const reconcileGodActionRoleRef = useRef<(roles: AppState["roles"]) => void>(() => {});
 
   const loadRealm = useCallback(
     async (preferredWorldId?: string, preferredRoomId?: string, options: LoadRealmOptions = {}) => {
@@ -101,16 +124,24 @@ export function useRealmAppState() {
         setIdentity((current) =>
           resolveIdentityAfterRealmLoad(current, nextIdentities, options.resetIdentity),
         );
+        // MC-R4-1: the run target must be a role that is actually a MEMBER of the
+        // selected room, so the visible run control can only ever post into a room
+        // the role belongs to. Clamp to the room's first role member, keeping the
+        // current selection when it is still a member; fall back to the first role
+        // only when the room has no role members.
+        const roomRoleMemberIds = room
+          ? roomMembersForAvatar(room, effective.roles)
+              .map((member) => member.id)
+              .filter((id) => effective.roles.some((role) => role.id === id))
+          : [];
         setRunRoleId((current) =>
-          effective.roles.some((role) => role.id === current)
-            ? current
-            : (effective.roles[0]?.id ?? ""),
+          resolveRoomRunRoleId(
+            roomRoleMemberIds,
+            effective.roles.map((role) => role.id),
+            current,
+          ),
         );
-        setGodActionRoleId((current) =>
-          effective.roles.some((role) => role.id === current)
-            ? current
-            : (effective.roles[0]?.id ?? ""),
-        );
+        reconcileGodActionRoleRef.current(effective.roles);
       } catch (error) {
         setState((current) => ({
           ...current,
@@ -144,14 +175,71 @@ export function useRealmAppState() {
   const identities = ["owner", ...state.roles.map((role) => role.id)];
   const conversations = useMemo(
     () =>
-      buildConversationRows(state.rooms, state.conversationMessages, state.roles, {
-        god: t("common.god"),
-        owner: t("common.boss"),
-      }),
-    [state.rooms, state.conversationMessages, state.roles, t],
+      buildConversationRows(
+        state.rooms,
+        state.conversationMessages,
+        state.roles,
+        {
+          god: t("common.god"),
+          owner: t("common.boss"),
+        },
+        viewerIdentity,
+      ),
+    [state.rooms, state.conversationMessages, state.roles, t, viewerIdentity],
   );
+  const conversationPrefs = useConversationPrefs(selectedWorld?.id);
   const selectedRole = state.roles.find((role) => role.id === runRoleId) ?? state.roles[0];
   const traceEvents = state.events.filter(isTraceEvent).slice(-8);
+  const send = useMessageSend({
+    client,
+    draft,
+    identity,
+    roles: state.roles,
+    selectedRoom,
+    selectedRoomIdRef,
+    selectedWorld,
+    setDraft,
+    setState,
+  });
+  const { clearPendingSendState } = send;
+  const turn = useTurnActions({
+    client,
+    events: state.events,
+    loadRealm,
+    runRoleId,
+    selectedRoom,
+    selectedWorld,
+    t,
+    worldStateVersion: state.worldState?.version,
+  });
+  reconcileGodActionRoleRef.current = turn.reconcileGodActionRole;
+
+  // Stash any failed-send draft into the recovery store, then clear pending send
+  // state. Used by every navigation path so wiping `sendError` never drops the
+  // last copy of unsent user text (EP-1 recovery rule).
+  const preserveAndClearPendingSend = useCallback(() => {
+    setFailedDrafts((store) => stashFailedDraft(store, send.sendError));
+    clearPendingSendState();
+  }, [clearPendingSendState, send.sendError]);
+
+  // Rehydrate a stashed failed-send draft when its exact room/identity becomes
+  // active again (EP-1). Only fires when the composer is empty so an in-progress
+  // edit is never clobbered, and consumes the entry so it is applied once.
+  useEffect(() => {
+    if (!selectedWorld?.id || !selectedRoom?.id) {
+      return;
+    }
+    const result = rehydrateFailedDraft(failedDrafts, {
+      currentDraft: draft,
+      identity,
+      roomId: selectedRoom.id,
+      worldId: selectedWorld.id,
+    });
+    if (result.draft !== undefined) {
+      setFailedDrafts(result.store);
+      setDraft(result.draft);
+    }
+  }, [selectedWorld?.id, selectedRoom?.id, identity, draft, failedDrafts]);
 
   useEffect(() => {
     let disconnect = () => {};
@@ -160,12 +248,26 @@ export function useRealmAppState() {
       if (disposed) {
         return;
       }
-      disconnect = connectEventFeed((seq) => {
-        if (seq !== undefined && seq <= latestEventSeqRef.current) {
-          return;
-        }
-        scheduleReload(selectedWorldId, selectedRoomId);
-      }, latestEventSeqRef.current);
+      disconnect = connectEventFeed(
+        (seq) => {
+          if (seq !== undefined && seq <= latestEventSeqRef.current) {
+            return;
+          }
+          scheduleReload(selectedWorldId, selectedRoomId);
+        },
+        latestEventSeqRef.current,
+        (status) => {
+          const recovered = status === "open" && connectionRef.current === "reconnecting";
+          connectionRef.current = status;
+          setConnection(status);
+          // Fold in any events missed while the stream was down: the recovered
+          // connection only replays from `lastSeq`, but a full reload reconciles
+          // room/world state that changed during the outage.
+          if (recovered) {
+            scheduleReload(selectedWorldId, selectedRoomId);
+          }
+        },
+      );
     });
     return () => {
       disposed = true;
@@ -177,318 +279,145 @@ export function useRealmAppState() {
     };
   }, [loadRealm, scheduleReload, selectedWorldId, selectedRoomId]);
 
-  useEffect(() => {
-    if (!turnRun.turnId) {
-      return;
-    }
-    const completed = state.events.find(
-      (event) =>
-        (event.type === "turn.completed" ||
-          event.type === "turn.failed" ||
-          event.type === "turn.cancelled") &&
-        event.turn.id === turnRun.turnId,
-    );
-    if (
-      !completed ||
-      !(
-        completed.type === "turn.completed" ||
-        completed.type === "turn.failed" ||
-        completed.type === "turn.cancelled"
-      )
-    ) {
-      return;
-    }
-    setTurnRun((current) => {
-      if (current.turnId !== turnRun.turnId) {
-        return current;
-      }
-      if (completed.type === "turn.failed") {
-        const reason = latestDenialReason(state.events);
-        const classified = classifyTurnFailure(reason, t);
-        return {
-          ...current,
-          error: classified.error,
-          trustRelated: classified.trustRelated,
-          status: "error",
-          turnId: undefined,
-        };
-      }
-      return {
-        ...current,
-        status: "idle",
-        turnId: undefined,
-      };
-    });
-  }, [state.events, turnRun.turnId, t]);
-
-  function clearPendingSendState() {
-    setPendingMessages([]);
-    setSendError(undefined);
-  }
-
-  async function selectWorld(worldId: string) {
-    setSelectedWorldId(worldId);
+  /**
+   * Switch the viewer account (WeChat-style account login). The whole messenger
+   * re-renders from this account's perspective: conversation scope, unread,
+   * message right-alignment, and the default send-as identity. Boss remains the
+   * audited real operator when viewing a role account. Persisted per world.
+   *
+   * This is the highest-risk perspective swap, so it must carry the SAME honest
+   * pending feedback as `selectWorld`/`selectRoom`: `switching` flips true before
+   * the awaited realm reload and clears in a finally, letting the chat-header dim
+   * and surface the loading affordance instead of silently swapping content
+   * (FB2-01/FB2-05). The reload is explicit (not effect-driven) so the pending
+   * window is bounded to the perspective swap and resolves deterministically.
+   */
+  async function setViewerIdentity(id: string) {
+    setSwitching(true);
+    setViewerIdentityState(id);
+    setIdentity(id);
     setSelectedRoomId(undefined);
     setDraft("");
-    setTurnRun(idleTurnRun);
-    setActiveSection("chats");
-    clearPendingSendState();
-    await loadRealm(worldId, undefined, { resetIdentity: true });
-  }
-
-  async function selectRoom(roomId: string) {
-    setSelectedRoomId(roomId);
-    setActiveSection("chats");
-    clearPendingSendState();
-    await loadRealm(selectedWorld?.id, roomId);
+    setPendingResumeIdentity(undefined);
+    preserveAndClearPendingSend();
+    if (selectedWorld?.id && typeof localStorage !== "undefined") {
+      localStorage.setItem(viewerStorageKey(selectedWorld.id), id);
+    }
+    try {
+      await loadRealm(selectedWorld?.id);
+    } finally {
+      setSwitching(false);
+    }
   }
 
   /**
-   * Core send path shared by first-attempt and retry. Inserts an optimistic
-   * pending bubble immediately; on success appends the returned message to the
-   * active room only (no full reload); on failure marks the bubble failed and
-   * raises an inline error that preserves the draft for retry.
+   * Confirm a stashed resume suggestion. Routes through the same gated takeover
+   * path (`setViewerIdentity`) so resuming a role account is never silent — the
+   * caller is expected to gate this behind the takeover confirmation dialog. It
+   * inherits the same `switching` pending window as a direct identity swap.
    */
-  const dispatchSend = useCallback(
-    async (input: {
-      worldId: string;
-      roomId: string;
-      displayedAuthorId: string;
-      content: string;
-    }) => {
-      const pendingId = `pending-${crypto.randomUUID()}`;
-      const optimistic: PendingMessage = {
-        content: input.content,
-        createdAt: new Date().toISOString(),
-        displayedAuthorId: input.displayedAuthorId,
-        pendingId,
-        roomId: input.roomId,
-        status: "pending",
-        worldId: input.worldId,
-      };
-      setSendError(undefined);
-      setPendingMessages((current) => [...current, optimistic]);
-      try {
-        const isOwner = input.displayedAuthorId === "owner";
-        const response = await client.sendMessage(input.roomId, {
-          content: input.content,
-          displayedAuthorId: input.displayedAuthorId,
-          idempotencyKey: `web-message-${isOwner ? "" : "identity-confirmed:"}${Date.now()}`,
-          worldId: input.worldId,
-        });
-        setPendingMessages((current) => current.filter((entry) => entry.pendingId !== pendingId));
-        setState((current) =>
-          appendSentMessage(current, response.message, {
-            isActiveRoom: selectedRoomIdRef.current === input.roomId,
-          }),
-        );
-      } catch (error) {
-        const message = error instanceof Error ? error.message : String(error);
-        setPendingMessages((current) =>
-          current.map((entry) =>
-            entry.pendingId === pendingId ? { ...entry, status: "failed" } : entry,
-          ),
-        );
-        setSendError({
-          displayedAuthorId: input.displayedAuthorId,
-          draft: input.content,
-          message,
-          pendingId,
-          roomId: input.roomId,
-          worldId: input.worldId,
-        });
-      }
-    },
-    [client],
-  );
-
-  async function sendMessage(event?: FormEvent) {
-    event?.preventDefault();
-    const content = draft.trim();
-    if (!content || !selectedWorld || !selectedRoom) {
-      return;
+  async function resumeIdentity() {
+    if (pendingResumeIdentity) {
+      await setViewerIdentity(pendingResumeIdentity);
     }
+  }
+
+  async function selectWorld(worldId: string) {
+    // Optimistic id selection keeps the row highlight instant; `switching` is the
+    // honest pending flag the header reads while the realm reload is in flight.
+    setSwitching(true);
+    setSelectedWorldId(worldId);
+    setSelectedRoomId(undefined);
     setDraft("");
-    await dispatchSend({
-      content,
-      displayedAuthorId: identity,
-      roomId: selectedRoom.id,
-      worldId: selectedWorld.id,
-    });
-  }
-
-  async function retrySend() {
-    if (!sendError) {
-      return;
-    }
-    const retried = sendError;
-    setPendingMessages((current) =>
-      current.filter((entry) => entry.pendingId !== retried.pendingId),
-    );
-    setSendError(undefined);
-    await dispatchSend({
-      content: retried.draft,
-      displayedAuthorId: retried.displayedAuthorId,
-      roomId: retried.roomId,
-      worldId: retried.worldId,
-    });
-  }
-
-  function dismissSendError() {
-    if (!sendError) {
-      return;
-    }
-    const dismissed = sendError;
-    setPendingMessages((current) =>
-      current.filter((entry) => entry.pendingId !== dismissed.pendingId),
-    );
-    setSendError(undefined);
-    if (!draft.trim()) {
-      setDraft(dismissed.draft);
-    }
-  }
-
-  function sendErrorDetails(): string {
-    if (!sendError) {
-      return "";
-    }
-    return JSON.stringify(
-      {
-        displayedAuthorId: sendError.displayedAuthorId,
-        error: sendError.message,
-        roomId: sendError.roomId,
-        worldId: sendError.worldId,
-      },
-      null,
-      2,
-    );
-  }
-
-  async function runSelectedRoleTurn() {
-    if (!selectedWorld || !selectedRoom || !runRoleId || turnRun.status === "running") {
-      return;
-    }
-    const request = {
-      roleId: runRoleId,
-      roomId: selectedRoom.id,
-      startedAt: new Date().toISOString(),
-      status: "running",
-      worldId: selectedWorld.id,
-    } satisfies TurnRunState;
-    setTurnRun(request);
+    turn.resetTurnRun();
+    setActiveSection("chats");
+    preserveAndClearPendingSend();
+    // L4-01: never silently re-activate a persisted role identity. Restore owner
+    // (safe self-return) as the active send identity, and only *offer* a stored
+    // role as a pending resume suggestion the operator can confirm via the gate.
+    const restoredViewer = readViewerIdentity(worldId);
+    setViewerIdentityState("owner");
+    setIdentity("owner");
+    setPendingResumeIdentity(pendingResumeFromStoredIdentity(restoredViewer));
     try {
-      const response = await client.startRoleTurn(selectedRoom.id, {
-        roleId: runRoleId,
-        timeoutMs: 30_000,
-        worldId: selectedWorld.id,
-      });
-      setTurnRun((current) =>
-        current.status === "running" &&
-        current.worldId === request.worldId &&
-        current.roomId === request.roomId &&
-        current.roleId === request.roleId
-          ? { ...current, turnId: response.turnId }
-          : current,
-      );
-    } catch (error) {
-      const message = error instanceof Error ? error.message : String(error);
-      const classified = classifyTurnFailure(message, t);
-      setTurnRun({
-        ...request,
-        error: classified.error,
-        trustRelated: classified.trustRelated,
-        status: "error",
-        turnId: undefined,
-      });
+      await loadRealm(worldId, undefined, { resetIdentity: true });
+    } finally {
+      setSwitching(false);
     }
   }
 
-  async function cancelActiveTurn() {
-    if (!turnRun.turnId) {
-      return;
-    }
-    const turnId = turnRun.turnId;
+  async function selectRoom(roomId: string) {
+    // Optimistic id selection keeps the row highlight instant; `switching` is the
+    // honest pending flag the header reads while the realm reload is in flight.
+    setSwitching(true);
+    setSelectedRoomId(roomId);
+    setActiveSection("chats");
+    // MC-R4-1 decision: switching to a room the impersonated viewer is NOT a member
+    // of does NOT auto-exit takeover (that would be a surprising side effect) and
+    // does NOT wire a new transient flag here. The composer already renders a calm,
+    // named `composer-send-block` reason chip and keeps Send disabled for that exact
+    // state, and the persistent impersonation banner already offers one-click
+    // "Exit takeover" recovery regardless of room. So the non-member feedback +
+    // recovery are both already one click away — adding a selectRoom flag would be
+    // redundant state for no extra affordance. This is an explicit choice, not an
+    // omission (Don Norman: recovery without surprising side effects).
+    turn.setGodActionResult(undefined);
+    preserveAndClearPendingSend();
+    conversationPrefs.markRead(viewerIdentity, roomId);
     try {
-      await client.cancelTurn(turnId);
-      setTurnRun((current) =>
-        current.turnId === turnId ? { ...current, status: "idle", turnId: undefined } : current,
-      );
-      await loadRealm(selectedWorld?.id, selectedRoom?.id);
-    } catch (error) {
-      setTurnRun((current) =>
-        current.turnId === turnId
-          ? {
-              ...current,
-              error: error instanceof Error ? error.message : String(error),
-              status: "error",
-              turnId: undefined,
-            }
-          : current,
-      );
+      await loadRealm(selectedWorld?.id, roomId);
+    } finally {
+      setSwitching(false);
     }
-  }
-
-  function clearTurnError() {
-    setTurnRun((current) =>
-      current.status === "error" ? { ...current, status: "idle" } : current,
-    );
-  }
-
-  async function applyGodAction() {
-    if (!selectedWorld || !godActionRoleId || !godActionReason.trim()) {
-      return;
-    }
-    const response = await client.applyGodRoleAction(selectedWorld.id, {
-      action: godAction,
-      expectedVersion: state.worldState?.version,
-      idempotencyKey: `web-god-action-${Date.now()}`,
-      reason: godActionReason.trim(),
-      targetRoleId: godActionRoleId,
-    });
-    setGodActionResult(response.result);
-    await loadRealm(selectedWorld.id, selectedRoom?.id);
   }
 
   return {
     activeSection,
-    applyGodAction,
-    cancelActiveTurn,
-    clearTurnError,
+    applyGodAction: turn.applyGodAction,
+    cancelActiveTurn: turn.cancelActiveTurn,
+    clearTurnError: turn.clearTurnError,
     client,
+    connection,
+    conversationPrefs,
     conversations,
     draft,
-    godAction,
-    godActionReason,
-    godActionResult,
-    godActionRoleId,
+    godAction: turn.godAction,
+    godActionReason: turn.godActionReason,
+    godActionResult: turn.godActionResult,
+    godActionRoleId: turn.godActionRoleId,
     identities,
     identity,
-    dismissSendError,
+    dismissSendError: send.dismissSendError,
     pendingMessages: selectedRoom
-      ? pendingMessages.filter((entry) => entry.roomId === selectedRoom.id)
+      ? send.pendingMessages.filter((entry) => entry.roomId === selectedRoom.id)
       : [],
+    pendingResumeIdentity,
+    resumeIdentity,
     reload: () => loadRealm(selectedWorld?.id, selectedRoom?.id),
-    retrySend,
+    retrySend: send.retrySend,
     runRoleId,
-    runSelectedRoleTurn,
+    runSelectedRoleTurn: turn.runSelectedRoleTurn,
     selectedRole,
     selectedRoom,
     selectedWorld,
-    sendError,
-    sendErrorDetails,
-    sendMessage,
+    sendError: send.sendError,
+    sendErrorDetails: send.sendErrorDetails,
+    sendMessage: send.sendMessage,
     selectRoom,
     selectWorld,
     setActiveSection,
     setDraft,
-    setGodAction,
-    setGodActionReason,
-    setGodActionRoleId,
+    setGodAction: turn.setGodAction,
+    setGodActionReason: turn.setGodActionReason,
+    setGodActionRoleId: turn.setGodActionRoleId,
     setIdentity,
     setRunRoleId,
+    setViewerIdentity,
     state,
+    switching,
     traceEvents,
-    turnRun,
-    turnStatus: turnRun.status,
+    turnRun: turn.turnRun,
+    turnStatus: turn.turnRun.status,
+    viewerIdentity,
   };
 }

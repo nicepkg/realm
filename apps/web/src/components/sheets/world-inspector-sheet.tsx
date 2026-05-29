@@ -1,4 +1,6 @@
+import type { RealmEvent } from "@realm/api-contract";
 import { Activity, Braces, Clock3, Database, GitFork, ScrollText, ShieldAlert } from "lucide-react";
+import { useState } from "react";
 import type { RealmAppController } from "@/app/types.ts";
 import { Badge } from "@/components/ui/badge";
 import { ScrollArea } from "@/components/ui/scroll-area";
@@ -11,6 +13,7 @@ import {
 } from "@/components/ui/sheet";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { useI18n } from "@/i18n/index.tsx";
+import { cn } from "@/lib/utils.ts";
 import { describeTraceEvent, type TraceEvent } from "@/view-models/realm-view-model.ts";
 import { WorldAuditTimeline } from "./world-audit-timeline.tsx";
 import { WorldSimulationTab } from "./world-simulation-tab.tsx";
@@ -88,14 +91,7 @@ export function WorldInspectorContent({ app }: { app: RealmAppController }) {
           </TabsTrigger>
         </TabsList>
         <TabsContent className="mt-3" value="state">
-          <ScrollArea className="h-[300px] rounded-[6px] bg-[#f7f7f8]">
-            <pre
-              className="m-0 whitespace-pre-wrap break-words p-3 font-mono text-[12px] leading-5"
-              data-testid="world-state-json"
-            >
-              {formatStateSnapshot(app.state.worldState?.state)}
-            </pre>
-          </ScrollArea>
+          <WorldStateTab app={app} />
         </TabsContent>
         <TabsContent className="mt-3" value="events">
           <WorldEventTimeline app={app} />
@@ -193,7 +189,7 @@ export function accessDenialsForEvents(events: TraceEvent[]): AccessDenial[] {
 export function WorldEventTimeline({ app }: { app: RealmAppController }) {
   const { t } = useI18n();
   const traceEvents = app.traceEvents.map((event) => ({
-    description: describeTraceEvent(event),
+    description: describeTraceEvent(event, t),
     event,
   }));
 
@@ -223,6 +219,179 @@ export function WorldEventTimeline({ app }: { app: RealmAppController }) {
       </div>
     </ScrollArea>
   );
+}
+
+/**
+ * The State tab uses progressive disclosure across three layers so the inspector
+ * stays calm: (1) a human "what/why changed" summary plus an explicit Visible-to
+ * chip, (2) a flattened, scannable key -> value table of the world state, and
+ * (3) the raw JSON behind a segmented sub-tab for power users. World state is
+ * `publicState`, so it is visible to everyone in the world.
+ */
+export function WorldStateTab({ app }: { app: RealmAppController }) {
+  const { t } = useI18n();
+  const [layer, setLayer] = useState<"table" | "raw">("table");
+  const state = app.state.worldState?.state;
+  const version = app.state.worldState?.version ?? 0;
+  const reason = whyStateChanged(app.state.events);
+  const rows = flattenState(state);
+
+  return (
+    <div className="space-y-3" data-testid="world-state-tab">
+      <section
+        className="space-y-2 rounded-[6px] bg-[#f7f7f8] p-3 text-[12px]"
+        data-testid="state-layer-summary"
+      >
+        <div className="flex items-center gap-2">
+          <Braces className="size-3.5 text-[#087a43]" />
+          <span className="font-medium text-[#1f1f21]">{t("inspector.stateVersion")}</span>
+          <Badge className="border-transparent bg-white text-[#555]">v{version}</Badge>
+        </div>
+        <div className="text-[var(--realm-fg-muted)]">
+          <span className="font-medium text-[#1f1f21]">{t("inspector.whyChanged")}: </span>
+          {reason ?? "—"}
+        </div>
+        <div className="flex items-center gap-1.5 text-[11px] text-[#6e6e73]">
+          <span className="shrink-0">{t("inspector.visibleTo")}</span>
+          <span className="rounded-full bg-[#e8f6ee] px-1.5 py-0.5 text-[#087a43]">
+            {t("common.world")}
+          </span>
+        </div>
+      </section>
+
+      <div className="flex items-center gap-1 rounded-[6px] bg-[#f0f0f2] p-0.5 text-[12px]">
+        <SubTabButton
+          active={layer === "table"}
+          label={t("inspector.stateTab")}
+          onClick={() => setLayer("table")}
+          testId="world-state-subtab-table"
+        />
+        <SubTabButton
+          active={layer === "raw"}
+          label={t("inspector.rawJson")}
+          onClick={() => setLayer("raw")}
+          testId="world-state-subtab-raw"
+        />
+      </div>
+
+      {layer === "table" ? (
+        <ScrollArea className="h-[232px] rounded-[6px] bg-[#f7f7f8]">
+          <div className="p-2" data-testid="state-layer-table">
+            {rows.length === 0 ? (
+              <div className="p-2 text-[13px] text-[var(--realm-fg-muted)]">
+                {t("inspector.stateSnapshot")}: {"{}"}
+              </div>
+            ) : (
+              <table className="w-full border-collapse text-[12px]">
+                <tbody>
+                  {rows.map((row) => (
+                    <tr
+                      className="align-top [&:not(:last-child)>td]:border-b [&:not(:last-child)>td]:border-[var(--realm-line)]"
+                      data-testid="world-state-row"
+                      key={row.key}
+                    >
+                      <td className="w-2/5 py-1.5 pr-3 font-mono text-[var(--realm-fg-muted)]">
+                        {row.key}
+                      </td>
+                      <td className="break-words py-1.5 font-mono text-[#1f1f21]">{row.value}</td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            )}
+          </div>
+        </ScrollArea>
+      ) : (
+        <ScrollArea className="h-[232px] rounded-[6px] bg-[#f7f7f8]">
+          <pre
+            className="m-0 whitespace-pre-wrap break-words p-3 font-mono text-[12px] leading-5"
+            data-testid="state-layer-raw"
+          >
+            {formatStateSnapshot(state)}
+          </pre>
+        </ScrollArea>
+      )}
+    </div>
+  );
+}
+
+export function SubTabButton({
+  active,
+  label,
+  onClick,
+  testId,
+}: {
+  active: boolean;
+  label: string;
+  onClick: () => void;
+  testId: string;
+}) {
+  return (
+    <button
+      className={cn(
+        "flex-1 rounded-[5px] px-2 py-1 font-medium transition-colors",
+        active ? "bg-white text-[#1f1f21] shadow-[0_1px_2px_rgba(0,0,0,0.06)]" : "text-[#6e6e73]",
+      )}
+      data-testid={testId}
+      onClick={onClick}
+      type="button"
+    >
+      {label}
+    </button>
+  );
+}
+
+type StateRow = { key: string; value: string };
+
+/**
+ * Flattens nested world state into dotted-path key -> value rows so the table
+ * stays scannable instead of forcing the reader to parse raw JSON. Arrays and
+ * primitives render as compact JSON; nested objects recurse into dotted paths.
+ */
+export function flattenState(state: Record<string, unknown> | undefined, prefix = ""): StateRow[] {
+  if (!state) {
+    return [];
+  }
+  return Object.entries(state).flatMap(([key, value]) => {
+    const path = prefix ? `${prefix}.${key}` : key;
+    if (value && typeof value === "object" && !Array.isArray(value)) {
+      const nested = flattenState(value as Record<string, unknown>, path);
+      return nested.length > 0 ? nested : [{ key: path, value: "{}" }];
+    }
+    return [{ key: path, value: formatStateValue(value) }];
+  });
+}
+
+function formatStateValue(value: unknown): string {
+  if (typeof value === "string") {
+    return value;
+  }
+  if (value === null || value === undefined) {
+    return "—";
+  }
+  return JSON.stringify(value);
+}
+
+/**
+ * Derives the human "why changed" line from the latest state-affecting event in
+ * the event log. Prefers a committed state patch (carries an explicit reason and
+ * actor), then a triggered world event. Returns undefined when no source exists
+ * so the summary renders a neutral em-dash instead of fabricating a cause.
+ */
+export function whyStateChanged(events: RealmEvent[] = []): string | undefined {
+  for (let index = events.length - 1; index >= 0; index -= 1) {
+    const event = events[index];
+    if (!event) {
+      continue;
+    }
+    if (event.type === "state.patch.committed") {
+      return `${event.patch.reason} · ${event.patch.actorId}`;
+    }
+    if (event.type === "world.event.triggered") {
+      return `${event.event.title} · ${event.event.kind}`;
+    }
+  }
+  return undefined;
 }
 
 export function formatStateSnapshot(state: Record<string, unknown> | undefined): string {

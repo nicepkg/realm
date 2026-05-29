@@ -2,6 +2,12 @@ import type { RoleSummary } from "@realm/api-contract";
 import { useI18n } from "@/i18n/index.tsx";
 import { cn } from "@/lib/utils.ts";
 
+/** Localized labels for the protocol-id pseudo-identities (`owner`/`god`). */
+type IdentityLabels = {
+  owner: string;
+  god: string;
+};
+
 type VisibilityChipsProps = {
   className?: string;
   roleIds: string[];
@@ -16,7 +22,8 @@ export function VisibilityChips({
   roles,
 }: VisibilityChipsProps) {
   const { t } = useI18n();
-  const labels = roleIds.map((id) => roleLabel(id, roles));
+  const identityLabels: IdentityLabels = { god: t("common.god"), owner: t("common.boss") };
+  const labels = roleIds.map((id) => roleLabel(id, roles, identityLabels));
   const visibleLabels = labels.slice(0, maxVisible);
   const overflow = labels.length - visibleLabels.length;
 
@@ -44,12 +51,12 @@ export function VisibilityChips({
   );
 }
 
-function roleLabel(id: string, roles: RoleSummary[]): string {
+function roleLabel(id: string, roles: RoleSummary[], labels: IdentityLabels): string {
   if (id === "owner") {
-    return "Boss";
+    return labels.owner;
   }
   if (id === "god") {
-    return "God";
+    return labels.god;
   }
   return roles.find((role) => role.id === id)?.displayName ?? id;
 }

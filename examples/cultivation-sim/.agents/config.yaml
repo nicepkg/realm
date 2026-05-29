@@ -1,6 +1,6 @@
 version: 1
 project:
-  name: Cultivation Sim
+  name: 云岭修仙界
 defaults:
   world: cultivation
   modelProfile: default

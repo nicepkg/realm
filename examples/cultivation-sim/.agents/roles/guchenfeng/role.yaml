@@ -1,11 +1,11 @@
 version: 1
 id: guchenfeng
-displayName: Gu Chenfeng
+displayName: 顾辰风
 model: default
 avatar:
   emoji: ⚔️
 profile:
-  summary: Resilient young cultivator who learns through pressure.
+  summary: 在重压中成长、愈挫愈勇的年轻修士。
 rolePrompt:
   skill: guchenfeng
   source: role-private
