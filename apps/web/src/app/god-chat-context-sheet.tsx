@@ -1,13 +1,6 @@
 "use client";
 
-import {
-  ChevronRightIcon,
-  CommandIcon,
-  GlobeIcon,
-  SettingsIcon,
-  UsersIcon,
-  XIcon,
-} from "lucide-react";
+import { CommandIcon, GlobeIcon, SettingsIcon, UsersIcon, XIcon } from "lucide-react";
 import { useEffect, useMemo, useState } from "react";
 import { createPortal } from "react-dom";
 import {
@@ -24,6 +17,12 @@ import type { GodChatContext } from "@/state/god-chat-model.ts";
 // Importing the helper (god-chat-context-rail.tsx is read-only and not edited)
 // keeps the two surfaces in lock-step: one flatten rule, two presentations.
 import { flattenStateHighlights } from "./god-chat-context-rail.tsx";
+import {
+  ContextSection,
+  initialOf,
+  SectionEmpty,
+  TweakRow,
+} from "./god-chat-context-sheet-parts.tsx";
 
 /**
  * GodChatContextSheet — the minimal inline context surface that replaces the
@@ -321,14 +320,20 @@ export function GodChatContextSheetContent({
   onRequestClose,
 }: GodChatContextSheetContentProps) {
   const { t } = useI18n();
+  const roles = context.roles;
   const highlights = useMemo(
     // Defensive cap: the rail already caps at 12, but flatten is shared and the
     // sheet must never grow into a scroll-dump if that ever changes.
-    () => flattenStateHighlights(context.worldState?.state).slice(0, MAX_HIGHLIGHTS),
-    [context.worldState?.state],
+    () =>
+      flattenStateHighlights(context.worldState?.state, {
+        // Resolve muted role ids to their display name (云遥) — identical to the
+        // desktop rail — so the 禁言 field never leaks a raw role-ec80931b id.
+        resolveRoleName: (roleId) =>
+          roles.find((role) => role.id === roleId)?.displayName ?? roleId,
+      }).slice(0, MAX_HIGHLIGHTS),
+    [context.worldState?.state, roles],
   );
   const version = context.worldState?.version ?? 0;
-  const roles = context.roles;
 
   return (
     <div
@@ -424,75 +429,4 @@ export function GodChatContextSheetContent({
       </div>
     </div>
   );
-}
-
-type ContextSectionProps = {
-  icon: React.ReactNode;
-  title: string;
-  meta?: string;
-  testId: string;
-  children: React.ReactNode;
-};
-
-/** A read-only section header + body. Mirrors the rail's calm sectioning. */
-function ContextSection({ icon, title, meta, testId, children }: ContextSectionProps) {
-  return (
-    <section className="flex flex-col gap-2" data-testid={testId}>
-      <div className="flex items-center gap-2 px-0.5">
-        <span className="text-[color:var(--realm-fg-muted)]">{icon}</span>
-        <span className="font-medium text-[14px] text-[color:var(--realm-fg)]">{title}</span>
-        {meta ? (
-          <span className="ml-auto text-[12px] text-[color:var(--realm-fg-faint)]">{meta}</span>
-        ) : null}
-      </div>
-      <div className="px-0.5">{children}</div>
-    </section>
-  );
-}
-
-function SectionEmpty({ text }: { text: string }) {
-  return <p className="text-[13px] text-[color:var(--realm-fg-faint)] leading-5">{text}</p>;
-}
-
-type TweakRowProps = {
-  icon: React.ReactNode;
-  label: string;
-  hint: string;
-  onClick: () => void;
-  testId: string;
-};
-
-/**
- * A single precise-tweak entry: a keyboard-accessible button row with an icon,
- * label, hint, and a quiet chevron. Press feedback via the shared `.realm-press`
- * token (reduced-motion safe).
- */
-function TweakRow({ icon, label, hint, onClick, testId }: TweakRowProps) {
-  return (
-    <button
-      className={cn(
-        "realm-press flex w-full items-center gap-3 rounded-xl px-3 py-2.5 text-left transition-colors",
-        "hover:bg-[color:var(--realm-surface-muted)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/50",
-      )}
-      data-testid={testId}
-      onClick={onClick}
-      type="button"
-    >
-      <span className="flex size-8 shrink-0 items-center justify-center rounded-lg bg-[color:var(--realm-surface-muted)] text-[color:var(--realm-fg-muted)]">
-        {icon}
-      </span>
-      <span className="flex min-w-0 flex-1 flex-col">
-        <span className="truncate font-medium text-[14px] text-[color:var(--realm-fg)]">
-          {label}
-        </span>
-        <span className="truncate text-[12px] text-[color:var(--realm-fg-faint)]">{hint}</span>
-      </span>
-      <ChevronRightIcon className="size-4 shrink-0 text-[color:var(--realm-fg-faint)]" />
-    </button>
-  );
-}
-
-function initialOf(name: string): string {
-  const trimmed = name.trim();
-  return trimmed.length > 0 ? trimmed.slice(0, 1).toUpperCase() : "?";
 }

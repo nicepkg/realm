@@ -14,6 +14,50 @@ export type DocSection = {
   code?: string;
 };
 
+/**
+ * One of the 6 core natural-language flows shown in the docs showcase. Each step
+ * pairs a REAL captured screenshot (written by scripts/capture-docs-shots.ts)
+ * with the exact zh-CN utterance the operator typed and one honest line of what
+ * the live backend did. `shot` is the base file name under public/shots/ (the
+ * showcase appends the desktop/mobile suffix), kept in code so the showcase and
+ * the capture script reference a single source of truth.
+ */
+export type FlowStep = {
+  /** Stable id, also used as the base screenshot file name under public/shots/. */
+  shot: string;
+  /** Short label for the flow (e.g. "创建世界" / "Create a world"). */
+  label: string;
+  /** The exact plain-language message the operator typed into the chat. */
+  utterance: string;
+  /** One honest line of what the real backend did — copy, not marketing. */
+  outcome: string;
+};
+
+/**
+ * The "能力与边界 / Feature & limits" block: an honest split between what genuinely
+ * works end-to-end today and the real, named limitations. No marketing gloss.
+ */
+export type Capabilities = {
+  title: string;
+  intro: string;
+  /** Heading for the "works end-to-end" column. */
+  worksTitle: string;
+  works: string[];
+  /** Heading for the honest-limits column. */
+  limitsTitle: string;
+  limits: string[];
+};
+
+/** The flow-showcase section: an intro plus the 6 captured NL flows. */
+export type FlowShowcase = {
+  eyebrow: string;
+  title: string;
+  intro: string;
+  /** Caption shown under each shot pair to explain it is a real capture. */
+  shotCaption: string;
+  steps: FlowStep[];
+};
+
 export type DocsPage = {
   locale: Locale;
   languageLabel: string;
@@ -75,6 +119,10 @@ export type DocsPage = {
     intro: string;
     items: TextPair[];
   };
+  /** The 6 core NL flows, each with a REAL captured screenshot. */
+  flowShowcase: FlowShowcase;
+  /** Honest "能力与边界" block: what works end-to-end vs real limits. */
+  capabilities: Capabilities;
   sections: DocSection[];
   cta: {
     title: string;

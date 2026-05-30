@@ -15,6 +15,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { useI18n } from "@/i18n/index.tsx";
 import { cn } from "@/lib/utils.ts";
 import { describeTraceEvent, type TraceEvent } from "@/view-models/realm-view-model.ts";
+import { humanizeFlatRows } from "@/view-models/state-humanize.ts";
 import { WorldAuditTimeline } from "./world-audit-timeline.tsx";
 import { WorldSimulationTab } from "./world-simulation-tab.tsx";
 
@@ -227,6 +228,12 @@ export function WorldEventTimeline({ app }: { app: RealmAppController }) {
  * chip, (2) a flattened, scannable key -> value table of the world state, and
  * (3) the raw JSON behind a segmented sub-tab for power users. World state is
  * `publicState`, so it is visible to everyone in the world.
+ *
+ * The table is HUMANIZED through the shared `humanizeFlatRows` primitive — the SAME
+ * one the desktop inspect chat card uses — so a role id never leaks raw here while
+ * showing its display name there (顾辰风 vs guchenfeng), a boolean reads 禁言：是
+ * not `true`, and an empty object never renders `[object Object]`. The raw-JSON
+ * sub-tab keeps the unhumanized values for power users.
  */
 export function WorldStateTab({ app }: { app: RealmAppController }) {
   const { t } = useI18n();
@@ -234,7 +241,10 @@ export function WorldStateTab({ app }: { app: RealmAppController }) {
   const state = app.state.worldState?.state;
   const version = app.state.worldState?.version ?? 0;
   const reason = whyStateChanged(app.state.events);
-  const rows = flattenState(state);
+  // Build the id → displayName map exactly as `answerWorldState` does (god-chat-
+  // inspect), so both surfaces resolve role-id segments/values identically.
+  const roleNames = new Map(app.state.roles.map((role) => [role.id, role.displayName]));
+  const rows = humanizeFlatRows(state, roleNames);
 
   return (
     <div className="space-y-3" data-testid="world-state-tab">
@@ -339,37 +349,6 @@ export function SubTabButton({
       {label}
     </button>
   );
-}
-
-type StateRow = { key: string; value: string };
-
-/**
- * Flattens nested world state into dotted-path key -> value rows so the table
- * stays scannable instead of forcing the reader to parse raw JSON. Arrays and
- * primitives render as compact JSON; nested objects recurse into dotted paths.
- */
-export function flattenState(state: Record<string, unknown> | undefined, prefix = ""): StateRow[] {
-  if (!state) {
-    return [];
-  }
-  return Object.entries(state).flatMap(([key, value]) => {
-    const path = prefix ? `${prefix}.${key}` : key;
-    if (value && typeof value === "object" && !Array.isArray(value)) {
-      const nested = flattenState(value as Record<string, unknown>, path);
-      return nested.length > 0 ? nested : [{ key: path, value: "{}" }];
-    }
-    return [{ key: path, value: formatStateValue(value) }];
-  });
-}
-
-function formatStateValue(value: unknown): string {
-  if (typeof value === "string") {
-    return value;
-  }
-  if (value === null || value === undefined) {
-    return "—";
-  }
-  return JSON.stringify(value);
 }
 
 /**

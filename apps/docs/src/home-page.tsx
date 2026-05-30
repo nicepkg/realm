@@ -1,5 +1,6 @@
 import type { DocsPage } from "./content.ts";
 import { githubUrl } from "./docs-links.ts";
+import { FlowShowcaseSection } from "./flow-showcase.tsx";
 import { pathForLocale } from "./routing.ts";
 
 export function HomePage({ page }: { page: DocsPage }) {
@@ -11,6 +12,7 @@ export function HomePage({ page }: { page: DocsPage }) {
       <QuickStart page={page} />
       <Concepts page={page} />
       <WebWorkflow page={page} />
+      <FlowShowcaseSection page={page} />
       <TuiPreview page={page} />
       <TrustModel page={page} />
       <Examples page={page} />

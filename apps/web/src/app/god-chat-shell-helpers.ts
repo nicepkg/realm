@@ -75,6 +75,70 @@ export function streamingDetailLength(
 }
 
 /**
+ * A scheduler that runs `task` AFTER the closing Radix Sheet has finished
+ * unwinding (its dismissable-layer + body scroll-lock `pointer-events: none`
+ * cleanup). On the client this is a `requestAnimationFrame` chain so the open
+ * happens on a LATER frame than the close — never the same synchronous tick. In
+ * SSR / no-window environments there is no rAF and no real Sheet, so the
+ * scheduler degrades to a synchronous call. Injectable so the timing contract is
+ * unit-testable with a fake.
+ */
+export type SheetCloseScheduler = (task: () => void) => void;
+
+/**
+ * The default client scheduler: chain two animation frames so the deferred task
+ * fires only after the closing Sheet's layer/scroll-lock teardown has flushed.
+ *
+ * Why two frames (not one): Radix tears down the dismissable-layer + restores
+ * `document.body` pointer-events during the close commit; a single rAF can still
+ * land in the same paint as that teardown, so the opening Sheet mounts while the
+ * closing one's `pointer-events: none` is briefly still on the body — exactly the
+ * race that pressed the new Sheet into an invisible/non-interactive state at
+ * 390×844. A second rAF guarantees we are a full frame past the unwind. Falls
+ * back to a synchronous call when `requestAnimationFrame` is unavailable (SSR /
+ * tests without a window).
+ */
+export const defaultSheetCloseScheduler: SheetCloseScheduler = (task) => {
+  if (typeof window === "undefined" || typeof window.requestAnimationFrame !== "function") {
+    task();
+    return;
+  }
+  window.requestAnimationFrame(() => {
+    window.requestAnimationFrame(task);
+  });
+};
+
+/**
+ * Coordinate the mobile «高级» sheet → 设置 handoff so two Radix Sheets never
+ * cross-fade in the same synchronous tick.
+ *
+ * The bug: the context Sheet (closing) and the settings Sheet (opening) are both
+ * Radix `Sheet`s. Done in one tick, the closing Sheet's dismissable-layer + body
+ * scroll-lock (`pointer-events: none`) cleanup races the opening Sheet's mount,
+ * leaving the new Sheet invisible / non-interactive — only on mobile, where the
+ * context Sheet is the only path to settings. (The command-palette row works
+ * because `CommandDialog` is a Radix Dialog, not a Sheet, so the two surfaces
+ * don't collide.)
+ *
+ * The fix is a deterministic, single-direction order: `close()` synchronously
+ * (so the context Sheet starts retreating), then run `open()` through `scheduler`
+ * so it only fires AFTER the closing Sheet's layer/scroll-lock has fully unwound.
+ * `scheduler` is injected (defaults to {@link defaultSheetCloseScheduler}) so the
+ * "close before open, open after flush" contract is unit-testable without a DOM,
+ * and so SSR degrades to a synchronous close-then-open.
+ *
+ * Pure (no React) — the shell only wires `close`/`open`/`scheduler` to it.
+ */
+export function deferAfterSheetClose(
+  close: () => void,
+  open: () => void,
+  scheduler: SheetCloseScheduler = defaultSheetCloseScheduler,
+): void {
+  close();
+  scheduler(open);
+}
+
+/**
  * Find the turn id of the single live preview card. The hook keeps at most one
  * `pendingProposal`; the live preview is the most recent turn carrying a
  * `preview` card of that proposal's kind. Returns undefined when nothing is

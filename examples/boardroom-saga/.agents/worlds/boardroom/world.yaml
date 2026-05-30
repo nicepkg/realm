@@ -1,0 +1,35 @@
+version: 1
+id: boardroom
+name: 锐峰科技董事会
+mode:
+  type: simulation
+  time:
+    kind: tick
+rooms:
+  main:
+    type: world-main
+    name: 董事会全体会议
+  boardroom:
+    type: group
+    name: 董事会议事厅
+  warroom:
+    type: group
+    name: 并购作战室
+  god:
+    type: god-channel
+    name: 市场裁决
+roles:
+  - id: chenmu
+    model: default
+  - id: linwan
+    model: default
+  - id: zhaoke
+    model: default
+god:
+  id: chairman-fate
+  model: default
+  permissions:
+    canPatchAnyState: true
+    canKillRole: true
+    canCreateEvents: true
+    canAdvanceTime: true

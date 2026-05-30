@@ -24,12 +24,35 @@ describe("world inspector sheet", () => {
     expect(html).toContain("Realm Project");
     expect(html).toContain("Cultivation Sim");
     expect(html).toContain("v7");
-    // The state tab now leads with a flattened key→value table (raw JSON moved
-    // behind a sub-tab), so the values render as plain cells, not quoted JSON.
+    // The state tab now leads with a HUMANIZED key→value table (raw JSON moved
+    // behind a sub-tab) — the key segment `season` localizes to 季节; the author
+    // value `spring` (not a known enum) stays verbatim.
     expect(html).toContain('data-testid="state-layer-summary"');
     expect(html).toContain('data-testid="state-layer-table"');
-    expect(html).toContain("season");
+    expect(html).toContain("季节");
     expect(html).toContain("spring");
+  });
+
+  test("humanizes a role-id state field to its displayName (no guchenfeng / true leak)", () => {
+    const app = mockApp();
+    app.state.worldState = {
+      state: { privateState: { roles: { guchenfeng: { alive: true, muted: false } } } },
+      version: 9,
+    };
+    const html = renderToStaticMarkup(
+      <I18nProvider>
+        <WorldInspectorContent app={app} />
+      </I18nProvider>,
+    );
+
+    // The role-id KEY segment resolves to the display name; the booleans humanize.
+    expect(html).toContain("顾辰风");
+    expect(html).toContain("禁言");
+    expect(html).toContain("存活");
+    // Regression guard: the raw role id must NOT leak into the humanized table.
+    expect(html).not.toContain("guchenfeng");
+    // No bare boolean token in the humanized table.
+    expect(html).not.toContain("禁言 · true");
   });
 
   test("renders recent trace events in the event timeline", () => {
@@ -178,8 +201,9 @@ function mockApp(): RealmAppController {
     selectedWorld: world,
     state: {
       projectName: "Realm Project",
+      roles: [{ displayName: "顾辰风", id: "guchenfeng", model: "default", source: "config" }],
       worldState: {
-        state: { season: "spring" },
+        state: { publicState: { world: { season: "spring" } } },
         version: 7,
       },
     },

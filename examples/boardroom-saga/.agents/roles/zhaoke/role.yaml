@@ -1,0 +1,11 @@
+version: 1
+id: zhaoke
+displayName: 赵柯
+model: default
+avatar:
+  emoji: 💰
+profile:
+  summary: 逐利善变、只关心退出回报的外部投资人。
+rolePrompt:
+  skill: zhaoke
+  source: role-private

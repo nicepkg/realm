@@ -1,4 +1,10 @@
 import type { ChatCard, GodChatContext } from "@/state/god-chat-model.ts";
+import {
+  fieldKeyLabel,
+  humanizeScalar,
+  isPlainObject,
+  stateKeyLabel,
+} from "@/view-models/state-humanize.ts";
 
 /**
  * God-chat world-state INSPECT answering (read-only, zh-CN). Pure + React-free:
@@ -9,6 +15,11 @@ import type { ChatCard, GodChatContext } from "@/state/god-chat-model.ts";
  * humanized tree is the authoritative, never-truncated reading. Split out of
  * `god-chat-runtime.ts` to keep both files under the 500-line budget; the runtime
  * file re-exports `answerWorldState` so existing import sites keep working.
+ *
+ * The humanization PRIMITIVES (label maps, `stateKeyLabel` / `fieldKeyLabel` /
+ * `humanizeScalar`) live in `@/view-models/state-humanize.ts` so the mobile 高级
+ * world-inspector sheet renders the SAME human reading from the SAME snapshot. This
+ * file owns only the indented-TREE rendering that is specific to the chat card.
  */
 
 const NO_WORLD_TEXT = "还没有进入任何世界，先创建或选择一个世界再下达指令吧。";
@@ -26,130 +37,6 @@ const ONLY_META_DETAIL = "这个世界还很新，目前只有运行元数据。
 
 /** Summary copy when every top-level container is empty (a truly blank world). */
 const ALL_EMPTY_DETAIL = "该世界尚无更多状态。";
-
-/**
- * Friendly zh-CN labels for the well-known top-level state containers. The state
- * snapshot the backend returns groups fields under English container keys
- * (`publicState` / `privateState` / `hiddenState` / `derivedState` / `metaState`).
- * Surfaced raw they read like a schema, not a world — so the DEFAULT inspect
- * answer renders these as calm Chinese labels instead of leaking the English key.
- *
- * Intentionally duplicated from `god-chat-context-rail.tsx`' STATE_KEY_LABELS
- * (it owns the rail; we own the inspect answer): a small, stable 5-entry map is
- * cheaper to keep in sync than to couple two files through a shared export.
- *
- * Any key NOT in this map (a custom world's own top-level fields like `qi`) is an
- * author-chosen, already-human-meaningful name and is passed through VERBATIM —
- * we never invent a translation for it.
- */
-const STATE_CONTAINER_LABELS: Record<string, string> = {
-  derivedState: "推演结果",
-  hiddenState: "天机（隐藏）",
-  metaState: "运行元数据",
-  privateState: "角色私密",
-  publicState: "世界全景",
-};
-
-/**
- * Humanized zh-CN labels for a few well-known enum values the engine emits, so a
- * default answer reads `严重程度：中` instead of leaking the bare English token
- * `severity: medium`. Only values that HAVE a label are translated; everything
- * else (numbers, author strings, unknown enums) is shown verbatim.
- */
-const ENUM_VALUE_LABELS: Record<string, string> = {
-  critical: "极高",
-  high: "高",
-  low: "低",
-  medium: "中",
-  none: "无",
-};
-
-/**
- * zh-CN labels for the common engine/world-schema field keys the cultivation-sim
- * (and similar worlds) emit, so a default inspect answer reads `季节：春` instead
- * of leaking the bare English token `season`. This is a BEST-EFFORT label map for
- * well-known fields only — any key NOT here is treated as an author-chosen,
- * already-human-meaningful name and passed through VERBATIM (we never invent a
- * translation, so a custom world's `moon-grass` / `fire-root` survives unchanged).
- */
-const STATE_FIELD_LABELS: Record<string, string> = {
-  alive: "存活",
-  ambientQi: "环境灵气",
-  dangerLevel: "危险等级",
-  day: "天",
-  doubts: "疑虑",
-  fate: "天命",
-  herbs: "草药",
-  hiddenGoal: "隐藏目标",
-  id: "标识",
-  injuries: "伤势",
-  location: "地点",
-  muted: "禁言",
-  name: "姓名",
-  nextDisaster: "下一场灾劫",
-  nextRecommendedAction: "建议行动",
-  qi: "灵气",
-  realm: "境界",
-  reputation: "声望",
-  role: "身份",
-  roles: "角色",
-  season: "季节",
-  sect: "宗门",
-  severity: "严重程度",
-  spiritStones: "灵石",
-  status: "状态",
-  supplyNotes: "补给记录",
-  threats: "威胁",
-  tick: "节拍",
-  time: "时间",
-  traitorHint: "内奸线索",
-  turn: "回合",
-  weather: "天气",
-  world: "世界",
-};
-
-/** Map a top-level container key to its zh-CN label, or pass it through verbatim. */
-function stateKeyLabel(key: string): string {
-  return STATE_CONTAINER_LABELS[key] ?? key;
-}
-
-/**
- * Resolve a child field key to display copy. A role id (a key whose parent is a
- * `roles` container) is replaced with the author's display name (leijun → 雷军);
- * a well-known engine field gets its zh-CN label (season → 季节); anything else is
- * an author-meaningful key and is shown VERBATIM.
- */
-function fieldKeyLabel(key: string, isRoleId: boolean, roleNames: Map<string, string>): string {
-  if (isRoleId) {
-    return roleNames.get(key) ?? key;
-  }
-  return STATE_FIELD_LABELS[key] ?? key;
-}
-
-/** True for a plain object worth recursing into (so nested leaf enums humanize). */
-function isPlainObject(value: unknown): value is Record<string, unknown> {
-  return value !== null && typeof value === "object" && !Array.isArray(value);
-}
-
-/** Humanize a known enum string; leave anything else as a faithful display value. */
-function humanizeScalar(value: unknown): string {
-  if (typeof value === "string") {
-    return ENUM_VALUE_LABELS[value] ?? value;
-  }
-  if (typeof value === "boolean") {
-    // A bare `true` / `false` leaf (e.g. `alive` / `muted`) reads as a value-layer
-    // English leak in an all-zh-CN UI — map it to the generic 是/否 pair. The key's
-    // own label (存活 / 禁言) is unaffected; the raw boolean only survives in rawJson.
-    return value ? "是" : "否";
-  }
-  if (value === null) {
-    return "（空）";
-  }
-  if (Array.isArray(value)) {
-    return `${value.length} 项`;
-  }
-  return String(value);
-}
 
 /**
  * Render an arbitrary state subtree as indented zh-CN `· 键：值` lines. Author/
@@ -264,16 +151,17 @@ function isDenseWorld(nonEmpty: RenderedSection[]): boolean {
 }
 
 /**
- * Compose the CONCISE `detail` for a dense world: the one-line summary, then a
- * single line listing the non-empty top-level section headings so the operator
- * sees at a glance WHAT the world records without scrolling the full tree (which
- * now rides `detailLong` behind `展开全部`). The summary already carries the
- * version + count; here we add the calm "这些方面记录了内容" heading line so the card
- * reads as a real précis, not a truncation.
+ * Compose the CONCISE `detail` for a dense world: ONLY the transition line listing
+ * the non-empty top-level section headings, so the operator sees at a glance WHAT
+ * the world records without scrolling the full tree (which rides `detailLong`
+ * behind `展开全部`). The version+count summary is NOT repeated here — it is already
+ * the leading bubble `text`, so duplicating it inside the card printed the same
+ * 「当前世界（版本 vN）记录了…」sentence twice (F3). The detail therefore carries only
+ * the calm "这些方面记录了内容" précis line.
  */
-function composeDenseSummary(summary: string, nonEmpty: RenderedSection[]): string {
+function composeDenseSummary(nonEmpty: RenderedSection[]): string {
   const headings = nonEmpty.map((section) => `「${stateKeyLabel(section.key)}」`).join("、");
-  return `${summary}\n当前在这些方面记录了内容：${headings}。展开下方查看每一项细节。`;
+  return `当前在这些方面记录了内容：${headings}。展开下方查看每一项细节。`;
 }
 
 /**
@@ -352,7 +240,7 @@ export function answerWorldState(ctx: GodChatContext): { text: string; card: Cha
   // still reads in one glance. This mirrors the existing rawJson treatment: the
   // authoritative reading is never truncated, only progressively disclosed.
   if (isDenseWorld(nonEmpty)) {
-    const denseDetail = composeDenseSummary(summary, nonEmpty);
+    const denseDetail = composeDenseSummary(nonEmpty);
     return {
       card: inspectCard("世界状态", denseDetail, { detailLong: fullTree, rawJson }),
       text: summary,

@@ -62,6 +62,25 @@ export const WRITE_KINDS = new Set<RealmIntent["kind"]>([
 ]);
 
 /**
+ * "Say something / chat / a few words" run-turn phrasings — with and without a room
+ * clause. These are IMPERATIVES that advance a role's turn, even though several
+ * contain 什么 ("说点什么"). Live-model defect: '让顾辰风在全员议事说点什么' misrouted
+ * to inspect (bare 什么 flagged interrogative + missing speak verb). Each row carries
+ * the run-turn the model would emit so both engines are exercised on the same input.
+ */
+export const RUN_TURN_SPEAK_PHRASINGS: { goal: string; roleId: string }[] = [
+  { goal: "让顾辰风在全员议事说点什么", roleId: "gu-chenfeng" },
+  { goal: "让顾辰风说点什么", roleId: "gu-chenfeng" },
+  { goal: "让云遥说些什么", roleId: "yunyao" },
+  { goal: "让雷军说几句", roleId: "leijun" },
+  { goal: "让顾辰风在主厅说几句", roleId: "gu-chenfeng" },
+  { goal: "让云遥聊聊", roleId: "yunyao" },
+  { goal: "让雷军聊几句", roleId: "leijun" },
+  { goal: "让顾辰风讲两句", roleId: "gu-chenfeng" },
+  { goal: "让云遥说说", roleId: "yunyao" },
+];
+
+/**
  * THE LOAD-BEARING table. Every utterance carries a WRITE keyword + a REAL role (or
  * world), yet is phrased as a question — so NONE may route to a write family; all
  * must be inspect. Each row also carries the write the model would WRONGLY emit, so

@@ -176,6 +176,41 @@ describe("run-turn / god robustness — exact live-failed phrasings never fall t
   });
 });
 
+describe("run-turn — 'say something / chat' speak verbs (live-model defect)", () => {
+  // Live-model defect: '让顾辰风在全员议事说点什么' misrouted to inspect because (a)
+  // bare 什么 was treated interrogative and (b) the speak verb was not in the table.
+  const speakPhrasings: { goal: string; roleId: string }[] = [
+    { goal: "让顾辰风在全员议事说点什么", roleId: "gu-chenfeng" },
+    { goal: "顾辰风说点什么", roleId: "gu-chenfeng" },
+    { goal: "让云遥说些什么", roleId: "yunyao" },
+    { goal: "让雷军说几句", roleId: "leijun" },
+    { goal: "让顾辰风说两句", roleId: "gu-chenfeng" },
+    { goal: "让云遥说说", roleId: "yunyao" },
+    { goal: "让雷军聊聊", roleId: "leijun" },
+    { goal: "让顾辰风聊几句", roleId: "gu-chenfeng" },
+    { goal: "让云遥讲两句", roleId: "yunyao" },
+    { goal: "让顾辰风开口说点什么", roleId: "gu-chenfeng" },
+    { goal: "let gu-chenfeng say something", roleId: "gu-chenfeng" },
+  ];
+  for (const { goal, roleId } of speakPhrasings) {
+    test(`'${goal}' → run-turn on ${roleId}, not inspect`, () => {
+      const intent = classifyIntent(goal, CONTEXT);
+      expect(intent.kind).toBe("run-turn");
+      if (intent.kind !== "run-turn") {
+        throw new Error("expected run-turn");
+      }
+      expect(intent.roleId).toBe(roleId);
+      expect(intent.roomId).toBe("main");
+    });
+  }
+
+  test("interrogative containing 什么 still reads as inspect, not run-turn", () => {
+    // '顾辰风现在什么状态？' carries a real role but is a wh-question → inspect.
+    const intent = classifyIntent("顾辰风现在什么状态？", CONTEXT);
+    expect(intent.kind).toBe("inspect");
+  });
+});
+
 describe("interrogatives route to inspect, never to a God write (NO-QUESTION-WRITE)", () => {
   test("defect: '现在世界什么状态？顾辰风被禁言了吗' → inspect world-state, NOT god mute", () => {
     const intent = classifyIntent("现在世界什么状态？顾辰风被禁言了吗", CONTEXT);

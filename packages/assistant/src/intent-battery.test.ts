@@ -4,6 +4,7 @@ import {
   CONTEXT,
   fixedModel,
   INTERROGATIVE_WRITE_KEYWORDS,
+  RUN_TURN_SPEAK_PHRASINGS,
   WRITE_KINDS,
 } from "./intent-battery.shared.ts";
 import { classifyIntent, ModelBackedIntentRouter, type RealmIntent } from "./intent-router.ts";
@@ -175,6 +176,24 @@ describe("battery — run-turn", () => {
       roleId: "yunyao",
       roomId: "main",
     });
+  });
+
+  // "Say something / chat / a few words" — imperatives that advance a turn, with and
+  // without a room clause, several carrying 什么 ("说点什么"). The deterministic engine
+  // must resolve these on its own (contiguous speak verb + real role), and the model
+  // router must hydrate the same run-turn. (Live-model defect for '…说点什么'.)
+  for (const { goal, roleId } of RUN_TURN_SPEAK_PHRASINGS) {
+    test(`'${goal}' → run-turn on ${roleId} (deterministic + model)`, async () => {
+      const { deterministic, model } = await bothEngines(goal, { kind: "run-turn", roleId });
+      expect(deterministic).toEqual({ kind: "run-turn", roleId, roomId: "main" });
+      expect(model).toEqual({ kind: "run-turn", roleId, roomId: "main" });
+    });
+  }
+
+  test("an interrogative carrying 什么 stays inspect, never run-turn", () => {
+    // Minimal-pair guard: the imperative '说点什么' runs a turn, but '什么状态？' reads.
+    expect(classifyIntent("顾辰风现在什么状态？", CONTEXT).kind).toBe("inspect");
+    expect(classifyIntent("顾辰风现在是什么状态", CONTEXT).kind).toBe("inspect");
   });
 });
 

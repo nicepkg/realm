@@ -1,0 +1,201 @@
+/*
+ * Flow-showcase styles: the 6 captured NL flows and the honest "能力与边界"
+ * block. Apple-flat, matching the docs aesthetic — single green accent
+ * (--realm-primary), thin lines, generous whitespace, no AI-slop gradients.
+ * Reduced-motion safe (no animated reveals). Imported from main.tsx after the
+ * section styles so it shares the same cascade order.
+ */
+
+.flow-list {
+  display: flex;
+  flex-direction: column;
+  gap: 22px;
+  list-style: none;
+  margin: 32px 0 0;
+  padding: 0;
+}
+
+.flow-card {
+  align-items: start;
+  background: #fff;
+  border: 1px solid var(--line);
+  border-radius: 14px;
+  display: grid;
+  gap: 28px;
+  grid-template-columns: minmax(0, 0.78fr) minmax(0, 1.22fr);
+  overflow: hidden;
+  padding: 26px;
+}
+
+.flow-card-copy {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  min-width: 0;
+}
+
+.flow-order {
+  color: var(--text-faint);
+  font-size: 13px;
+  font-variant-numeric: tabular-nums;
+  font-weight: 650;
+}
+
+.flow-label {
+  font-size: 19px;
+  font-weight: 680;
+}
+
+.flow-utterance {
+  background: var(--surface-muted);
+  border-left: 3px solid var(--realm-primary);
+  border-radius: 0 8px 8px 0;
+  color: #1d1d1f;
+  font-size: 15px;
+  line-height: 1.55;
+  margin: 4px 0 0;
+  padding: 12px 14px;
+}
+
+.flow-utterance-mark {
+  color: var(--realm-primary);
+  font-weight: 680;
+  margin-right: 2px;
+}
+
+.flow-outcome {
+  color: var(--text-muted);
+  font-size: 14px;
+  line-height: 1.65;
+  margin: 0;
+}
+
+.flow-shots {
+  align-items: end;
+  display: grid;
+  gap: 14px;
+  grid-template-columns: minmax(0, 1fr) 132px;
+  margin: 0;
+  min-width: 0;
+}
+
+.flow-shot {
+  background: var(--surface-muted);
+  border: 1px solid var(--line);
+  border-radius: 10px;
+  display: block;
+  overflow: hidden;
+}
+
+.flow-shot img {
+  display: block;
+  height: auto;
+  width: 100%;
+}
+
+.flow-shot-desktop {
+  aspect-ratio: 16 / 10;
+}
+
+.flow-shot-mobile {
+  aspect-ratio: 9 / 16;
+}
+
+.flow-shot-caption {
+  color: var(--text-faint);
+  font-size: 12px;
+  grid-column: 1 / -1;
+  margin-top: 2px;
+}
+
+/* Honest capability / limits block. */
+.capabilities {
+  margin-top: 56px;
+}
+
+.capabilities h3 {
+  font-size: clamp(24px, 3.4vw, 34px);
+  font-weight: 680;
+  line-height: 1.1;
+  margin-bottom: 12px;
+}
+
+.capabilities-grid {
+  display: grid;
+  gap: 16px;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  margin-top: 28px;
+}
+
+.capability-col {
+  background: #fff;
+  border: 1px solid var(--line);
+  border-radius: 12px;
+  padding: 22px;
+}
+
+.capability-col h4 {
+  font-size: 16px;
+  font-weight: 680;
+  margin-bottom: 14px;
+  padding-left: 16px;
+  position: relative;
+}
+
+.capability-col h4::before {
+  border-radius: 999px;
+  content: "";
+  height: 8px;
+  left: 0;
+  position: absolute;
+  top: 0.45em;
+  width: 8px;
+}
+
+.capability-works h4::before {
+  background: var(--realm-primary);
+}
+
+.capability-limits h4::before {
+  background: #c2410c;
+}
+
+.capability-col ul {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+}
+
+.capability-col li {
+  color: #3f3f46;
+  line-height: 1.6;
+  margin: 10px 0;
+  padding-left: 18px;
+  position: relative;
+}
+
+.capability-col li::before {
+  background: var(--text-faint);
+  border-radius: 999px;
+  content: "";
+  height: 5px;
+  left: 0;
+  position: absolute;
+  top: 0.72em;
+  width: 5px;
+}
+
+@media (max-width: 860px) {
+  .flow-card {
+    grid-template-columns: minmax(0, 1fr);
+    gap: 20px;
+  }
+
+  .flow-shots {
+    grid-template-columns: minmax(0, 1fr) 108px;
+  }
+
+  .capabilities-grid {
+    grid-template-columns: minmax(0, 1fr);
+  }
+}

@@ -1,0 +1,74 @@
+publicState:
+  company:
+    name: 锐峰科技
+    fiscalQuarter: 2026Q1
+    stage: IPO 前最后冲刺
+    sentiment: 谨慎乐观
+  financials:
+    revenue: 4.2亿
+    revenueGrowth: 12%
+    cashOnHand: 1.8亿
+    burnRate: 每季 6000万
+    runwayQuarters: 3
+  capTable:
+    chenmu: 28%
+    linwan: 6%
+    zhaoke: 19%
+    employeePool: 12%
+    others: 35%
+  threats:
+    - id: hostile-takeover
+      severity: high
+      status: 对手星澜资本正在二级市场扫货
+  keyAccounts:
+    - id: northstar-bank
+      name: 北辰银行
+      arr: 8000万
+      status: 续约谈判中
+roles:
+  chenmu:
+    name: 陈牧
+    title: 董事长
+    standing: 控制董事会但现金吃紧
+  linwan:
+    name: 林晚
+    title: CFO
+    standing: 掌账、守合规、票数关键
+  zhaoke:
+    name: 赵柯
+    title: 投资人
+    standing: 星澜资本合伙人，逐利且善变
+privateState:
+  roles:
+    chenmu:
+      doubts:
+        - 激进并购若失败将耗尽现金跑道
+      hiddenGoal: 在 IPO 前把控制权从投资人手中夺回
+    linwan:
+      ledgerNotes:
+        - 一笔预收款被提前确认为营收，存在审计风险
+      hiddenGoal: 守住合规底线，必要时保全自己
+    zhaoke:
+      leverageNotes:
+        - 手握一份对赌协议，营收不达标即可触发回购
+      hiddenGoal: 推动卖盘以最快实现退出回报
+hiddenState:
+  fate:
+    nextShock: 审计风暴
+    dueDiligenceDirt: 北辰银行续约其实已亮红灯
+    traitorHint: 有董事正在向对手泄露现金流数据
+derivedState:
+  controlRisk: 高
+  nextRecommendedAction: 先稳住北辰银行续约，再处理对手扫货
+metaState:
+  tick: 0
+  roles:
+    chenmu:
+      alive: true
+      muted: false
+    linwan:
+      alive: true
+      muted: false
+    zhaoke:
+      alive: true
+      muted: false

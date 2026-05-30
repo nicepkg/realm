@@ -1,0 +1,15 @@
+# Machine-local Realm overrides. Copy to config.local.yaml; do not commit secrets.
+version: 1
+defaultProvider: openai
+defaultModel: gpt-5
+providers:
+  - id: openai
+    displayName: OpenAI
+    apiKeyEnv: OPENAI_API_KEY
+    defaultModel: gpt-5
+    enabled: true
+  - id: google
+    displayName: Google
+    apiKeyEnv: GEMINI_API_KEY
+    defaultModel: gemini-2.5-flash
+    enabled: true

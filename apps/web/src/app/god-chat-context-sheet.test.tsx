@@ -141,6 +141,41 @@ describe("GodChatContextSheet", () => {
     expect(calls).toEqual([false]);
   });
 
+  test("resolves a muted role-id to its display name (云遥, not the raw id)", () => {
+    // The 禁言 highlight comes from metaState.roles[<id>].muted === true. The sheet
+    // must pass the SAME resolver the desktop rail uses, mapping the role-id to its
+    // displayName via context.roles, so the field reads 云遥, never role-ec80931b.
+    const muted: GodChatContext = {
+      ...baseContext,
+      roles: [{ displayName: "云遥", id: "role-ec80931b", model: "default", source: "config" }],
+      worldState: {
+        state: { metaState: { roles: { "role-ec80931b": { muted: true } } } },
+        version: 4,
+      },
+    };
+    const html = renderSheet(muted);
+    expect(html).toContain("禁言");
+    expect(html).toContain("云遥");
+    // The raw role-id must NOT leak as the rendered value.
+    expect(html).not.toContain("role-ec80931b");
+  });
+
+  test("falls back to the bare role-id when no matching role exists (no crash)", () => {
+    // A muted id with no member in context.roles still surfaces the 禁言 row, keyed
+    // by the bare id (graceful fallback, identical to the rail) — never a crash.
+    const orphan: GodChatContext = {
+      ...baseContext,
+      roles: [],
+      worldState: {
+        state: { metaState: { roles: { "role-missing": { muted: true } } } },
+        version: 5,
+      },
+    };
+    const html = renderSheet(orphan);
+    expect(html).toContain("禁言");
+    expect(html).toContain("role-missing");
+  });
+
   test("shows calm empty copy when the world is a blank slate", () => {
     const empty: GodChatContext = { ...baseContext, roles: [], worldState: undefined };
     const html = renderSheet(empty);

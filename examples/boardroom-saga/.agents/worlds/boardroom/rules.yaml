@@ -1,0 +1,28 @@
+version: 1
+simulation:
+  tickKind: quarter
+  tickSummary: Advance one fiscal quarter of the boardroom saga with state and audit evidence.
+actions:
+  allowGodRoleActions:
+    - kill
+    - mute
+    - revive
+  requireExpectedVersionForStatePatches: true
+tools:
+  include:
+    - message.send
+    - room.create
+    - turn.run
+    - state.query
+    - state.patch.propose
+    - memory.read
+    - memory.write
+    - trace.read
+    - config.read
+  requireApproval:
+    - config.write
+    - shell.run
+    - network.fetch
+  denyByDefault:
+    - shell.run
+    - network.fetch

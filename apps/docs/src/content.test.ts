@@ -118,4 +118,132 @@ describe("docs content", () => {
     expect(locales).toEqual(["en", "zh-CN"]);
     expect(Object.keys(pages).sort()).toEqual(["en", "zh-CN"]);
   });
+
+  test("ships the 6 core NL flows with the captured-shot ids aligned across locales", () => {
+    const expectedShots = [
+      "create-world",
+      "set-rule",
+      "add-role",
+      "run-turn",
+      "god-action",
+      "state-inspect",
+    ];
+    for (const page of Object.values(pages)) {
+      const showcase = page.flowShowcase;
+      expect(showcase.eyebrow.length).toBeGreaterThan(0);
+      expect(showcase.title.length).toBeGreaterThan(0);
+      expect(showcase.intro.length).toBeGreaterThan(0);
+      expect(showcase.shotCaption.length).toBeGreaterThan(0);
+      expect(showcase.steps.map((step) => step.shot)).toEqual(expectedShots);
+      for (const step of showcase.steps) {
+        expect(step.label.length).toBeGreaterThan(0);
+        expect(step.utterance.length).toBeGreaterThan(0);
+        expect(step.outcome.length).toBeGreaterThan(0);
+      }
+    }
+    // The zh-CN utterances are the tested path and must mirror the live capture.
+    const zhUtterances = pages["zh-CN"].flowShowcase.steps.map((step) => step.utterance);
+    expect(zhUtterances).toContain("创建一个有宗门、对手和师父的修真世界");
+    expect(zhUtterances).toContain("现在让顾辰风说话");
+    expect(zhUtterances).toContain("现在世界什么状态？");
+    // Both locales quote the SAME Chinese utterance the operator types into the
+    // chat window — the docs must not invent an English command that does not run.
+    expect(pages.en.flowShowcase.steps.map((step) => step.utterance)).toEqual(zhUtterances);
+  });
+
+  test("ships an honest capability/limits block in both locales", () => {
+    for (const page of Object.values(pages)) {
+      const caps = page.capabilities;
+      expect(caps.title.length).toBeGreaterThan(0);
+      expect(caps.intro.length).toBeGreaterThan(0);
+      expect(caps.worksTitle.length).toBeGreaterThan(0);
+      expect(caps.limitsTitle.length).toBeGreaterThan(0);
+      expect(caps.works.length).toBeGreaterThanOrEqual(3);
+      expect(caps.limits.length).toBeGreaterThanOrEqual(3);
+      for (const item of [...caps.works, ...caps.limits]) {
+        expect(item.length).toBeGreaterThan(0);
+      }
+    }
+    // The works/limits counts stay aligned across locales (parallel translation).
+    expect(pages["zh-CN"].capabilities.works).toHaveLength(pages.en.capabilities.works.length);
+    expect(pages["zh-CN"].capabilities.limits).toHaveLength(pages.en.capabilities.limits.length);
+  });
+
+  test("grounds the Examples list to real shipped artifacts in both locales", () => {
+    for (const page of Object.values(pages)) {
+      const examples = page.examples;
+      expect(examples.title.length).toBeGreaterThan(0);
+      expect(examples.intro.length).toBeGreaterThan(0);
+      // Three real artifacts: cultivation-sim, boardroom-saga, software-company template.
+      expect(examples.items).toHaveLength(3);
+      for (const item of examples.items) {
+        expect(item.label.length).toBeGreaterThan(0);
+        expect(item.value.length).toBeGreaterThan(0);
+      }
+      const blob = examples.items.map((item) => `${item.label} ${item.value}`).join("\n");
+      // The real, end-to-end-verified boardroom-saga example must be surfaced.
+      expect(blob).toContain("examples/boardroom-saga");
+      // The existing cultivation example dir must stay listed.
+      expect(blob).toContain("examples/cultivation-sim");
+      // Software company is a real init template, framed as such (not a phantom dir).
+      expect(blob).toContain("software-company");
+      // The retired aspirational entry with no backing example dir is gone.
+      expect(blob).not.toContain("Investment council");
+      expect(blob).not.toContain("投资委员会");
+    }
+    // zh-CN keeps the 商战 framing; en keeps the bilingual Boardroom saga label.
+    expect(pages["zh-CN"].examples.items.some((item) => item.label.includes("商战推演"))).toBe(
+      true,
+    );
+    expect(pages.en.examples.items.some((item) => /Boardroom saga/i.test(item.label))).toBe(true);
+    // The Examples item count stays aligned across locales.
+    expect(pages["zh-CN"].examples.items).toHaveLength(pages.en.examples.items.length);
+  });
+
+  test("keeps zh-CN showcase + capabilities prose free of leaked English sentences", () => {
+    // Whitelisted tokens that legitimately stay Latin even in zh-CN copy: real
+    // file/runtime/identifier names, provider brands, and CLI artifacts.
+    const allowed = [
+      "天道",
+      "fake",
+      "OpenAI",
+      "Gemini",
+      "SDK",
+      "client",
+      "TUI",
+      "Web",
+      "key",
+      "401",
+      "skill",
+      "SKILL.md",
+      "provider",
+      "rules.yaml",
+      "schema",
+      "scripts/capture-docs-shots.ts",
+      "examples/cultivation-sim",
+      "demo",
+    ];
+    const zh = pages["zh-CN"];
+    const prose = [
+      zh.flowShowcase.eyebrow,
+      zh.flowShowcase.title,
+      zh.flowShowcase.intro,
+      zh.flowShowcase.shotCaption,
+      ...zh.flowShowcase.steps.flatMap((step) => [step.label, step.outcome]),
+      zh.capabilities.title,
+      zh.capabilities.intro,
+      zh.capabilities.worksTitle,
+      zh.capabilities.limitsTitle,
+      ...zh.capabilities.works,
+      ...zh.capabilities.limits,
+    ].join("\n");
+    // Strip whitelisted tokens, then assert no remaining run of >=3 ASCII letters
+    // survives — that would be an untranslated English word leaking into zh copy.
+    let stripped = prose;
+    for (const token of allowed) {
+      stripped = stripped.split(token).join(" ");
+    }
+    const leaked = stripped.match(/[A-Za-z]{3,}/g) ?? [];
+    expect(leaked).toEqual([]);
+  });
 });

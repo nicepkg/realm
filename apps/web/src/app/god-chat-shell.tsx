@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import {
   Conversation,
   ConversationContent,
@@ -41,6 +41,7 @@ import { WorldIdentityStrip } from "./god-chat-identity-strip.tsx";
 // (`./god-chat-shell.tsx`) keep their single source.
 import {
   buildSuggestions,
+  deferAfterSheetClose,
   resolveLivePreviewTurnId,
   streamingDetailLength,
 } from "./god-chat-shell-helpers.ts";
@@ -174,6 +175,21 @@ export function GodChatShell({
   // + precise tweaks), NOT the legacy messenger/manager. Owned here so the sheet
   // lives with the chat home; the AppShell only supplies the two tweak edges.
   const [contextSheetOpen, setContextSheetOpen] = useState(false);
+
+  // Mobile «高级» sheet → 设置 handoff coordinator (NOT the raw upstream
+  // onOpenSettings). The context sheet and the settings sheet are both Radix
+  // `Sheet`s; closing one + opening the other in the same tick races the closing
+  // Sheet's dismissable-layer + body scroll-lock (`pointer-events: none`)
+  // teardown against the new Sheet's mount, pressing settings into an
+  // invisible/non-interactive state at 390×844. This shell-owned coordinator is
+  // the single ordering authority: close the context Sheet first, open settings
+  // only after its layer/scroll-lock unwinds (see deferAfterSheetClose). The
+  // context sheet keeps its onRequestClose contract; routing through here makes
+  // the final order converge one-directionally. See god-chat-shell-helpers.ts.
+  const handleOpenSettingsFromContextSheet = useCallback(() => {
+    deferAfterSheetClose(() => setContextSheetOpen(false), onOpenSettings);
+  }, [onOpenSettings]);
+
   const strings = useMemo<GodChatShellStrings>(
     () => ({ ...defaultGodChatShellStrings, ...override }),
     [override],
@@ -253,39 +269,26 @@ export function GodChatShell({
       ? chat.pendingProposal.proposal.typedConfirmation
       : null;
   // Resolve which single preview card is the LIVE pending one (so the timeline
-  // never renders two confirm rows). The hook clears `pendingProposal` and pushes
-  // a result card on confirm, so the live preview is the last preview turn whose
-  // kind matches the pending proposal.
+  // never renders two confirm rows): the last preview turn whose kind matches the
+  // pending proposal (the hook clears it + pushes a result card on confirm).
   const livePreviewTurnId = useMemo(
     () => resolveLivePreviewTurnId(chat.turns, chat.pendingProposal?.kind),
     [chat.turns, chat.pendingProposal?.kind],
   );
   // A second auto-scroll signal for IN-PLACE streaming: a streamed role bubble
   // grows its `card.detail` without appending a turn, so `chat.turns.length`
-  // stays flat. Feed the live streamed length so the viewport keeps tracking the
-  // bottom while the role line is still typing.
+  // stays flat. Feed the live length so the viewport tracks the bottom mid-type.
   const streamSignal = useMemo(() => streamingDetailLength(chat.turns), [chat.turns]);
 
   return (
-    // Wide-screen balance. The rail STAYS pinned to the viewport's right edge (a
-    // side panel hugging the window edge — the calm Apple Mail/Notes pattern; its
-    // background is the same canvas, so floating it inward leaves the panel
-    // dissolving into a dead grey band). Instead the imbalance is fixed on the
-    // CHAT side: the conversation column is centered over the WHOLE shell width
-    // (not just the rail-less sub-area), so at ≥1440 the reading column sits at
-    // the true horizontal center with the rail flanking its right — the two read
-    // as one centered, balanced composition instead of "chat floating far-left,
-    // big empty right". The center column reserves the rail's width as right
-    // padding on lg+ (`lg:pr-72`) so its OWN centered content never slides under
-    // the rail; below lg the rail is hidden and the padding is dropped, so the
-    // mobile single-column hero + docked composer + max-w-4xl reading measure are
-    // untouched (no regression). At ultra-wide the shell is gently capped + center
-    // so the column never drifts arbitrarily far from the edge-pinned rail.
-    //
-    // `lg:pl-72` reserves the rail's width (w-72 = 288px) as LEFT padding inside
-    // the flex-1 chat column, shifting its `mx-auto` content right by 144px so it
-    // lands at the viewport's true horizontal center, balanced against the
-    // right-edge-pinned rail. Dropped below lg.
+    // Wide-screen balance: the rail stays pinned to the viewport's right edge
+    // (calm Apple Mail/Notes side-panel) and the chat column is centered over the
+    // WHOLE shell width, so at ≥1440 the reading column sits at true horizontal
+    // center with the rail flanking it — one balanced composition. `lg:pl-72`
+    // reserves the rail's width (w-72 = 288px) as LEFT padding inside the flex-1
+    // chat column, shifting its `mx-auto` content right by 144px to land at true
+    // center. Dropped below lg, so the mobile single-column hero + docked composer
+    // + max-w-4xl measure are untouched. Ultra-wide is gently capped + centered.
     <div
       className="relative mx-auto flex h-dvh max-h-dvh w-full max-w-[1680px] bg-[var(--realm-bg)]"
       data-testid="god-chat-shell"
@@ -475,16 +478,16 @@ export function GodChatShell({
       <GodChatContextRail centered={isEmpty} context={railContext} strings={strings.rail} />
 
       {/*
-       * The 高级 escape hatch. Opens on every screen size: on mobile it is the
-       * ONLY path to world-state (the rail is lg+ only); on desktop it adds the
-       * precise-tweak entries the read-only rail intentionally omits. Either way
-       * it is a calm inline sheet, never the legacy 5-tab app.
+       * The 高级 escape hatch. On mobile it is the ONLY path to world-state (rail
+       * is lg+ only); on desktop it adds the precise-tweak entries the read-only
+       * rail omits. A calm inline sheet, never the legacy 5-tab app.
        */}
       <GodChatContextSheet
         context={railContext}
         onOpenChange={setContextSheetOpen}
         onOpenCommandPalette={onOpenCommandPalette}
-        onOpenSettings={onOpenSettings}
+        // Coordinated handoff (not raw onOpenSettings): close → unwind → open.
+        onOpenSettings={handleOpenSettingsFromContextSheet}
         open={contextSheetOpen}
       />
     </div>
@@ -493,4 +496,4 @@ export function GodChatShell({
 
 // Re-export the co-located pure helpers so existing test imports
 // (`./god-chat-shell.tsx`) keep their single source.
-export { buildSuggestions, resolveLivePreviewTurnId, streamingDetailLength };
+export { buildSuggestions, deferAfterSheetClose, resolveLivePreviewTurnId, streamingDetailLength };

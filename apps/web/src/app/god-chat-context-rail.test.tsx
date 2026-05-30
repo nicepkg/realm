@@ -5,6 +5,8 @@ import {
   flattenStateHighlights,
   GodChatContextRail,
   isSparseWorld,
+  mutedRoleNames,
+  pushRuleHighlights,
 } from "./god-chat-context-rail.tsx";
 
 const baseContext: GodChatContext = {
@@ -45,6 +47,76 @@ describe("flattenStateHighlights", () => {
     expect(labels).not.toContain("hiddenState");
   });
 
+  test("shallow-peeks metaState rules into individual readable highlights", () => {
+    const highlights = flattenStateHighlights({
+      metaState: { rules: ["每天掉一点灵气", "夜里禁止战斗"], tick: 0 },
+    });
+    // The actual rule text reads inline, not an opaque "运行元数据: 2 项".
+    expect(highlights).toContainEqual({
+      label: "规则",
+      path: "metaState.rules.0",
+      value: "每天掉一点灵气",
+    });
+    expect(highlights.map((h) => h.value)).toContain("夜里禁止战斗");
+    // Remaining bookkeeping (tick) still collapses to one calm summary line.
+    expect(highlights).toContainEqual({ label: "运行元数据", path: "metaState", value: "1 项" });
+  });
+
+  test("caps inline rules at three and notes the overflow tail", () => {
+    const highlights = flattenStateHighlights({
+      metaState: { rules: ["r1", "r2", "r3", "r4", "r5"] },
+    });
+    const ruleValues = highlights.filter((h) => h.label === "规则").map((h) => h.value);
+    expect(ruleValues).toEqual(["r1", "r2", "r3", "还有 2 条"]);
+  });
+
+  test("surfaces muted roles by display name via the resolver", () => {
+    const highlights = flattenStateHighlights(
+      {
+        metaState: {
+          roles: {
+            guchenfeng: { alive: true, muted: false },
+            yunyao: { alive: true, muted: true },
+          },
+        },
+      },
+      { resolveRoleName: (id) => (id === "yunyao" ? "云遥" : id) },
+    );
+    expect(highlights).toContainEqual({
+      label: "禁言",
+      path: "metaState.roles.muted.云遥",
+      value: "云遥",
+    });
+    // A non-muted role never produces a 禁言 row.
+    expect(highlights.map((h) => h.value)).not.toContain("guchenfeng");
+  });
+
+  test("muted roles fall back to the raw id when no resolver is supplied (sheet path)", () => {
+    const highlights = flattenStateHighlights({
+      metaState: { roles: { yunyao: { muted: true } } },
+    });
+    expect(highlights.map((h) => h.value)).toContain("yunyao");
+  });
+
+  test("shallow-expands a custom world's own top-level rules list", () => {
+    const highlights = flattenStateHighlights({ rules: ["设定规则：每天掉一点灵气"] });
+    expect(highlights).toContainEqual({
+      label: "规则",
+      path: "rules.0",
+      value: "设定规则：每天掉一点灵气",
+    });
+  });
+
+  test("never expands private / hidden state contents", () => {
+    const highlights = flattenStateHighlights({
+      hiddenState: { fate: { traitor: "市集" } },
+      privateState: { yunyao: { secret: "真名" } },
+    });
+    // Privacy line: these stay one summarized highlight, no inner values leak.
+    expect(highlights.map((h) => h.value)).not.toContain("市集");
+    expect(highlights.map((h) => h.value)).not.toContain("真名");
+  });
+
   test("expands publicState one level into a human snapshot", () => {
     const highlights = flattenStateHighlights({
       publicState: { roles: { a: {}, b: {} }, sect: { reputation: "低微" }, world: { day: 1 } },
@@ -54,6 +126,43 @@ describe("flattenStateHighlights", () => {
       { label: "宗门", path: "publicState.sect", value: "1 项" },
       { label: "世界", path: "publicState.world", value: "1 项" },
     ]);
+  });
+});
+
+describe("mutedRoleNames", () => {
+  test("collects only roles flagged muted === true", () => {
+    const names = mutedRoleNames({
+      a: { muted: true },
+      b: { muted: false },
+      c: { alive: true },
+    });
+    expect(names).toEqual(["a"]);
+  });
+
+  test("resolves ids through the supplied resolver", () => {
+    const names = mutedRoleNames({ yunyao: { muted: true } }, (id) =>
+      id === "yunyao" ? "云遥" : id,
+    );
+    expect(names).toEqual(["云遥"]);
+  });
+
+  test("returns an empty list for a non-object roles value", () => {
+    expect(mutedRoleNames(undefined)).toEqual([]);
+    expect(mutedRoleNames(["x"])).toEqual([]);
+  });
+});
+
+describe("pushRuleHighlights", () => {
+  test("emits the first three rules plus an overflow note", () => {
+    const out: { path: string; label: string; value: string }[] = [];
+    pushRuleHighlights(out, ["a", "b", "c", "d"], "metaState.rules");
+    expect(out.map((h) => h.value)).toEqual(["a", "b", "c", "还有 1 条"]);
+  });
+
+  test("no overflow note when within the inline cap", () => {
+    const out: { path: string; label: string; value: string }[] = [];
+    pushRuleHighlights(out, ["a", "b"], "metaState.rules");
+    expect(out.map((h) => h.value)).toEqual(["a", "b"]);
   });
 });
 
@@ -84,6 +193,35 @@ describe("GodChatContextRail", () => {
     expect(html).toContain("云遥");
     // No mutating controls live in the rail.
     expect(html).not.toContain("god-chat-card");
+  });
+
+  test("reads world rules + muted roles inline without opening inspect", () => {
+    // Acceptance: after「设定规则：每天掉一点灵气」+「云遥作弊禁言」the rail's 世界状态
+    // section must surface the rule text and "云遥 禁言" directly — not a "运行元数据: 2 项"
+    // count that forces the operator into the chat inspect card.
+    const ruled: GodChatContext = {
+      ...baseContext,
+      worldState: {
+        state: {
+          metaState: {
+            roles: {
+              guchenfeng: { alive: true, muted: false },
+              yunyao: { alive: true, muted: true },
+            },
+            rules: ["每天掉一点灵气"],
+            tick: 1,
+          },
+        },
+        version: 4,
+      },
+    };
+    const html = renderToStaticMarkup(<GodChatContextRail context={ruled} />);
+    expect(html).toContain("每天掉一点灵气");
+    expect(html).toContain("规则");
+    expect(html).toContain("禁言");
+    // Muted role renders by display name, never the internal id.
+    expect(html).toContain("云遥");
+    expect(html).not.toContain("yunyao");
   });
 
   test("inside a world the roles section reads as本世界角色 with member count", () => {

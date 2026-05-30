@@ -1,0 +1,8 @@
+version: 1
+roles:
+  - id: chenmu
+    model: default
+  - id: linwan
+    model: default
+  - id: zhaoke
+    model: default

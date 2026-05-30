@@ -41,10 +41,23 @@ const RUN_TURN_KEYWORDS = [
   "轮到",
   "出手",
   "开口",
+  // Common "say something / chat / a few words" speak verbs. An operator routinely
+  // asks a role to "说点什么 / 聊聊 / 说几句" — these advance the role's turn, not a
+  // state change. (Live-model defect: '让顾辰风在全员议事说点什么' misrouted to inspect.)
+  "说点什么",
+  "说些什么",
+  "说几句",
+  "说两句",
+  "说说",
+  "聊聊",
+  "聊几句",
+  "讲两句",
+  "开口说",
   "speak",
   "respond",
   "reply",
   "act",
+  "say something",
   "take a turn",
   "run turn",
 ];

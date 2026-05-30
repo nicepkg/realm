@@ -1,0 +1,3 @@
+# Real NL-flow screenshots written by scripts/capture-docs-shots.ts.
+# Run: bun run scripts/capture-docs-shots.ts
+# Keeps the directory in git before any PNG is captured.

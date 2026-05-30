@@ -1,0 +1,21 @@
+version: 1
+project:
+  name: 锐峰科技董事会
+defaults:
+  world: boardroom
+  modelProfile: default
+skills:
+  global:
+    mode: blacklist
+    include:
+      - ~/.realm/skills/**
+    exclude: []
+  project:
+    mode: blacklist
+    include:
+      - .agents/skills/**
+    exclude: []
+security:
+  requireTrust: true
+  allowProjectShellByDefault: false
+  allowNetworkByDefault: false

@@ -32,6 +32,64 @@ describe("resolveLivePreviewTurnId", () => {
   });
 });
 
+describe("deferAfterSheetClose", () => {
+  test("closes first, then opens only after the injected scheduler flushes", async () => {
+    const { deferAfterSheetClose } = await import("./god-chat-shell.tsx");
+    const order: string[] = [];
+    let deferred: (() => void) | undefined;
+    // Fake scheduler that captures the deferred task instead of running it, so we
+    // can assert the close fired synchronously while the open is still pending.
+    const scheduler = (task: () => void) => {
+      deferred = task;
+    };
+    deferAfterSheetClose(
+      () => order.push("close"),
+      () => order.push("open"),
+      scheduler,
+    );
+    // Close ran synchronously; open is queued, not yet executed.
+    expect(order).toEqual(["close"]);
+    expect(deferred).toBeDefined();
+    // Flush the scheduler → the open finally fires, strictly after the close.
+    deferred?.();
+    expect(order).toEqual(["close", "open"]);
+  });
+
+  test("degrades to a synchronous close-then-open when no scheduler is given (SSR)", async () => {
+    const { deferAfterSheetClose } = await import("./god-chat-shell.tsx");
+    const order: string[] = [];
+    // The default scheduler falls back to a sync call when window/rAF is absent
+    // (this test process has no DOM), so the order is still close → open.
+    deferAfterSheetClose(
+      () => order.push("close"),
+      () => order.push("open"),
+    );
+    expect(order).toEqual(["close", "open"]);
+  });
+
+  test("mobile 设置 handoff routes through the coordinator: close before open", async () => {
+    // Regression for the Radix double-Sheet race: the context sheet's settings
+    // entry must close the context sheet BEFORE the upstream onOpenSettings runs,
+    // never the raw passthrough (which opened settings in the same tick the
+    // context sheet was still tearing down). We model the shell's wiring exactly:
+    // close = setContextSheetOpen(false), open = upstream onOpenSettings.
+    const { deferAfterSheetClose } = await import("./god-chat-shell.tsx");
+    const calls: string[] = [];
+    const setContextSheetOpen = (open: boolean) => calls.push(`context:${open}`);
+    const onOpenSettings = () => calls.push("settings:open");
+    let deferred: (() => void) | undefined;
+    const scheduler = (task: () => void) => {
+      deferred = task;
+    };
+    // The shell's handleOpenSettingsFromContextSheet body.
+    deferAfterSheetClose(() => setContextSheetOpen(false), onOpenSettings, scheduler);
+    // Context sheet closed; settings NOT yet opened (still deferred).
+    expect(calls).toEqual(["context:false"]);
+    deferred?.();
+    expect(calls).toEqual(["context:false", "settings:open"]);
+  });
+});
+
 describe("streamingDetailLength", () => {
   test("returns the detail length of the last streaming role bubble", async () => {
     const { streamingDetailLength } = await import("./god-chat-shell.tsx");

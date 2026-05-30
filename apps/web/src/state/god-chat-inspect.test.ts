@@ -355,14 +355,45 @@ describe("answerWorldState — expanded schema-key labels", () => {
       expect(card.detailLong).toContain("存活：是");
       expect(card.detailLong).toContain("禁言：是");
       expect(card.detailLong).toContain("存活：否");
-      // detail is the CONCISE summary: the count line + section headings, never the
-      // full per-role dump.
-      expect(card.detail).toContain("当前世界（版本 v12）记录了");
+      // detail is the CONCISE transition line + section headings, never the full
+      // per-role dump. F3: the version+count summary is the LEADING bubble `text`
+      // only — it must NOT be duplicated inside the card detail.
+      expect(card.detail).toContain("当前在这些方面记录了内容");
       expect(card.detail).toContain("「角色私密」");
+      expect(card.detail).not.toContain("当前世界（版本 v12）记录了");
       expect(card.detail).not.toContain("存活：");
       expect(card.detail).not.toContain("禁言：");
       // The summary must be markedly shorter than the full tree it stands in for.
       expect(card.detail.length).toBeLessThan((card.detailLong ?? "").length);
+    });
+
+    test("the version+count summary is never duplicated between leading text and dense detail (F3)", () => {
+      const { text, card } = answerWorldState(
+        cultivationContext({
+          worldState: {
+            state: {
+              privateState: {
+                roles: {
+                  guchenfeng: { alive: true, muted: false },
+                  leijun: { alive: true, muted: true },
+                },
+              },
+            },
+            version: 21,
+          },
+        }),
+      );
+      if (card.variant !== "result") {
+        throw new Error("expected a result card");
+      }
+      // The version+count line lives ONLY in the leading bubble text.
+      expect(text).toContain("当前世界（版本 v21）记录了");
+      // It must appear EXACTLY ONCE across text + detail combined (no echo).
+      const combined = `${text}\n${card.detail}`;
+      const occurrences = combined.split("当前世界（版本 v21）记录了").length - 1;
+      expect(occurrences).toBe(1);
+      // The détail carries only the transition précis, not the summary sentence.
+      expect(card.detail).not.toContain("当前世界（版本 v21）记录了");
     });
 
     test("a SPARSE world keeps the full tree in detail and emits no detailLong", () => {

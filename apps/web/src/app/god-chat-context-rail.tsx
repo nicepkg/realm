@@ -5,6 +5,19 @@ import { useMemo } from "react";
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
 import { cn } from "@/lib/utils.ts";
 import type { GodChatContext } from "@/state/god-chat-model.ts";
+import { flattenStateHighlights } from "./god-chat-context-rail-highlights.ts";
+
+// The pure flatten/highlight machinery lives in `god-chat-context-rail-highlights.ts`
+// to keep this file under the 500-line budget. Re-export the public surface so
+// existing import sites (the mobile 高级 sheet, the tests) keep targeting this module.
+export {
+  type FlattenStateOptions,
+  flattenStateHighlights,
+  mutedRoleNames,
+  pushMetaHighlights,
+  pushRuleHighlights,
+  type StateHighlight,
+} from "./god-chat-context-rail-highlights.ts";
 
 /**
  * GodChatContextRail — a slim, read-only context panel beside the chat (lg+
@@ -110,66 +123,24 @@ export function isSparseWorld(highlightCount: number, memberCount: number): bool
   return memberCount === 0 && highlightCount <= SPARSE_HIGHLIGHT_FLOOR;
 }
 
-/**
- * A flattened state highlight: a human-facing zh-CN `label`, a short stringified
- * `value`, and the raw dotted `path` (kept as the stable React key and a faint
- * technical hint, never the primary text — the operator reads a world snapshot,
- * not a schema dump).
- */
-type StateHighlight = { path: string; label: string; value: string };
-
-/** Cap so the rail stays a glance, not a dump. The inspector sheet owns the full view. */
-const MAX_HIGHLIGHTS = 12;
-
-/**
- * The world-state schema uses a fixed set of English top-level containers
- * (publicState / privateState / hiddenState / derivedState / metaState — see the
- * cultivation example). Surfaced raw, these read like a schema, not a world. We
- * skip diving into the *contents* (that is the inspector's job + a privacy line:
- * hidden/private state should not be flattened beside the chat) and instead show
- * a calm zh-CN label + a "N 项" summary so the rail stays a glance.
- *
- * Any key NOT in this map (a custom world's own top-level fields like `qi` /
- * `sect`) is shown verbatim as its own label — those are author-chosen and
- * already human-meaningful, so we do not invent a translation for them.
- */
-const STATE_KEY_LABELS: Record<string, string> = {
-  derivedState: "推演结果",
-  hiddenState: "天机（隐藏）",
-  metaState: "运行元数据",
-  privateState: "角色私密",
-  publicState: "世界全景",
-};
-
-/** Friendly zh-CN labels for the well-known nested container keys. */
-const NESTED_KEY_LABELS: Record<string, string> = {
-  roles: "角色",
-  sect: "宗门",
-  world: "世界",
-};
-
-/**
- * Top-level containers worth expanding one level so the snapshot has substance.
- * Only `publicState` is expanded: its direct children are the curated, labelled
- * world/sect/roles containers. Other containers (derivedState/metaState/…) hold
- * arbitrary author/engine camelCase keys we have no friendly label for, so we
- * summarize them as a single line rather than leak raw schema keys.
- */
-const EXPANDABLE_CONTAINERS = new Set(["publicState"]);
-
 export function GodChatContextRail({
   context,
   className,
   strings = defaultGodChatContextRailStrings,
   centered = false,
 }: GodChatContextRailProps) {
+  const roles = context.roles;
   const highlights = useMemo(
-    () => flattenStateHighlights(context.worldState?.state),
-    [context.worldState?.state],
+    () =>
+      flattenStateHighlights(context.worldState?.state, {
+        // Render muted roles by their display name (云遥), not the internal id.
+        resolveRoleName: (roleId) =>
+          roles.find((role) => role.id === roleId)?.displayName ?? roleId,
+      }),
+    [context.worldState?.state, roles],
   );
   const fieldCount = highlights.length;
   const version = context.worldState?.version ?? 0;
-  const roles = context.roles;
   // World scope drives the roles section's title / count / empty copy so the
   // operator is never left wondering whether a listed role belongs to the current
   // world. Inside a world `context.roles` is W2's world-scoped MEMBER list (empty
@@ -340,83 +311,4 @@ function RailEmpty({ text }: { text: string }) {
 function initialOf(name: string): string {
   const trimmed = name.trim();
   return trimmed.length > 0 ? trimmed.slice(0, 1).toUpperCase() : "?";
-}
-
-/**
- * Flatten a world-state object into a capped list of glanceable, operator-facing
- * highlights. Read-only. The goal is a *world snapshot*, not a schema dump:
- *  - Well-known English schema containers (publicState / derivedState / …) get a
- *    zh-CN label instead of their raw key.
- *  - `publicState` / `derivedState` are expanded one level so the snapshot shows
- *    real things (世界 / 宗门 / 角色 / 推演结果) rather than an opaque `{3}`.
- *  - Private / hidden / meta containers are NOT expanded — they read as a single
- *    summarized line (privacy + calm), the inspector sheet owns the full view.
- *  - A custom world's own top-level fields (qi / sect / …) pass through verbatim.
- */
-export function flattenStateHighlights(
-  state: Record<string, unknown> | undefined,
-): StateHighlight[] {
-  if (!state) {
-    return [];
-  }
-  const highlights: StateHighlight[] = [];
-  for (const [key, value] of Object.entries(state)) {
-    if (highlights.length >= MAX_HIGHLIGHTS) {
-      break;
-    }
-    if (EXPANDABLE_CONTAINERS.has(key) && isPlainObject(value)) {
-      // Expand one level so the snapshot carries substance, not "{N}".
-      for (const [childKey, childValue] of Object.entries(value)) {
-        if (highlights.length >= MAX_HIGHLIGHTS) {
-          break;
-        }
-        highlights.push({
-          label: friendlyLabel(childKey),
-          path: `${key}.${childKey}`,
-          value: summarizeValue(childValue),
-        });
-      }
-      continue;
-    }
-    highlights.push({
-      label: friendlyLabel(key),
-      path: key,
-      value: summarizeValue(value),
-    });
-  }
-  return highlights;
-}
-
-/** Map a schema key to a zh-CN label, falling back to the (human-meaningful) key. */
-function friendlyLabel(key: string): string {
-  return STATE_KEY_LABELS[key] ?? NESTED_KEY_LABELS[key] ?? key;
-}
-
-function isPlainObject(value: unknown): value is Record<string, unknown> {
-  return typeof value === "object" && value !== null && !Array.isArray(value);
-}
-
-/**
- * Summarize a value into one short human line. Scalars pass through; collections
- * become a counted zh-CN summary ("3 项" / "2 个角色") instead of a bracketed
- * count, so the rail reads like a snapshot rather than a debugger.
- */
-function summarizeValue(value: unknown): string {
-  if (value === null || value === undefined) {
-    return "—";
-  }
-  if (typeof value === "string") {
-    return value;
-  }
-  if (typeof value === "number" || typeof value === "boolean") {
-    return String(value);
-  }
-  if (Array.isArray(value)) {
-    return value.length === 0 ? "空" : `${value.length} 项`;
-  }
-  if (typeof value === "object") {
-    const count = Object.keys(value as object).length;
-    return count === 0 ? "空" : `${count} 项`;
-  }
-  return String(value);
 }

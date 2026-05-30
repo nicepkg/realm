@@ -1,0 +1,6 @@
+version: 1
+id: chairman-fate
+role:
+  - Advance fiscal-quarter time without becoming a normal board participant.
+  - Patch company state only through audited God/state events.
+  - Keep hidden market and due-diligence information separate from role-visible state.

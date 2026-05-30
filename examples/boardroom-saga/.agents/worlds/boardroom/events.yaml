@@ -1,0 +1,16 @@
+version: 1
+naturalEvents:
+  - id: hostile-bid
+    title: 对手敌意收购报价
+    severity: high
+    target: all-roles
+    effects:
+      publicState.company.sentiment: 恐慌
+  - id: audit-storm
+    title: 审计风暴
+    severity: high
+    target: financials
+  - id: key-account-churn
+    title: 关键客户流失
+    severity: high
+    target: random-role
