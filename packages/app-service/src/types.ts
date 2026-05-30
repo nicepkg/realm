@@ -1,4 +1,4 @@
-import type { ConfigAssistantPlanner } from "@realm/assistant";
+import type { ConfigAssistantPlanner, ConfigPlannerModel } from "@realm/assistant";
 import type { FileConfigPatchStore } from "@realm/config";
 import type { PiBridge } from "@realm/pi-bridge";
 import type { TrustTier } from "@realm/policy";
@@ -22,6 +22,12 @@ export type RealmApplicationServiceOptions = {
   clock?: () => Date;
   patchStore?: FileConfigPatchStore;
   configAssistantPlanner?: ConfigAssistantPlanner;
+  /**
+   * Direct model override for the NL intent router. When set, the model-backed
+   * router is used regardless of runtime mode (still failure-safe). Normally
+   * unset — the service resolves a provider via the role-turn path instead.
+   */
+  intentRouterModel?: ConfigPlannerModel;
   piBridge?: PiBridge;
   extensionBaseUrl?: string;
   piExtensionPath?: string;

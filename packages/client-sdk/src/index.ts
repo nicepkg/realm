@@ -2,6 +2,8 @@ import {
   adminStatePatchRequestSchema,
   adminStatePatchResponseSchema,
   assistantConfigRequestSchema,
+  assistantIntentRequestSchema,
+  assistantIntentResultResponseSchema,
   cancelTurnResponseSchema,
   configPatchApplyRequestSchema,
   configPatchApplyResponseSchema,
@@ -233,6 +235,21 @@ export class RealmHttpClient extends RealmWorkflowClient {
       "/api/assistant/config",
       assistantConfigRequestSchema.parse(input),
       configPatchProposalResponseSchema,
+    );
+  }
+
+  /**
+   * Route an operator instruction to a {@link RealmIntent} via the model-backed
+   * router (deterministic fallback inside the server). Always resolves to a
+   * coherent, write-safe intent; the endpoint never errors on model failure.
+   */
+  async routeAssistantIntent(
+    input: z.input<typeof assistantIntentRequestSchema>,
+  ): Promise<z.infer<typeof assistantIntentResultResponseSchema>> {
+    return this.post(
+      "/api/assistant/intent",
+      assistantIntentRequestSchema.parse(input),
+      assistantIntentResultResponseSchema,
     );
   }
 

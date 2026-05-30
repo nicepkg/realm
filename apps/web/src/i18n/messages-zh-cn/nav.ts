@@ -53,6 +53,7 @@ export const navZhCn = {
   "command.openRoles": "打开联系人",
   "command.openSettings": "打开设置",
   "command.openWorlds": "打开世界",
+  "command.roleInWorld": (worldName: string) => `· ${worldName}`,
   "command.runRole": "运行选中角色",
   "command.search": "搜索命令、世界、房间、角色",
   "command.title": "Realm 命令面板",

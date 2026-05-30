@@ -27,6 +27,24 @@ export type OperatorMessageProps = ComponentProps<"div"> & {
   text?: string;
   /** Marks a freshly arrived turn so only new turns animate (history is static). */
   isNew?: boolean;
+  /**
+   * The kind of inline card carried in `children`, when any. Pure layout hints so
+   * the message can size the card column WITHOUT importing the card component or
+   * its model:
+   *  - `cardVariant` distinguishes a settled `result` card (narrowed to its
+   *    content when short) from a `preview`/`role-speech` card (untouched).
+   *  - `cardKind === "inspect"` keeps the long humanized-tree + raw-JSON result at
+   *    the full reading measure even though other short result cards narrow.
+   * The shell supplies both from `turn.card`; absence ⇒ legacy full-width card.
+   */
+  cardVariant?: "preview" | "result" | "role-speech";
+  cardKind?: string;
+  /**
+   * The turn is still streaming tokens (a role bubble growing in place). Exposes
+   * `aria-busy` so assistive tech knows the content is not yet final and waits to
+   * announce the settled text instead of re-reading every partial delta.
+   */
+  streaming?: boolean;
   /** Inline action / preview card rendered beneath the text. */
   children?: ReactNode;
 };
@@ -35,6 +53,9 @@ export const OperatorMessage = ({
   variant,
   text,
   isNew = false,
+  streaming = false,
+  cardVariant,
+  cardKind,
   className,
   children,
   ...props
@@ -43,17 +64,33 @@ export const OperatorMessage = ({
 
   /**
    * A God *document* card (inspect tree, config/role preview, action result)
-   * should occupy the full centered reading measure — the 68% chat-bubble cap
-   * is correct only for short conversational text, and would leave the column's
-   * right half blank for a card. So a system turn that carries a card drops the
-   * cap and goes full-width; the card renders its own internal padding/max-width.
-   * Capped bubble width stays for: operator/human turns (right-aligned green
-   * affordance) and plain system *text* turns with no card (a short God sentence
-   * shouldn't span the whole width). Card presence is inferred from `children`
-   * so the single consumer needs no extra prop.
+   * drops the 68% chat-bubble cap — that cap is correct only for short
+   * conversational text and would leave the column's right half blank for a card.
+   * A card turn instead spans the reading measure (full-width by default; a SHORT
+   * result card narrows on desktop, see `isShortResultCard`). The card renders its
+   * own internal padding. Capped bubble width stays for: operator/human turns
+   * (right-aligned green affordance) and plain system *text* turns with no card.
+   * Card presence is inferred from `children`; the card's variant/kind come from
+   * the `cardVariant`/`cardKind` layout hints the shell supplies.
    */
   const hasCard = children != null && children !== false;
   const isFullWidthCard = variant === "system" && hasCard;
+
+  /**
+   * Short `result` cards narrow on the WIDE desktop column. A finished action
+   * card (神谕裁决 / 状态调整 / 配置已写入) carries little text, so the legacy
+   * full-bleed `max-w-full` left it spanning the whole ~896px column and reading
+   * sparse — empty to the right of two short lines. So a settled result card is
+   * capped to `lg:max-w-2xl` (~672px), a measure that matches its content instead
+   * of the column. EXCEPTIONS that keep the full reading measure:
+   *  - `inspect` result cards: they carry the multi-line humanized state tree +
+   *    a raw-JSON disclosure, long content that wants the wide measure to read.
+   *  - `preview` (typed-confirm) and `role-speech` cards: untouched, so the
+   *    create-world / add-role confirm rows and run-turn role bubbles never shift.
+   * Below `lg` every card stays full-width (phones/tablets have no spare gutter to
+   * reclaim), so this is a desktop-only tightening with no mobile regression.
+   */
+  const isShortResultCard = isFullWidthCard && cardVariant === "result" && cardKind !== "inspect";
 
   /**
    * Non-card width caps are ASYMMETRIC on purpose:
@@ -79,6 +116,10 @@ export const OperatorMessage = ({
 
   return (
     <div
+      // A streaming bubble is `aria-busy` so a screen reader holds its
+      // announcement until the text settles, instead of speaking each partial
+      // delta. Omitted (not `false`) when idle so static history stays unmarked.
+      aria-busy={streaming || undefined}
       className={cn(
         "flex w-full",
         isOperator ? "justify-end" : "justify-start",
@@ -92,8 +133,17 @@ export const OperatorMessage = ({
     >
       <div
         className={cn(
-          "flex flex-col gap-2",
-          isFullWidthCard ? "w-full max-w-full" : nonCardCap,
+          // gap-1 (~4px) when text + card are folded into a single block (a
+          // system result turn that still keeps a standalone text line); gap-2
+          // (~8px) otherwise. The merged feedback case usually drops the text
+          // bubble entirely (shell folds it into the card), so this only matters
+          // for the rare result turn that keeps a leading line beside its card.
+          isFullWidthCard ? "flex flex-col gap-1" : "flex flex-col gap-2",
+          isFullWidthCard
+            ? isShortResultCard
+              ? "w-full lg:max-w-2xl"
+              : "w-full max-w-full"
+            : nonCardCap,
           isOperator && "items-end",
         )}
       >

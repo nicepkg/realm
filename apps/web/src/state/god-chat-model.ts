@@ -126,6 +126,18 @@ export type ChatCard =
       title: string;
       detail: string;
       /**
+       * Optional full humanized per-field tree for a DENSE world inspect (F3).
+       * When set, `detail` holds only a CONCISE summary (the one-line count
+       * sentence + the top-level section headings, plus a 关键变化 highlight when
+       * available) and this carries the complete, never-truncated zh-CN field tree
+       * (角色私密/天机隐藏/推演结果/运行元数据 with every role's 存活/禁言…). The card
+       * tucks it behind a collapsed `展开全部` disclosure placed ABOVE the raw-JSON
+       * one, so a sparse world still reads its full tree inline while a dense world
+       * (云岭, 3 roles) no longer dumps a long indented block into the prose.
+       * Additive + backward-compatible: a sparse-world inspect omits it entirely.
+       */
+      detailLong?: string;
+      /**
        * Optional pretty-printed raw state JSON for an `inspect` result. When set,
        * the card renders it behind a collapsed disclosure BELOW the humanized
        * zh-CN tree — so `detail` stays the authoritative human reading and the raw

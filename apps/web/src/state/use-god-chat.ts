@@ -1,12 +1,8 @@
 import { useCallback, useMemo, useRef, useState } from "react";
 import type { RealmAppController } from "@/app/types.ts";
-import {
-  type ChatTurn,
-  type GodChatContext,
-  type PendingProposal,
-  routeIntent,
-} from "@/state/god-chat-model.ts";
+import type { ChatTurn, GodChatContext, PendingProposal } from "@/state/god-chat-model.ts";
 import { loadTranscript } from "@/state/god-chat-transcript-store.ts";
+import { routeIntentPrimary } from "@/state/route-intent-primary.ts";
 import { useGodChatActions } from "@/state/use-god-chat-actions.ts";
 import { type WorldSwitchCarryOver, worldScopedRoles } from "@/state/use-god-chat-helpers.ts";
 import { useGodChatTranscriptPersistence } from "@/state/use-god-chat-transcript-persistence.ts";
@@ -172,7 +168,12 @@ export function useGodChat(app: RealmAppController): UseGodChat {
     setError(undefined);
     pushTurn({ role: "operator", text });
 
-    const route = routeIntent(text, context);
+    // PRIMARY model-backed routing (server `/api/assistant/intent`), with the
+    // synchronous deterministic router as a guaranteed fallback inside
+    // `routeIntentPrimary` on any network/parse/timeout failure. The returned
+    // RouteResult is the SAME shape the deterministic router produced, so every
+    // downstream branch below is unchanged.
+    const route = await routeIntentPrimary(text, context, app.client);
 
     // Read-only + no-op paths resolve immediately; the draft is consumed because
     // there is nothing to retry.
@@ -208,7 +209,7 @@ export function useGodChat(app: RealmAppController): UseGodChat {
       return;
     }
     stageWrite(route.proposal);
-  }, [draft, context, pushTurn, runInspect, stageConfig, stageWrite, switchWorld]);
+  }, [draft, context, app.client, pushTurn, runInspect, stageConfig, stageWrite, switchWorld]);
 
   // F6 — durable transcript persistence (scope-load on switch + debounced
   // write-back). Co-located hook so this file stays under the 500-line guard; it

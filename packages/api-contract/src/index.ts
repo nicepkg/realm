@@ -52,6 +52,7 @@ export {
   statePatchResultSchema,
   statePatchSchema,
 } from "@realm/core";
+export * from "./assistant-intent.ts";
 export * from "./audits.ts";
 export * from "./config-patch.ts";
 export * from "./policy-contract.ts";

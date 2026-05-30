@@ -228,6 +228,55 @@ function sectionBlock(section: RenderedSection): string {
 }
 
 /**
+ * Top-level container keys that, when non-empty, carry per-role sub-trees (each
+ * role's 存活/禁言/疑虑/伤势…). A world that populates either of these is the kind
+ * of DENSE world whose full humanized tree reads as a long indented dump — exactly
+ * the F3 case we fold behind `展开全部`.
+ */
+const ROLE_BEARING_KEYS = new Set(["privateState", "derivedState"]);
+
+/**
+ * The rendered-tree line count above which a world is treated as DENSE even when it
+ * has few sections (one big section with many fields still reads as a wall). A cap,
+ * not a target: a sparse world (a handful of lines) stays comfortably inline.
+ */
+const DENSE_LINE_CAP = 12;
+
+/**
+ * Decide whether a world is DENSE enough to fold its full per-field tree behind a
+ * `展开全部` disclosure (F3). A world is dense when ANY of:
+ *  - it has ≥ 3 non-empty top-level sections (云岭-class multi-container world), OR
+ *  - its full rendered tree exceeds `DENSE_LINE_CAP` lines (one fat section still
+ *    reads as a wall), OR
+ *  - it carries a role-bearing container (privateState/derivedState) with real
+ *    fields — a per-role sub-tree (存活/禁言…×N roles) is the canonical long dump.
+ * A sparse/fresh world fails all three and keeps the current full-inline reading.
+ */
+function isDenseWorld(nonEmpty: RenderedSection[]): boolean {
+  if (nonEmpty.length >= 3) {
+    return true;
+  }
+  const totalLines = nonEmpty.reduce((sum, section) => sum + section.lines.length, 0);
+  if (totalLines > DENSE_LINE_CAP) {
+    return true;
+  }
+  return nonEmpty.some((section) => ROLE_BEARING_KEYS.has(section.key));
+}
+
+/**
+ * Compose the CONCISE `detail` for a dense world: the one-line summary, then a
+ * single line listing the non-empty top-level section headings so the operator
+ * sees at a glance WHAT the world records without scrolling the full tree (which
+ * now rides `detailLong` behind `展开全部`). The summary already carries the
+ * version + count; here we add the calm "这些方面记录了内容" heading line so the card
+ * reads as a real précis, not a truncation.
+ */
+function composeDenseSummary(summary: string, nonEmpty: RenderedSection[]): string {
+  const headings = nonEmpty.map((section) => `「${stateKeyLabel(section.key)}」`).join("、");
+  return `${summary}\n当前在这些方面记录了内容：${headings}。展开下方查看每一项细节。`;
+}
+
+/**
  * Compose the humanized `detail` from the rendered sections, collapsing empties:
  *
  * - all sections empty (a truly blank world) → a single honest sentence;
@@ -293,17 +342,43 @@ export function answerWorldState(ctx: GodChatContext): { text: string; card: Cha
     return { empty: isEmptySection(lines), key, lines };
   });
   const nonEmpty = renderedSections.filter((section) => !section.empty);
-  const detail = composeDetail(renderedSections, nonEmpty);
+  const fullTree = composeDetail(renderedSections, nonEmpty);
   const rawJson = JSON.stringify(state, null, 2);
 
-  return { card: inspectCard("世界状态", detail, rawJson), text: summary };
+  // DENSE world (云岭-class, multiple containers / per-role sub-trees): lead the
+  // card with a CONCISE summary in `detail` and move the full humanized tree into
+  // `detailLong`, which the card folds behind a `展开全部` disclosure. SPARSE/fresh
+  // worlds keep the full tree inline in `detail` (no `detailLong`) so a small world
+  // still reads in one glance. This mirrors the existing rawJson treatment: the
+  // authoritative reading is never truncated, only progressively disclosed.
+  if (isDenseWorld(nonEmpty)) {
+    const denseDetail = composeDenseSummary(summary, nonEmpty);
+    return {
+      card: inspectCard("世界状态", denseDetail, { detailLong: fullTree, rawJson }),
+      text: summary,
+    };
+  }
+
+  return { card: inspectCard("世界状态", fullTree, { rawJson }), text: summary };
 }
 
 /**
  * Build the read-only inspect result card (shared shape with role-memory inspect).
- * `rawJson`, when provided, rides a SEPARATE card field the UI renders behind a
- * collapsed disclosure — it is never concatenated into `detail`.
+ * `rawJson` and `detailLong`, when provided, ride SEPARATE card fields the UI
+ * renders behind their own collapsed disclosures — never concatenated into
+ * `detail`. A sparse-world / placeholder card passes neither.
  */
-function inspectCard(title: string, detail: string, rawJson?: string): ChatCard {
-  return { detail, kind: "inspect", rawJson, title, variant: "result" };
+function inspectCard(
+  title: string,
+  detail: string,
+  extras: { detailLong?: string; rawJson?: string } = {},
+): ChatCard {
+  return {
+    detail,
+    detailLong: extras.detailLong,
+    kind: "inspect",
+    rawJson: extras.rawJson,
+    title,
+    variant: "result",
+  };
 }

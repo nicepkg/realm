@@ -6,6 +6,29 @@ import { I18nProvider } from "@/i18n/index.tsx";
 import { Composer } from "./composer.tsx";
 
 /**
+ * Extract the FULL opening tag carrying `data-testid="<id>"`. React emits
+ * attributes (className / data-slot / aria-*) in its own order, so a naive
+ * slice from the testid misses attributes rendered before it. We walk back to
+ * the owning `<tag` and forward to its closing `>`, skipping `&gt;` so a
+ * Tailwind `has-[>svg]` arbitrary class never ends the tag early.
+ */
+function openingTagWithTestId(html: string, testId: string): string {
+  const marker = html.indexOf(`data-testid="${testId}"`);
+  if (marker === -1) {
+    return "";
+  }
+  const start = html.lastIndexOf("<", marker);
+  let i = marker;
+  while (i < html.length) {
+    if (html[i] === ">" && html.slice(i - 4, i) !== "&gt;") {
+      break;
+    }
+    i += 1;
+  }
+  return html.slice(start, i + 1);
+}
+
+/**
  * The composer carries the STANDING run-turn affordance in a populated room
  * (DISC-R7-1). `renderToStaticMarkup` skips effects, so `useProjectTrust`
  * resolves to its non-read-only loading default — exactly the runnable path we
@@ -166,6 +189,72 @@ describe("composer send-as-role membership gate", () => {
       </I18nProvider>,
     );
     expect(html).not.toContain('data-testid="composer-send-block"');
+  });
+});
+
+/**
+ * Adversarial accessibility contract for the composer input. `renderToStaticMarkup`
+ * renders the resting (mention-closed) state — the combobox wiring that must be
+ * present even before the popover opens, so AT can announce the autocomplete the
+ * moment "@" is typed. The open-popover arrow/Enter/Escape behaviour is covered
+ * by the mention-trigger + keydown units in composer-mentions; here we lock the
+ * static ARIA surface that survives a server render.
+ */
+describe("composer accessibility surface", () => {
+  test("the message field is a labelled combobox with list autocomplete", () => {
+    const html = renderToStaticMarkup(
+      <I18nProvider>
+        <Composer app={mockApp({ messages: [message("m1")] })} onOpenGod={() => undefined} />
+      </I18nProvider>,
+    );
+    const inputTag = openingTagWithTestId(html, "message-input");
+    expect(inputTag).not.toBe("");
+    // Combobox semantics for the @-mention autocomplete, plus a non-empty
+    // accessible name (zh-CN default), so the field is never an anonymous box.
+    expect(inputTag).toContain('role="combobox"');
+    expect(inputTag).toContain('aria-autocomplete="list"');
+    expect(inputTag).toContain("aria-label=");
+    // Resting state: the popover is closed, so the field reports it.
+    expect(inputTag).toContain('aria-expanded="false"');
+  });
+
+  test("the send button is a real, named, type=submit button (Enter-to-send works)", () => {
+    const html = renderToStaticMarkup(
+      <I18nProvider>
+        <Composer app={mockApp({ messages: [message("m1")] })} onOpenGod={() => undefined} />
+      </I18nProvider>,
+    );
+    const sendTag = openingTagWithTestId(html, "composer-send");
+    expect(sendTag).not.toBe("");
+    // It lives inside a <form onSubmit>, so the textarea's Enter → requestSubmit
+    // path and a click both fire the same submit (one send path, no dead control).
+    expect(sendTag.startsWith("<button")).toBe(true);
+    expect(sendTag).toContain('type="submit"');
+  });
+
+  test("a withheld send names the constraint via a role=note chip, not a silent dead button", () => {
+    const app = mockApp({ messages: [message("m1")] });
+    app.viewerIdentity = "leijun";
+    app.draft = "hello";
+    const room: Room = {
+      id: "infirmary",
+      memberIds: ["owner", "yunyao"],
+      name: "Infirmary",
+      type: "dm",
+      worldId: "cultivation",
+    };
+    app.selectedRoom = room;
+    app.state.rooms = [room];
+    const html = renderToStaticMarkup(
+      <I18nProvider>
+        <Composer app={app} onOpenGod={() => undefined} />
+      </I18nProvider>,
+    );
+    const chipTag = openingTagWithTestId(html, "composer-send-block");
+    expect(chipTag).not.toBe("");
+    // The reason is exposed to AT (role=note) and mirrored in the title tooltip.
+    expect(chipTag).toContain('role="note"');
+    expect(chipTag).toContain("title=");
   });
 });
 

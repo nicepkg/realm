@@ -2,6 +2,7 @@ import {
   adminStatePatchRequestSchema,
   applyProjectPatchRequestSchema,
   assistantConfigRequestSchema,
+  assistantIntentRequestSchema,
   configPatchApplyRequestSchema,
   configPatchReviseRequestSchema,
   createRoleRequestSchema,
@@ -270,6 +271,24 @@ export function createRealmServer(options: RealmServerOptions): Hono {
       },
       201,
     );
+  });
+
+  app.post("/api/assistant/intent", async (context) => {
+    const request = assistantIntentRequestSchema.parse(await context.req.json());
+    // The service is failure-proof: a real provider drives interpretation, and any
+    // model/provider failure degrades to the deterministic classifier inside the
+    // service — so this endpoint always returns a coherent, write-safe intent.
+    const intent = await service.routeIntent({
+      goal: request.goal,
+      context: {
+        roles: request.roles,
+        rooms: request.rooms,
+        worlds: request.worlds,
+        worldId: request.worldId,
+        defaultRoomId: request.defaultRoomId,
+      },
+    });
+    return context.json({ intent });
   });
 
   app.post("/api/config/patches/:patchId/apply", async (context) => {

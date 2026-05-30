@@ -51,6 +51,7 @@ export const navEn = {
   "command.openRoles": "Open Contacts",
   "command.openSettings": "Open Settings",
   "command.openWorlds": "Open Worlds",
+  "command.roleInWorld": (worldName: string) => `· ${worldName}`,
   "command.runRole": "Run Selected Role",
   "command.search": "Search commands, worlds, rooms, roles",
   "command.title": "Realm Command Palette",

@@ -283,11 +283,9 @@ export function GodChatShell({
     // so the column never drifts arbitrarily far from the edge-pinned rail.
     //
     // `lg:pl-72` reserves the rail's width (w-72 = 288px) as LEFT padding inside
-    // the flex-1 chat column. The column already spans the viewport minus the rail,
-    // so its `mx-auto` content centered at `(W-288)/2` sat 144px left of the true
-    // center; the matching left padding shifts that centered content right by half
-    // the padding (144px) so it lands at the viewport's true horizontal center,
-    // visually balanced against the right-edge-pinned rail. Dropped below lg.
+    // the flex-1 chat column, shifting its `mx-auto` content right by 144px so it
+    // lands at the viewport's true horizontal center, balanced against the
+    // right-edge-pinned rail. Dropped below lg.
     <div
       className="relative mx-auto flex h-dvh max-h-dvh w-full max-w-[1680px] bg-[var(--realm-bg)]"
       data-testid="god-chat-shell"
@@ -343,34 +341,19 @@ export function GodChatShell({
           //
           // R8 optical-center fix: the container KEEPS the asserted
           // `flex-1 min-h-0 items-center justify-center` invariant (no `pt-*`
-          // padding, which would shrink the centered box from one side and tug
-          // the title off true center). The optical compensation lives on the
-          // title group itself as a translate — but it must move the group UP,
-          // not down. Rationale: the suggestion chips are absolutely anchored to
-          // the title group's BOTTOM (`top-full` + `mt-7`), so they hang below it
-          // and are OUT of the centering math; `justify-center` therefore centers
-          // ONLY the title group, which puts the title-group center at the
-          // viewport's true center. But the visual MASS the eye actually centers
-          // on is the whole cluster (title + description + chips), whose midpoint
-          // sits ~28–32px BELOW the title-group center because the chip block
-          // (28px gap + ~32px chip height) extends downward with nothing
-          // balancing it above. So the cluster reads as sitting BELOW true
-          // center, leaving a larger blank band above than below. The prior
-          // `translate-y-2.5` (+10px DOWN) pushed it further past center —
-          // overshooting downward, exactly the nit reported. The fix moves the
-          // title group UP by ~the chip block's downward extent (`-translate-y-10`
-          // ≈ 40px) so the COMBINED cluster midpoint lands on the viewport's true
-          // vertical center (balanced blank bands top/bottom). The 40px is the
-          // breakpoint-stable compromise between the two live measurements: at
-          // desktop 1440 (1-line description) the blank bands balance within ~2%
-          // of viewport, and at mobile 390 (2-line wrapped description — a taller
-          // cluster that otherwise sits lower) within ~5%. Measured live: cluster
-          // bounding-box midpoint ≈50% of viewport height on both, with the chips
-          // still clearing the docked composer (no overlap) and not overflowing
-          // the 390px viewport (max-w-[90vw]). A translate (not
-          // padding) is breakpoint-stable: it shifts the already-centered group
-          // by the same optical amount on both sizes rather than asymmetrically
-          // reshaping the centered box.
+          // padding, which would tug the title off true center). The optical
+          // compensation lives on the title group as a translate that moves it UP.
+          // The chips are absolutely anchored to the title group's BOTTOM
+          // (`top-full` + `mt-7`), so `justify-center` centers ONLY the title
+          // group; but the eye centers on the whole cluster (title + description +
+          // chips), whose midpoint sits ~28–32px BELOW the title-group center
+          // because the chip block (28px gap + ~32px chip) extends downward with
+          // nothing balancing it above. `-translate-y-10` (≈40px UP) lands the
+          // COMBINED cluster midpoint on the viewport's true vertical center with
+          // balanced blank bands. Measured live ≈50% on both desktop 1440 (1-line
+          // description) and mobile 390 (2-line wrapped), chips still clearing the
+          // docked composer and within max-w-[90vw]. A translate (not padding) is
+          // breakpoint-stable: same optical shift on both sizes.
           <div
             className="relative flex min-h-0 flex-1 flex-col items-center justify-center px-6 text-center"
             data-testid="god-chat-empty"
@@ -417,26 +400,40 @@ export function GodChatShell({
              * so the input aligns dead-under the content column.
              */}
             <ConversationContent className="mx-auto w-full max-w-4xl">
-              {chat.turns.map((turn, index) => (
-                <OperatorMessage
-                  isNew={index === chat.turns.length - 1}
-                  key={turn.id}
-                  text={turn.text}
-                  variant={turn.role}
-                >
-                  {turn.card ? (
-                    <GodChatCard
-                      busy={chat.busy}
-                      card={turn.card}
-                      confirmationPhrase={confirmationPhrase}
-                      isPending={turn.id === livePreviewTurnId}
-                      onCancel={chat.cancelProposal}
-                      onConfirm={chat.confirmProposal}
-                      strings={strings.cards}
-                    />
-                  ) : null}
-                </OperatorMessage>
-              ))}
+              {chat.turns.map((turn, index) => {
+                // Fold a system turn's feedback line INTO its result card (one
+                // compact block) instead of a separate surface-muted bubble above
+                // it. Only a settled `result` card qualifies — a `preview` or
+                // `role-speech` card keeps its leading bubble untouched, so
+                // create-world / add-role / run-turn never regress. Pure wiring: the
+                // card owns the in-frame prefix chrome, OperatorMessage the
+                // dropped-bubble + width.
+                const foldFeedbackIntoCard =
+                  turn.role === "system" && turn.card?.variant === "result" && Boolean(turn.text);
+                return (
+                  <OperatorMessage
+                    cardKind={turn.card?.kind}
+                    cardVariant={turn.card?.variant}
+                    isNew={index === chat.turns.length - 1}
+                    key={turn.id}
+                    text={foldFeedbackIntoCard ? undefined : turn.text}
+                    variant={turn.role}
+                  >
+                    {turn.card ? (
+                      <GodChatCard
+                        busy={chat.busy}
+                        card={turn.card}
+                        confirmationPhrase={confirmationPhrase}
+                        feedbackPrefix={foldFeedbackIntoCard ? turn.text : undefined}
+                        isPending={turn.id === livePreviewTurnId}
+                        onCancel={chat.cancelProposal}
+                        onConfirm={chat.confirmProposal}
+                        strings={strings.cards}
+                      />
+                    ) : null}
+                  </OperatorMessage>
+                );
+              })}
             </ConversationContent>
             {/*
              * Drive the viewport back to the newest content whenever the turn

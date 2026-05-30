@@ -48,6 +48,48 @@ describe("GodChatCard", () => {
     expect(html).not.toContain("god-chat-card-config-confirm");
   });
 
+  test("a result card folds the feedback prefix inside its frame and tightens the gap", () => {
+    const html = renderToStaticMarkup(<GodChatCard card={resultCard} feedbackPrefix="已写入。" />);
+    // The feedback line renders INSIDE the card frame (same rounded surface), not
+    // as a separate bubble above it.
+    expect(html).toContain('data-testid="god-chat-card-feedback"');
+    expect(html).toContain("已写入。");
+    // The card column snugs to gap-1 so prefix → header reads as one tight block.
+    expect(html).toContain("gap-1");
+    // The folded prefix must sit ABOVE the header title, not below it.
+    const feedbackAt = html.indexOf('data-testid="god-chat-card-feedback"');
+    const titleAt = html.indexOf("配置已写入");
+    expect(feedbackAt).toBeGreaterThanOrEqual(0);
+    expect(feedbackAt).toBeLessThan(titleAt);
+  });
+
+  test("a result card without a feedback prefix renders no folded line", () => {
+    const html = renderToStaticMarkup(<GodChatCard card={resultCard} />);
+    expect(html).not.toContain("god-chat-card-feedback");
+  });
+
+  test("a blank/whitespace feedback prefix is ignored (no folded line)", () => {
+    const html = renderToStaticMarkup(<GodChatCard card={resultCard} feedbackPrefix="   " />);
+    expect(html).not.toContain("god-chat-card-feedback");
+  });
+
+  test("a preview card ignores a feedbackPrefix (only result cards fold feedback)", () => {
+    // Guard: even if a caller mis-passes a prefix to a live preview, the confirm
+    // chrome is untouched and no folded feedback line appears.
+    const html = renderToStaticMarkup(
+      <GodChatCard
+        card={previewCard}
+        feedbackPrefix="不该出现"
+        isPending
+        onCancel={() => undefined}
+        onConfirm={() => undefined}
+      />,
+    );
+    expect(html).not.toContain("god-chat-card-feedback");
+    expect(html).not.toContain("不该出现");
+    expect(html).toContain('data-testid="god-chat-card-god-confirm"');
+  });
+
   test("a trust-elevation preview renders a single confirm button (shield card, no phrase)", () => {
     const trustPreview: ChatCard = {
       detail: "当前项目为只读模式，无法运行角色或写入。",
@@ -109,6 +151,46 @@ describe("GodChatCard", () => {
     // The raw keys live ONLY inside the <pre>, not in the humanized tree text.
     const detailEnd = html.indexOf('data-testid="god-chat-card-raw-json"');
     expect(html.slice(0, detailEnd)).not.toContain('"hiddenState"');
+  });
+
+  test("a dense inspect result renders a 展开全部 disclosure (default-closed) ABOVE the raw-JSON one", () => {
+    const denseInspect: ChatCard = {
+      detail:
+        "当前世界（版本 v12）记录了 1 类状态：角色私密。\n当前在这些方面记录了内容：「角色私密」。展开下方查看每一项细节。",
+      detailLong: "【角色私密】\n  · 雷军：\n    · 存活：是\n    · 禁言：是",
+      kind: "inspect",
+      rawJson: '{\n  "privateState": {}\n}',
+      title: "世界状态",
+      variant: "result",
+    };
+    const html = renderToStaticMarkup(<GodChatCard card={denseInspect} />);
+    // The concise summary is the inline reading.
+    expect(html).toContain("当前世界（版本 v12）记录了");
+    // The 展开全部 disclosure carries the full per-field tree, default-closed.
+    expect(html).toContain('data-testid="god-chat-card-detail-long"');
+    expect(html).toContain(defaultGodChatCardStrings.expandAllSummary);
+    expect(html).toContain("存活：是");
+    expect(html).not.toContain("<details open");
+    // It sits ABOVE the raw-JSON disclosure (humanized full tree first, raw last).
+    const longAt = html.indexOf('data-testid="god-chat-card-detail-long"');
+    const rawAt = html.indexOf('data-testid="god-chat-card-raw-json"');
+    expect(longAt).toBeGreaterThanOrEqual(0);
+    expect(rawAt).toBeGreaterThanOrEqual(0);
+    expect(longAt).toBeLessThan(rawAt);
+  });
+
+  test("a sparse inspect result (full tree inline, no detailLong) renders no 展开全部 disclosure", () => {
+    const sparseInspect: ChatCard = {
+      detail: "【世界全景】\n  · 季节：初春\n  · 天：1",
+      kind: "inspect",
+      rawJson: '{\n  "publicState": {}\n}',
+      title: "世界状态",
+      variant: "result",
+    };
+    const html = renderToStaticMarkup(<GodChatCard card={sparseInspect} />);
+    expect(html).not.toContain("god-chat-card-detail-long");
+    // The raw-JSON disclosure still renders for the sparse case.
+    expect(html).toContain('data-testid="god-chat-card-raw-json"');
   });
 
   test("an inspect result without raw JSON renders no disclosure", () => {

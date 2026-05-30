@@ -45,6 +45,7 @@
     "smoke:binary": "bun run scripts/smoke-binary.ts",
     "smoke:docs-ui": "bun run scripts/smoke-docs-ui.ts",
     "smoke:real-providers": "bun run scripts/smoke-real-providers.ts",
+    "smoke:real-intent": "bun run scripts/smoke-real-intent.ts",
     "smoke:tui": "bun run scripts/smoke-tui.ts",
     "smoke:web-ui": "bun run scripts/smoke-web-ui.ts",
     "smoke:package": "bun run scripts/smoke-package.ts",

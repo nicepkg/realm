@@ -1,3 +1,4 @@
+import type { IntentRouterContext, RealmIntent } from "@realm/assistant";
 import {
   type ConfigPatchApplyInput,
   type ConfigPatchRevisionInput,
@@ -21,6 +22,7 @@ import {
   ExtensionAccessService,
 } from "./extension-access-service.ts";
 import { FakeVerticalSliceService } from "./fake-vertical-slice-service.ts";
+import { IntentRouteService } from "./intent-route-service.ts";
 import { type CreateRoomInput, MessageService, type SendMessageInput } from "./message-service.ts";
 import { ServicePolicyGate } from "./policy-gate.ts";
 import {
@@ -84,6 +86,7 @@ export class RealmApplicationService {
   private readonly turnFailureEmitter: TurnFailureEmitter;
   private readonly worldStateService: WorldStateService;
   private readonly workflowService: WorkflowService;
+  private readonly intentRouteService: IntentRouteService;
   readonly worldEvents: WorldEventService;
   readonly worldSimulation: WorldSimulationService;
   private readonly fakeVerticalSliceService: FakeVerticalSliceService | undefined;
@@ -173,6 +176,17 @@ export class RealmApplicationService {
       worldState: this.worldStateService,
       listWorldRoleIds: async (worldId) =>
         (await this.listWorlds()).find((world) => world.id === worldId)?.roleIds ?? [],
+    });
+    // Intent routing reuses the SAME turn bridge + provider resolution as a role
+    // turn (no second provider config path). The service is failure-proof and
+    // falls back to the deterministic classifier whenever no provider is available.
+    this.intentRouteService = new IntentRouteService({
+      fakeRuntime: Boolean(options.fakeVerticalSlice),
+      piBridge: this.piBridge,
+      root: options.root,
+      env: options.env,
+      getSettings: () => this.getSettings(),
+      modelOverride: options.intentRouterModel,
     });
     this.fakeVerticalSliceService = options.fakeVerticalSlice
       ? new FakeVerticalSliceService({
@@ -403,6 +417,16 @@ export class RealmApplicationService {
     worldId?: string;
   }): Promise<ConfigPatchProposal> {
     return this.configPatchService.proposeAssistantConfig(input);
+  }
+
+  /**
+   * Route one operator instruction to a {@link RealmIntent}. Uses the model-backed
+   * router when a real provider is configured, else the deterministic classifier.
+   * NEVER throws on model failure — the service degrades to deterministic — so the
+   * endpoint can always return 200 with a coherent, write-safe intent.
+   */
+  async routeIntent(input: { goal: string; context: IntentRouterContext }): Promise<RealmIntent> {
+    return this.intentRouteService.routeIntent(input);
   }
 
   async applyConfigPatch(

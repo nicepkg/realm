@@ -12,6 +12,15 @@ export type ConversationProps = ComponentProps<typeof StickToBottom>;
 
 export const Conversation = ({ className, ...props }: ConversationProps) => (
   <StickToBottom
+    // `role="log"` + `aria-live="polite"` makes a screen reader announce each
+    // newly appended bubble ONCE, after the current utterance finishes (never
+    // interrupting, never re-reading the whole transcript). `aria-atomic="false"`
+    // is explicit so only the freshly added node is spoken — not the entire log
+    // on every mutation (the "spammed every token" failure mode). `aria-relevant`
+    // is restricted to additions/text so removals/reorders stay silent.
+    aria-atomic="false"
+    aria-live="polite"
+    aria-relevant="additions text"
     className={cn("relative flex-1 overflow-y-auto", className)}
     initial="smooth"
     resize="smooth"

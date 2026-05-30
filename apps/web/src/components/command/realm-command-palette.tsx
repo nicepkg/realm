@@ -1,3 +1,4 @@
+import type { RoleSummary } from "@realm/api-contract";
 import {
   ArrowLeft,
   Bot,
@@ -30,8 +31,63 @@ import {
   CommandShortcut,
 } from "@/components/ui/command";
 import { useI18n } from "@/i18n/index.tsx";
+import { worldScopedRoles } from "@/state/use-god-chat-helpers.ts";
 import { roomDisplayName, worldModeLabel } from "@/view-models/labels.ts";
 import { roomTypeLabel } from "@/view-models/realm-view-model.ts";
+
+/**
+ * A palette role row: the role plus the name of its OWNING world when that name
+ * is needed to disambiguate an otherwise-identical entry. `worldName` is only
+ * populated in MANAGER mode for same-display-name collisions (e.g. two 云遥 that
+ * live in different worlds); it stays undefined when the row is unambiguous.
+ */
+type PaletteRoleEntry = {
+  role: RoleSummary;
+  /** Owning world name, set ONLY to disambiguate a same-name collision. */
+  worldName?: string;
+};
+
+/**
+ * F1/F2 — resolve which roles the palette's 角色 + 发送身份 groups list, and how to
+ * disambiguate them, keyed off the active-world scope.
+ *
+ * WORKSPACE mode: scope to the active world's MEMBERS via the SAME pure
+ * `worldScopedRoles` source the context rail uses, so cross-world roles never
+ * leak in (顾辰风/雷军 from 云岭 while standing in 赛博) and a duplicate display name
+ * across worlds collapses to the single member that actually belongs here — no
+ * world subtitle is needed because the scope already removes the ambiguity.
+ *
+ * MANAGER mode (no active world): keep the FULL project roster — that is the
+ * point of the manager view — but when two roles share a display name, append
+ * each one's owning-world name as a muted subtitle so the operator can tell the
+ * 云岭 云遥 from the 赛博 云遥. Roles whose name is unique get no subtitle (no noise).
+ *
+ * Pure (no hooks, no `t`) so the scope + disambiguation semantics are unit-testable
+ * and stay locked to /api/worlds membership rather than drifting in render code.
+ */
+export function resolvePaletteRoleEntries(
+  app: RealmAppController,
+  mode: "manager" | "workspace",
+): PaletteRoleEntry[] {
+  if (mode === "workspace") {
+    // Active-world members only — identical source as the rail, so the palette
+    // can never show a role the rail does not. Scoping alone kills the duplicate.
+    const scoped = worldScopedRoles(app.state.roles, app.selectedWorld, app.selectedWorld?.id);
+    return scoped.map((role) => ({ role }));
+  }
+  // Manager view: full roster, disambiguate same-name rows by owning world.
+  const nameCounts = new Map<string, number>();
+  for (const role of app.state.roles) {
+    nameCounts.set(role.displayName, (nameCounts.get(role.displayName) ?? 0) + 1);
+  }
+  return app.state.roles.map((role) => {
+    if ((nameCounts.get(role.displayName) ?? 0) <= 1) {
+      return { role };
+    }
+    const owningWorld = app.state.worlds.find((world) => world.roleIds.includes(role.id));
+    return { role, worldName: owningWorld?.name };
+  });
+}
 
 type RealmCommandPaletteProps = {
   app: RealmAppController;
@@ -67,6 +123,10 @@ export function RealmCommandPalette({
   open,
 }: RealmCommandPaletteProps) {
   const { t, locale } = useI18n();
+  // F1/F2 — the SAME scoped+disambiguated role list feeds both the 角色 group and
+  // the 发送身份 group so neither leaks cross-world roles nor lists indistinguishable
+  // same-name duplicates. Computed once per render from the active-world scope.
+  const roleEntries = resolvePaletteRoleEntries(app, mode);
   const [pendingRoleId, setPendingRoleId] = useState<string | undefined>();
   // The palette mounts its own Role Builder so "Create role" opens the same
   // reviewed CreateRoleSheet flow without threading a page prop (R6-2).
@@ -280,15 +340,27 @@ export function RealmCommandPalette({
                     <CommandShortcut>{t("common.active")}</CommandShortcut>
                   ) : null}
                 </CommandItem>
-                {app.state.roles.map((role) => (
+                {roleEntries.map(({ role, worldName }) => (
                   <CommandItem
                     data-testid={`command-send-as-${role.id}`}
                     key={role.id}
-                    value={`send as identity ${role.id} ${role.displayName}`}
+                    value={`send as identity ${role.id} ${role.displayName}${
+                      worldName ? ` ${worldName}` : ""
+                    }`}
                     onSelect={() => runCommand(() => requestIdentityChange(role.id))}
                   >
                     <Bot className="size-4" />
-                    <span className="min-w-0 flex-1 truncate">{role.displayName}</span>
+                    <span className="flex min-w-0 flex-1 items-baseline gap-2 truncate">
+                      <span className="truncate">{role.displayName}</span>
+                      {worldName ? (
+                        <span
+                          className="shrink-0 text-[12px] text-[var(--realm-fg-muted)]"
+                          data-testid={`command-send-as-world-${role.id}`}
+                        >
+                          {t("command.roleInWorld")(worldName)}
+                        </span>
+                      ) : null}
+                    </span>
                     <CommandShortcut>
                       {app.viewerIdentity === role.id ? t("common.active") : role.id}
                     </CommandShortcut>
@@ -341,15 +413,27 @@ export function RealmCommandPalette({
 
           <CommandSeparator />
           <CommandGroup heading={t("command.group.roles")}>
-            {app.state.roles.map((role) => (
+            {roleEntries.map(({ role, worldName }) => (
               <CommandItem
                 data-testid={`command-inspect-role-${role.id}`}
                 key={role.id}
-                value={`inspect role ${role.id} ${role.displayName} ${role.model}`}
+                value={`inspect role ${role.id} ${role.displayName} ${role.model}${
+                  worldName ? ` ${worldName}` : ""
+                }`}
                 onSelect={() => runCommand(() => onInspectRole(role.id))}
               >
                 <Bot className="size-4" />
-                <span className="min-w-0 flex-1 truncate">{role.displayName}</span>
+                <span className="flex min-w-0 flex-1 items-baseline gap-2 truncate">
+                  <span className="truncate">{role.displayName}</span>
+                  {worldName ? (
+                    <span
+                      className="shrink-0 text-[12px] text-[var(--realm-fg-muted)]"
+                      data-testid={`command-inspect-role-world-${role.id}`}
+                    >
+                      {t("command.roleInWorld")(worldName)}
+                    </span>
+                  ) : null}
+                </span>
                 <CommandShortcut>{role.model ?? t("common.default")}</CommandShortcut>
               </CommandItem>
             ))}

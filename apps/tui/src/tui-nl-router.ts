@@ -1,5 +1,6 @@
 import {
   type AssistantConfigPlan,
+  classifyIntent,
   DeterministicIntentRouter,
   type IntentRouter,
   type IntentRouterContext,
@@ -62,6 +63,33 @@ export function buildIntentContext(state: TuiState): IntentRouterContext {
     ...(state.world ? { worldId: state.world.id } : {}),
     ...(state.room ? { defaultRoomId: state.room.id } : {}),
   };
+}
+
+/**
+ * Intent router backed by the model-backed server endpoint (`/api/assistant/intent`
+ * via the SDK), which is the PRIMARY routing path whenever a real provider is
+ * configured. The server itself falls back to the deterministic classifier on any
+ * model failure; this wrapper ALSO falls back to the local deterministic
+ * classifier on any network/parse error so the TUI is never blocked offline.
+ */
+export class SdkIntentRouter implements IntentRouter {
+  constructor(private readonly client: RealmHttpClient) {}
+
+  async classify(goal: string, context: IntentRouterContext): Promise<RealmIntent> {
+    try {
+      const { intent } = await this.client.routeAssistantIntent({
+        goal,
+        roles: context.roles.map((role) => ({ id: role.id, displayName: role.displayName })),
+        rooms: context.rooms.map((room) => ({ id: room.id })),
+        worlds: (context.worlds ?? []).map((world) => ({ id: world.id, name: world.name })),
+        ...(context.worldId ? { worldId: context.worldId } : {}),
+        ...(context.defaultRoomId ? { defaultRoomId: context.defaultRoomId } : {}),
+      });
+      return intent as RealmIntent;
+    } catch {
+      return classifyIntent(goal, context);
+    }
+  }
 }
 
 /**
@@ -305,7 +333,11 @@ export async function handleNaturalLanguage(
   input: string,
   router?: IntentRouter,
 ): Promise<string | undefined> {
-  const route = await routeNaturalLanguage(input, await host.load(), router);
+  // Default to the SDK-backed router (model-backed server endpoint, PRIMARY path)
+  // built from the host's client, which itself falls back to the deterministic
+  // classifier on any failure. An explicit `router` (e.g. tests) overrides it.
+  const resolvedRouter = router ?? new SdkIntentRouter(host.client);
+  const route = await routeNaturalLanguage(input, await host.load(), resolvedRouter);
   if (route.kind === "send") {
     return undefined;
   }

@@ -1,7 +1,13 @@
 import { z } from "zod";
 import { type ConfigPlannerModel, inferConfigPlanFromGoal } from "./index.ts";
 import { classifyIntent } from "./intent-classifier.ts";
-import type { IntentRouter, IntentRouterContext, RealmIntent } from "./intent-types.ts";
+import type {
+  IntentRouter,
+  IntentRouterContext,
+  IntentRouterWorld,
+  RealmIntent,
+} from "./intent-types.ts";
+import { isInterrogative } from "./is-interrogative.ts";
 
 /**
  * NL intent router — the model-backed half of the core natural-language
@@ -58,8 +64,31 @@ const modelIntentSchema = z.discriminatedUnion("kind", [
     kind: z.literal("trust-elevation"),
     tier: z.enum(["run-roles"]).optional(),
   }),
+  // World switch — the model names the target world by id and/or display name; we
+  // resolve it against context.worlds and refuse to emit a switch we cannot back
+  // with a real world (see hydrateModelIntent).
+  z.object({
+    kind: z.literal("world-switch"),
+    worldId: z.string().optional(),
+    worldName: z.string().optional(),
+  }),
   // Config has no model branch here: it always routes through the existing planner.
   z.object({ kind: z.literal("config") }),
+]);
+
+/**
+ * Model intent kinds that perform a WRITE (mutate world state, advance a turn,
+ * change the active world, or elevate trust). When the operator's goal is an
+ * actual question, a model-emitted write of any of these kinds is downgraded to a
+ * deterministic re-classification — a question must never become a write, even
+ * when the model says so (defense-in-depth NO-QUESTION-WRITE).
+ */
+const MODEL_WRITE_KINDS = new Set([
+  "god",
+  "state-patch",
+  "run-turn",
+  "trust-elevation",
+  "world-switch",
 ]);
 
 /**
@@ -89,6 +118,15 @@ export class ModelBackedIntentRouter implements IntentRouter {
     if (!parsed) {
       return classifyIntent(goal, context);
     }
+
+    // Defense-in-depth NO-QUESTION-WRITE: a question must NEVER become a write,
+    // even when the model insists. If the goal is interrogative yet the model
+    // returned a write-bearing kind, distrust it and re-classify deterministically
+    // — that path is guaranteed read-safe for questions (it routes them to inspect).
+    if (isInterrogative(goal) && MODEL_WRITE_KINDS.has(parsed.kind)) {
+      return classifyIntent(goal, context);
+    }
+
     return hydrateModelIntent(parsed, goal, context);
   }
 }
@@ -97,12 +135,15 @@ export function buildIntentRouterPrompt(goal: string, context: IntentRouterConte
   const roles =
     context.roles.map((role) => `${role.id} (${role.displayName})`).join(", ") || "(none)";
   const rooms = context.rooms.map((room) => room.id).join(", ") || "(none)";
+  const worlds =
+    (context.worlds ?? []).map((world) => `${world.id} (${world.name})`).join(", ") || "(none)";
   return [
     "Classify the operator instruction into one Realm intent.",
     "Return a single JSON object only. No prose.",
     "",
     `Roles: ${roles}`,
     `Rooms: ${rooms}`,
+    `Worlds: ${worlds}`,
     `World: ${context.worldId ?? "(active)"}`,
     "",
     `Instruction: ${goal}`,
@@ -115,12 +156,26 @@ const INTENT_ROUTER_SYSTEM_PROMPT = [
   "- god: punish/pardon a role. { kind, targetRoleId, action: kill|mute|revive, reason }",
   "- state-patch: change a role/world attribute or condition. { kind, worldId?, operations:[{op:set|increment|append,path:'/json/pointer',value|amount}], reason }",
   "- run-turn: make a role take its turn. { kind, roleId, roomId? }",
+  "- world-switch: make a DIFFERENT existing world the active one ('切换到X / 打开X世界 / 进入X / switch to X'). { kind, worldId?, worldName? } — name the target with an id from the Worlds list when you can, otherwise put the operator's wording in worldName. This is NOT a question about the current world.",
   "- inspect: a question/read request. { kind, target: world-state|role-memory, roleId?, query }",
   "- trust-elevation: operator wants to leave read-only / allow roles to run / allow writes (e.g. '提升信任等级', '允许运行角色', '解除只读', 'run roles'). { kind, tier: 'run-roles' }",
   "- config: create or change worlds/roles/rules. Return only { kind: 'config' } and the system will plan it.",
-  "An emotional/physical condition like '让X心生退意 / 变得恐惧 / 此刻动摇' is a state-patch, NOT run-turn. run-turn is only for '让X说话/发言/行动'.",
-  "Prefer inspect when unsure. Never invent a write. Use only the role ids provided in context.",
-  "Return JSON only.",
+  "",
+  "Hard rules:",
+  "1. ANY interrogative — a wh-question (什么/如何/怎么样/有没有), a 吗/呢 yes-no question, an A-not-A question (是不是/能不能/对不对), or anything ending in ？/? — is ALWAYS inspect. A 'he-said' question reporting state ('他被禁言了吗 / 顾辰风死了吗') is inspect, never god/state-patch. Never turn a question into a write.",
+  "2. An emotional/physical/mental condition '让X心生退意 / 变得恐惧 / 此刻动摇 / 中毒' is a state-patch, NOT run-turn. run-turn is only for speaking/acting verbs '让X说话/发言/行动'.",
+  "3. Use only the role ids in Roles and world ids in Worlds. Never invent an id. If the named world is not in the Worlds list, do NOT emit world-switch — prefer inspect.",
+  "4. Prefer inspect when unsure. Never invent a write.",
+  "",
+  "Disambiguation examples (instruction -> JSON):",
+  '  \'请帮我把顾辰风禁言，谢谢\' -> {"kind":"god","targetRoleId":"gu-chenfeng","action":"mute","reason":"操作员请求禁言"}',
+  '  \'把他禁言\' -> {"kind":"god","targetRoleId":"<the only/last referenced role id>","action":"mute","reason":"禁言"}',
+  '  \'他被禁言了吗？\' -> {"kind":"inspect","target":"world-state","query":"他被禁言了吗？"}',
+  '  \'顾辰风现在很愤怒，然后让他出来说话\' -> {"kind":"run-turn","roleId":"gu-chenfeng"}',
+  '  \'切换到云岭修仙界\' -> {"kind":"world-switch","worldName":"云岭修仙界"}',
+  '  \'云岭修仙界现在什么情况？\' -> {"kind":"inspect","target":"world-state","query":"云岭修仙界现在什么情况？"}',
+  "",
+  "Return a single JSON object only. No prose.",
 ].join("\n");
 
 function parseModelIntent(content: string): z.infer<typeof modelIntentSchema> | undefined {
@@ -164,7 +219,61 @@ function hydrateModelIntent(
       };
     case "trust-elevation":
       return { kind: "trust-elevation", tier: parsed.tier ?? "run-roles" };
+    case "world-switch": {
+      // Resolve the model's named/id target against the real world roster. If it
+      // does not resolve to a concrete world, DO NOT switch — degrade to the calm
+      // deterministic path so an unknown switch never becomes a silent wrong jump.
+      const world = resolveModelWorld(parsed.worldId, parsed.worldName, context.worlds ?? []);
+      if (!world) {
+        return classifyIntent(goal, context);
+      }
+      return { kind: "world-switch", worldId: world.id };
+    }
   }
+}
+
+/**
+ * Resolve a model-named world to a concrete roster entry using the same
+ * longest-name semantics as the deterministic `matchWorld` (longest id/name match
+ * wins so "云岭修仙界" beats a stray "云岭"). The model may supply an exact id, an
+ * exact display name, or free text in `worldName`; any of these is matched
+ * against the real roster, and an unmatched target yields `undefined` so the
+ * caller can fall back rather than switch blindly.
+ */
+function resolveModelWorld(
+  worldId: string | undefined,
+  worldName: string | undefined,
+  worlds: IntentRouterWorld[],
+): IntentRouterWorld | undefined {
+  // Exact id match first — the model was told to use only ids present in context.
+  if (worldId) {
+    const byId = worlds.find((world) => world.id === worldId);
+    if (byId) {
+      return byId;
+    }
+  }
+  // Otherwise match the named target (longest id/name substring) against the
+  // roster, mirroring the deterministic resolver so both paths agree.
+  const needle = (worldName ?? worldId ?? "").toLowerCase();
+  if (needle.length === 0) {
+    return undefined;
+  }
+  let best: IntentRouterWorld | undefined;
+  let bestLength = 0;
+  for (const world of worlds) {
+    for (const candidate of [world.name, world.id].filter(Boolean)) {
+      const lower = candidate.toLowerCase();
+      if (lower.length === 0) {
+        continue;
+      }
+      const matched = needle.includes(lower) || lower.includes(needle);
+      if (matched && candidate.length > bestLength) {
+        best = world;
+        bestLength = candidate.length;
+      }
+    }
+  }
+  return best;
 }
 
 function extractJsonObject(content: string): string {

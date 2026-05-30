@@ -21,6 +21,7 @@ import {
 } from "@/state/realm-app-state-model.ts";
 import { useConversationPrefs } from "@/state/use-conversation-prefs.ts";
 import { useMessageSend } from "@/state/use-message-send.ts";
+import { resolveSelectedRole } from "@/state/use-realm-app-state-roles.ts";
 import { useTurnActions } from "@/state/use-turn-actions.ts";
 import {
   persistableWorldId,
@@ -241,7 +242,7 @@ export function useRealmAppState() {
     [state.rooms, state.conversationMessages, state.roles, t, viewerIdentity],
   );
   const conversationPrefs = useConversationPrefs(selectedWorld?.id);
-  const selectedRole = state.roles.find((role) => role.id === runRoleId) ?? state.roles[0];
+  const selectedRole = resolveSelectedRole(state.roles, selectedWorld, runRoleId);
   const traceEvents = state.events.filter(isTraceEvent).slice(-8);
   const send = useMessageSend({
     client,

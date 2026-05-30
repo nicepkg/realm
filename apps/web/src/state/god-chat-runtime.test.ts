@@ -1,6 +1,7 @@
 import { describe, expect, test } from "bun:test";
 import type { ConfigPatchProposal, RoleSummary } from "@realm/api-contract";
 import {
+  type ChatCard,
   configResultFeedback,
   describeOperations,
   type GodChatContext,
@@ -8,6 +9,20 @@ import {
   type StagedConfig,
 } from "@/state/god-chat-model.ts";
 import { answerWorldState, localizeProposalSummary } from "@/state/god-chat-runtime.ts";
+
+/**
+ * The authoritative full humanized tree, wherever it lives. For a DENSE world (F3)
+ * the tree rides `card.detailLong` while `card.detail` holds the concise summary;
+ * for a SPARSE world it stays inline in `card.detail` (no `detailLong`). Tree-label
+ * assertions care about the full tree regardless of which field carries it, so they
+ * read it through this helper (mirrors `god-chat-inspect.test.ts`).
+ */
+function treeOf(card: ChatCard): string {
+  if (card.variant !== "result") {
+    return "";
+  }
+  return card.detailLong ?? card.detail;
+}
 
 /** Two roles whose ids must localize to display names in paths and inspect cards. */
 const ROLES: RoleSummary[] = [
@@ -64,12 +79,15 @@ describe("answerWorldState — zh-CN default inspect answer", () => {
     const { card } = answerWorldState(context());
     expect(card.variant).toBe("result");
     expect(card.kind).toBe("inspect");
-    expect(card.detail).toContain("【世界全景】");
-    expect(card.detail).toContain("【角色私密】");
-    expect(card.detail).toContain("【天机（隐藏）】");
-    expect(card.detail).toContain("【推演结果】");
+    // This fixture is DENSE (4 sections), so the full tree rides `detailLong`; read
+    // it through `treeOf` regardless of which field carries it.
+    const tree = treeOf(card);
+    expect(tree).toContain("【世界全景】");
+    expect(tree).toContain("【角色私密】");
+    expect(tree).toContain("【天机（隐藏）】");
+    expect(tree).toContain("【推演结果】");
     // severity: medium -> 中 (known enum humanized).
-    expect(card.detail).toContain("中");
+    expect(tree).toContain("中");
   });
 
   test("author-chosen custom keys pass through verbatim", () => {
@@ -79,8 +97,9 @@ describe("answerWorldState — zh-CN default inspect answer", () => {
     // Custom top-level keys are author-meaningful: shown as-is, not invented.
     expect(answer.text).toContain("qi");
     expect(answer.text).toContain("sect");
-    expect(answer.card.detail).toContain("qi");
-    expect(answer.card.detail).toContain("sect");
+    const tree = treeOf(answer.card);
+    expect(tree).toContain("qi");
+    expect(tree).toContain("sect");
   });
 
   test("raw JSON rides the separate card.rawJson field, never inlined into detail", () => {
@@ -124,18 +143,21 @@ describe("answerWorldState — zh-CN default inspect answer", () => {
         },
       }),
     );
+    // privateState is role-bearing → DENSE, so the humanized tree rides
+    // `detailLong`; read it through `treeOf`.
+    const tree = treeOf(answer.card);
     // Role id → display name (leijun → 雷军), never the bare id in the main view.
-    expect(answer.card.detail).toContain("雷军");
-    // `detail` is now purely the humanized tree (raw JSON moved to card.rawJson).
-    expect(answer.card.detail).not.toContain("leijun");
+    expect(tree).toContain("雷军");
+    // The humanized tree is purely localized (raw JSON moved to card.rawJson).
+    expect(tree).not.toContain("leijun");
     // Engine schema keys → zh-CN labels.
-    expect(answer.card.detail).toContain("灵石");
-    expect(answer.card.detail).toContain("季节");
-    expect(answer.card.detail).toContain("境界");
-    expect(answer.card.detail).toContain("灵气");
+    expect(tree).toContain("灵石");
+    expect(tree).toContain("季节");
+    expect(tree).toContain("境界");
+    expect(tree).toContain("灵气");
     // The humanized view must not leak the raw English schema keys.
-    expect(answer.card.detail).not.toContain("spiritStones");
-    expect(answer.card.detail).not.toContain("season");
+    expect(tree).not.toContain("spiritStones");
+    expect(tree).not.toContain("season");
   });
 
   test("unknown author keys still pass through verbatim (no invented translation)", () => {
@@ -145,7 +167,7 @@ describe("answerWorldState — zh-CN default inspect answer", () => {
         worldState: { state: { publicState: { "moon-grass": 3 } }, version: 1 },
       }),
     );
-    expect(answer.card.detail).toContain("moon-grass");
+    expect(treeOf(answer.card)).toContain("moon-grass");
   });
 });
 

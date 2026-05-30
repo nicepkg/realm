@@ -1,7 +1,7 @@
 import { describe, expect, test } from "bun:test";
 import type { RoleSummary } from "@realm/api-contract";
 import { answerWorldState } from "@/state/god-chat-inspect.ts";
-import type { GodChatContext } from "@/state/god-chat-model.ts";
+import type { ChatCard, GodChatContext } from "@/state/god-chat-model.ts";
 
 /**
  * Co-located contract for the expanded `STATE_FIELD_LABELS` map: the cultivation-sim
@@ -20,6 +20,20 @@ import type { GodChatContext } from "@/state/god-chat-model.ts";
  * a fully blank world degrades to one honest sentence. The summary line and the
  * full `rawJson` are unaffected, so power-inspect still sees every key.
  */
+
+/**
+ * The authoritative full humanized tree, wherever it lives. For a DENSE world (F3)
+ * it rides `card.detailLong` while `card.detail` holds the concise summary; for a
+ * SPARSE world the full tree stays inline in `card.detail` (no `detailLong`). Most
+ * label-localization assertions care about the full tree regardless of which field
+ * carries it, so they read it through this helper.
+ */
+function treeOf(card: ChatCard): string {
+  if (card.variant !== "result") {
+    return "";
+  }
+  return card.detailLong ?? card.detail;
+}
 
 const ROLES: RoleSummary[] = [
   { displayName: "顾辰风", id: "guchenfeng", model: "default", source: "config" },
@@ -69,7 +83,9 @@ function cultivationContext(overrides: Partial<GodChatContext> = {}): GodChatCon
 describe("answerWorldState — expanded schema-key labels", () => {
   test("localizes the common cultivation-sim schema keys to zh-CN", () => {
     const { card } = answerWorldState(cultivationContext());
-    // Keys that render as plain-object field labels in the main (non-raw) subtree.
+    // Keys that render as plain-object field labels in the humanized tree. The
+    // cultivation fixture is DENSE (4 sections + role-bearing privateState), so the
+    // full tree rides `detailLong`; read it through `treeOf`.
     for (const label of [
       "世界",
       "宗门",
@@ -86,7 +102,7 @@ describe("answerWorldState — expanded schema-key labels", () => {
       "危险等级",
       "建议行动",
     ]) {
-      expect(card.detail).toContain(label);
+      expect(treeOf(card)).toContain(label);
     }
   });
 
@@ -104,10 +120,12 @@ describe("answerWorldState — expanded schema-key labels", () => {
         },
       }),
     );
-    expect(card.detail).toContain("严重程度");
-    expect(card.detail).toContain("状态");
+    // Single non-role-bearing section → SPARSE, full tree stays in `detail`;
+    // `treeOf` reads it either way.
+    expect(treeOf(card)).toContain("严重程度");
+    expect(treeOf(card)).toContain("状态");
     // severity: medium humanizes to 中 via the enum-value map.
-    expect(card.detail).toContain("严重程度：中");
+    expect(treeOf(card)).toContain("严重程度：中");
   });
 
   test("a role's own name/role fields read as 姓名/身份, not raw English keys", () => {
@@ -123,21 +141,21 @@ describe("answerWorldState — expanded schema-key labels", () => {
         },
       }),
     );
-    expect(card.detail).toContain("姓名");
-    expect(card.detail).toContain("身份");
-    expect(card.detail).toContain("境界");
-    // The deep `name` / `role` field keys must not leak as bare English. `detail`
-    // is now purely the humanized tree (no raw-JSON tail), so assert directly.
-    expect(card.detail).not.toContain("name：");
-    expect(card.detail).not.toContain("role：");
+    expect(treeOf(card)).toContain("姓名");
+    expect(treeOf(card)).toContain("身份");
+    expect(treeOf(card)).toContain("境界");
+    // The deep `name` / `role` field keys must not leak as bare English anywhere in
+    // the humanized tree.
+    expect(treeOf(card)).not.toContain("name：");
+    expect(treeOf(card)).not.toContain("role：");
   });
 
   test("author-invented hyphenated keys stay verbatim (never force-translated)", () => {
     const { card } = answerWorldState(cultivationContext());
     // moon-grass / fire-root are plain-object KEYS under `herbs` → rendered verbatim
-    // in the humanized tree (never translated).
-    expect(card.detail).toContain("moon-grass");
-    expect(card.detail).toContain("fire-root");
+    // in the humanized tree (never translated). The fixture is dense → in detailLong.
+    expect(treeOf(card)).toContain("moon-grass");
+    expect(treeOf(card)).toContain("fire-root");
     // wolf-demon is an array-element `id` value; arrays collapse to `N 项` in the
     // humanized tree, so its verbatim form survives in the separate raw-JSON field.
     const rawJson = card.variant === "result" ? card.rawJson : undefined;
@@ -169,14 +187,15 @@ describe("answerWorldState — expanded schema-key labels", () => {
         },
       }),
     );
-    // Key labels stay zh-CN; the boolean VALUE humanizes to 是/否.
-    expect(card.detail).toContain("存活：是");
-    expect(card.detail).toContain("禁言：否");
+    // Key labels stay zh-CN; the boolean VALUE humanizes to 是/否. privateState is
+    // role-bearing → DENSE, so the tree rides detailLong; `treeOf` reads it.
+    expect(treeOf(card)).toContain("存活：是");
+    expect(treeOf(card)).toContain("禁言：否");
     // No bare English boolean token leaks into the humanized tree.
-    expect(card.detail).not.toContain("存活：true");
-    expect(card.detail).not.toContain("禁言：false");
-    expect(card.detail).not.toContain("：true");
-    expect(card.detail).not.toContain("：false");
+    expect(treeOf(card)).not.toContain("存活：true");
+    expect(treeOf(card)).not.toContain("禁言：false");
+    expect(treeOf(card)).not.toContain("：true");
+    expect(treeOf(card)).not.toContain("：false");
     // The raw boolean is preserved in the separate raw-JSON disclosure.
     const rawJson = card.variant === "result" ? card.rawJson : undefined;
     expect(rawJson).toContain('"alive": true');
@@ -195,9 +214,9 @@ describe("answerWorldState — expanded schema-key labels", () => {
         },
       }),
     );
-    expect(card.detail).toContain("角色：（暂无字段）");
-    expect(card.detail).toContain("天：1");
-    expect(card.detail).not.toContain("object Object");
+    expect(treeOf(card)).toContain("角色：（暂无字段）");
+    expect(treeOf(card)).toContain("天：1");
+    expect(treeOf(card)).not.toContain("object Object");
   });
 
   test("an entirely-empty section is collapsed away (no hollow 「· （暂无字段）」 block)", () => {
@@ -213,13 +232,15 @@ describe("answerWorldState — expanded schema-key labels", () => {
         },
       }),
     );
-    // The empty 世界全景 section is dropped entirely.
-    expect(card.detail).not.toContain("【世界全景】");
+    // derivedState is role-bearing → DENSE; the tree rides detailLong. The empty
+    // 世界全景 section is dropped entirely (assert across summary + full tree).
+    const combined = card.variant === "result" ? `${card.detail}\n${card.detailLong ?? ""}` : "";
+    expect(combined).not.toContain("【世界全景】");
     // The non-empty 推演结果 section renders normally.
-    expect(card.detail).toContain("【推演结果】");
-    expect(card.detail).toContain("危险等级：中");
+    expect(treeOf(card)).toContain("【推演结果】");
+    expect(treeOf(card)).toContain("危险等级：中");
     // No lone empty-field placeholder leaks into the humanized tree.
-    expect(card.detail).not.toContain("· （暂无字段）");
+    expect(combined).not.toContain("· （暂无字段）");
   });
 
   test("a fresh world with only metaState renders the lead-in sentence + only that section", () => {
@@ -295,13 +316,97 @@ describe("answerWorldState — expanded schema-key labels", () => {
 
   test("a real cultivation world renders every non-empty section and never the lead-in sentence", () => {
     const { card } = answerWorldState(cultivationContext());
-    expect(card.detail).toContain("【世界全景】");
-    expect(card.detail).toContain("【角色私密】");
-    expect(card.detail).toContain("【天机（隐藏）】");
-    expect(card.detail).toContain("【推演结果】");
-    // The fresh-world lead-in must NOT appear on a populated world.
-    expect(card.detail).not.toContain("这个世界还很新");
-    expect(card.detail).not.toContain("该世界尚无更多状态。");
-    expect(card.detail).not.toContain("· （暂无字段）");
+    // Dense world → full tree rides detailLong (read via treeOf).
+    expect(treeOf(card)).toContain("【世界全景】");
+    expect(treeOf(card)).toContain("【角色私密】");
+    expect(treeOf(card)).toContain("【天机（隐藏）】");
+    expect(treeOf(card)).toContain("【推演结果】");
+    // The fresh-world lead-in must NOT appear on a populated world (anywhere).
+    const combined = card.variant === "result" ? `${card.detail}\n${card.detailLong ?? ""}` : "";
+    expect(combined).not.toContain("这个世界还很新");
+    expect(combined).not.toContain("该世界尚无更多状态。");
+    expect(combined).not.toContain("· （暂无字段）");
+  });
+
+  describe("dense vs sparse folding (F3)", () => {
+    test("a DENSE world (multiple roles with 存活/禁言) yields a short detail + a populated detailLong", () => {
+      const { card } = answerWorldState(
+        cultivationContext({
+          worldState: {
+            state: {
+              privateState: {
+                roles: {
+                  guchenfeng: { alive: true, muted: false },
+                  leijun: { alive: true, muted: true },
+                  yunyao: { alive: false, muted: false },
+                },
+              },
+            },
+            version: 12,
+          },
+        }),
+      );
+      if (card.variant !== "result") {
+        throw new Error("expected a result card");
+      }
+      // detailLong carries the FULL per-role tree (every role's 存活/禁言).
+      expect(card.detailLong).toBeDefined();
+      expect(card.detailLong).toContain("【角色私密】");
+      expect(card.detailLong).toContain("存活：是");
+      expect(card.detailLong).toContain("禁言：是");
+      expect(card.detailLong).toContain("存活：否");
+      // detail is the CONCISE summary: the count line + section headings, never the
+      // full per-role dump.
+      expect(card.detail).toContain("当前世界（版本 v12）记录了");
+      expect(card.detail).toContain("「角色私密」");
+      expect(card.detail).not.toContain("存活：");
+      expect(card.detail).not.toContain("禁言：");
+      // The summary must be markedly shorter than the full tree it stands in for.
+      expect(card.detail.length).toBeLessThan((card.detailLong ?? "").length);
+    });
+
+    test("a SPARSE world keeps the full tree in detail and emits no detailLong", () => {
+      const { card } = answerWorldState(
+        cultivationContext({
+          worldState: {
+            state: {
+              publicState: { world: { day: 1, season: "初春" } },
+            },
+            version: 2,
+          },
+        }),
+      );
+      if (card.variant !== "result") {
+        throw new Error("expected a result card");
+      }
+      // A single small non-role-bearing section stays fully inline.
+      expect(card.detailLong).toBeUndefined();
+      expect(card.detail).toContain("【世界全景】");
+      expect(card.detail).toContain("季节：初春");
+      expect(card.detail).toContain("天：1");
+    });
+
+    test("a world with ≥3 non-empty sections folds even without per-role sub-trees", () => {
+      const { card } = answerWorldState(
+        cultivationContext({
+          worldState: {
+            state: {
+              hiddenState: { fate: { nextDisaster: "灵雨" } },
+              metaState: { tick: 0, turn: 1 },
+              publicState: { world: { day: 1 } },
+            },
+            version: 3,
+          },
+        }),
+      );
+      if (card.variant !== "result") {
+        throw new Error("expected a result card");
+      }
+      expect(card.detailLong).toBeDefined();
+      expect(card.detailLong).toContain("【世界全景】");
+      expect(card.detailLong).toContain("【天机（隐藏）】");
+      expect(card.detailLong).toContain("【运行元数据】");
+      expect(card.detail).toContain("「世界全景」");
+    });
   });
 });

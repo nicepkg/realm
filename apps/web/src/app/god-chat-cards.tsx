@@ -46,11 +46,19 @@ export type GodChatCardStrings = {
   fillPhraseAriaLabel: (phrase: string) => string;
   /** Summary label for the collapsed raw-JSON disclosure on an inspect result card. */
   rawJsonSummary: string;
+  /**
+   * Summary label for the collapsed `展开全部` disclosure that holds a dense world's
+   * full humanized field tree (F3). Shown ABOVE the raw-JSON disclosure on an
+   * inspect result whose `detail` is the concise summary and whose `detailLong`
+   * carries the full per-field tree.
+   */
+  expandAllSummary: string;
 };
 
 export const defaultGodChatCardStrings: GodChatCardStrings = {
   cancel: "取消",
   confirm: "确认",
+  expandAllSummary: "展开全部",
   fillPhraseAriaLabel: (phrase) => `填入确认短语「${phrase}」`,
   fillPhraseLabel: "点此填入",
   rawJsonSummary: "查看原始 JSON",
@@ -78,6 +86,15 @@ export type GodChatCardProps = {
    */
   isPending?: boolean;
   /**
+   * The system turn's feedback line ("裁决已对云遥生效。" / "已写入。") folded INTO a
+   * result card instead of floating above it as a separate surface-muted bubble.
+   * Rendered tight on top of the card header (same rounded frame, ~4px gap) so the
+   * "反馈句 + 结果卡" reads as ONE compact block, not two loose grey slabs. Only the
+   * shell sets this — and only for `result` cards — so a `preview` (typed-confirm)
+   * or `role-speech` card is never given a prefix and stays exactly as before.
+   */
+  feedbackPrefix?: string;
+  /**
    * When the live proposal is a risk-tiered config patch, the phrase the
    * operator must type to confirm. `null`/undefined → a plain confirm button.
    */
@@ -93,6 +110,7 @@ export type GodChatCardProps = {
 export function GodChatCard({
   card,
   isPending = false,
+  feedbackPrefix,
   confirmationPhrase,
   onConfirm,
   onCancel,
@@ -114,12 +132,21 @@ export function GodChatCard({
 
   const Icon = KIND_ICON[card.kind];
   const isPreview = card.variant === "preview";
+  // The folded-in feedback line is only honored for a settled `result` card —
+  // never a live preview (which keeps its own typed-confirm chrome). The shell
+  // already gates this, but guard here too so the prop can't leak a prefix onto a
+  // preview card if a future caller passes one.
+  const prefix = card.variant === "result" ? feedbackPrefix?.trim() : undefined;
   // Only a live preview card with an action wired grows the confirm/cancel row.
   const showActions = isPreview && isPending && Boolean(onConfirm);
   // An inspect result may carry the pretty-printed raw state JSON on a SEPARATE
   // field — rendered behind a collapsed disclosure BELOW the humanized tree so the
   // zh-CN reading in `detail` stays authoritative and never grows a JSON tail.
   const rawJson = card.variant === "result" ? card.rawJson : undefined;
+  // For a DENSE world (F3), the full humanized field tree rides `detailLong` while
+  // `detail` holds only the concise summary. It folds behind a `展开全部` disclosure
+  // placed ABOVE the raw-JSON one. A sparse world omits it (full tree stays inline).
+  const detailLong = card.variant === "result" ? card.detailLong : undefined;
 
   return (
     <div
@@ -127,10 +154,25 @@ export function GodChatCard({
         "flex w-full flex-col gap-2 rounded-xl border border-[color:var(--realm-line)] bg-background px-3.5 py-3",
         // A finished action reads as quiet/settled; a live preview reads alert.
         isPreview ? "shadow-[0_1px_2px_rgba(0,0,0,0.04)]" : "bg-[color:var(--realm-surface-muted)]",
+        // When the system feedback line is folded in, snug the gap to ~4px so the
+        // prefix → header reads as one tight block, not a stacked pair.
+        prefix ? "gap-1" : undefined,
       )}
       data-card-variant={card.variant}
       data-testid={`god-chat-card-${card.kind}`}
     >
+      {prefix ? (
+        // The system feedback sentence ("已写入。" / "裁决已对云遥生效。") rendered as the
+        // card's context line — same frame, neutral muted text, sitting tight above
+        // the header so reader sees a single compact block. No separate bubble
+        // background (the card frame is the only chrome).
+        <p
+          className="whitespace-pre-wrap break-words text-[13px] text-[color:var(--realm-fg-muted)] leading-5"
+          data-testid="god-chat-card-feedback"
+        >
+          {prefix}
+        </p>
+      ) : null}
       <div className="flex items-start gap-2.5">
         <span
           aria-hidden
@@ -150,6 +192,9 @@ export function GodChatCard({
           <p className="mt-0.5 whitespace-pre-wrap break-words text-[13px] text-[color:var(--realm-fg-muted)] leading-5">
             {card.detail}
           </p>
+          {detailLong ? (
+            <LongDetailDisclosure summary={strings.expandAllSummary} tree={detailLong} />
+          ) : null}
           {rawJson ? <RawJsonDisclosure json={rawJson} summary={strings.rawJsonSummary} /> : null}
         </div>
       </div>
@@ -213,6 +258,34 @@ function RoleSpeechBubble({ speakerName, detail, streaming }: RoleSpeechBubblePr
         </p>
       </div>
     </div>
+  );
+}
+
+type LongDetailDisclosureProps = {
+  tree: string;
+  summary: string;
+};
+
+/**
+ * Collapsed `展开全部` disclosure for a DENSE world's full humanized field tree
+ * (F3). Default closed so the concise summary in `detail` above is what the
+ * operator reads first; the full per-field tree (角色私密/天机隐藏/推演结果/运行元数据)
+ * expands on demand. Native <details>/<summary> is keyboard-accessible
+ * (Enter/Space toggles) and needs no JS or animation, so it is reduced-motion safe
+ * by construction. Rendered ABOVE the raw-JSON disclosure: humanized full tree
+ * first, raw JSON last. The tree is whitespace-preserved zh-CN prose (NOT
+ * monospaced like rawJson) so it reads as the same calm reading as `detail`.
+ */
+function LongDetailDisclosure({ tree, summary }: LongDetailDisclosureProps) {
+  return (
+    <details className="mt-2 text-[13px]" data-testid="god-chat-card-detail-long">
+      <summary className="cursor-pointer select-none text-[color:var(--realm-fg-faint)] hover:text-[color:var(--realm-fg-muted)]">
+        {summary}
+      </summary>
+      <p className="mt-1.5 whitespace-pre-wrap break-words text-[13px] text-[color:var(--realm-fg-muted)] leading-5">
+        {tree}
+      </p>
+    </details>
   );
 }
 

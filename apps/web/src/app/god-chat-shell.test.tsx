@@ -69,6 +69,52 @@ describe("streamingDetailLength", () => {
  * module) to avoid leaking a stub into conversation.test.tsx — Bun's module mocks
  * are process-global and cannot be reliably restored mid-process.
  */
+describe("GodChatShell folds system feedback into result cards", () => {
+  test("a system result turn folds its feedback line into the card (no standalone bubble)", () => {
+    const html = renderShell([
+      { id: "u1", role: "operator", text: "让云遥禁言" },
+      {
+        card: { detail: "对「云遥」执行：禁言", kind: "god", title: "神谕裁决", variant: "result" },
+        id: "s1",
+        role: "system",
+        text: "裁决已对云遥生效。",
+      },
+    ]);
+    // The feedback line is folded INTO the card frame as the prefix…
+    expect(html).toContain('data-testid="god-chat-card-feedback"');
+    expect(html).toContain("裁决已对云遥生效。");
+    // …and there is NO separate surface-muted text bubble carrying that same line
+    // above the card (the standalone system text bubble is suppressed). The card's
+    // own muted surface remains, so we assert the bubble's text-paragraph class is
+    // not used for a leading line by checking the feedback sits inside the card.
+    const cardAt = html.indexOf('data-testid="god-chat-card-god"');
+    const feedbackAt = html.indexOf('data-testid="god-chat-card-feedback"');
+    expect(cardAt).toBeGreaterThanOrEqual(0);
+    expect(feedbackAt).toBeGreaterThan(cardAt);
+  });
+
+  test("a system PREVIEW turn keeps its standalone text bubble (no folding)", () => {
+    const html = renderShell([
+      { id: "u1", role: "operator", text: "让云遥禁言" },
+      {
+        card: {
+          detail: "对「云遥」执行：禁言",
+          kind: "god",
+          title: "神谕裁决",
+          variant: "preview",
+        },
+        id: "s1",
+        role: "system",
+        text: "我拟对云遥执行禁言，确认吗？",
+      },
+    ]);
+    // A preview turn is untouched: its leading text renders as a normal bubble and
+    // no folded feedback prefix appears inside the card.
+    expect(html).toContain("我拟对云遥执行禁言，确认吗？");
+    expect(html).not.toContain("god-chat-card-feedback");
+  });
+});
+
 describe("GodChatShell mounts ConversationAutoScroll", () => {
   test("renders the auto-scroll anchor exactly once when turns exist", () => {
     const html = renderShell([

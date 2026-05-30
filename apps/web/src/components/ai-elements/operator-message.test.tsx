@@ -56,6 +56,64 @@ describe("OperatorMessage", () => {
     expect(html).not.toContain("md:max-w-[68%]");
   });
 
+  test("a short result card narrows to lg:max-w-2xl so it isn't sparse on wide desktop", () => {
+    const html = renderToStaticMarkup(
+      <OperatorMessage cardKind="god" cardVariant="result" variant="system">
+        <div data-testid="result-card">神谕裁决</div>
+      </OperatorMessage>,
+    );
+
+    // A settled short result card matches its content width on desktop instead of
+    // spanning the whole ~896px column and reading empty to the right.
+    expect(html).toContain("lg:max-w-2xl");
+    // It is still full-width below lg (no spare gutter on phones/tablets).
+    expect(html).toContain("w-full");
+    // But it must NOT take the full-bleed max-w-full reserved for long cards.
+    expect(html).not.toContain("max-w-full");
+  });
+
+  test("an inspect result card keeps the full reading measure (long humanized tree + raw JSON)", () => {
+    const html = renderToStaticMarkup(
+      <OperatorMessage cardKind="inspect" cardVariant="result" variant="system">
+        <div data-testid="inspect-card">状态树</div>
+      </OperatorMessage>,
+    );
+
+    // Inspect carries long content (humanized tree + raw-JSON disclosure), so it
+    // keeps the wide measure rather than narrowing like a short result card.
+    expect(html).toContain("w-full max-w-full");
+    expect(html).not.toContain("lg:max-w-2xl");
+  });
+
+  test("a preview card keeps the full reading measure and never narrows like a result", () => {
+    const html = renderToStaticMarkup(
+      <OperatorMessage cardKind="config" cardVariant="preview" variant="system">
+        <div data-testid="preview-card">配置改动</div>
+      </OperatorMessage>,
+    );
+
+    // Typed-confirm previews are untouched — they stay full-width, never narrowed.
+    expect(html).toContain("w-full max-w-full");
+    expect(html).not.toContain("lg:max-w-2xl");
+  });
+
+  test("a folded result turn drops its standalone text bubble and tightens the gap to ~4px", () => {
+    // The shell folds the feedback line INTO the result card (passing text via the
+    // card's feedbackPrefix) and gives OperatorMessage no `text`, so the message
+    // emits NO separate surface-muted text bubble and the card column uses gap-1.
+    const html = renderToStaticMarkup(
+      <OperatorMessage cardKind="god" cardVariant="result" variant="system">
+        <div data-testid="result-card">神谕裁决</div>
+      </OperatorMessage>,
+    );
+
+    // No standalone text bubble surface (text was folded into the card).
+    expect(html).not.toContain("whitespace-pre-wrap");
+    // Card column uses the snug ~4px gap, not the looser ~8px stack.
+    expect(html).toContain("flex flex-col gap-1");
+    expect(html).not.toContain("flex flex-col gap-2");
+  });
+
   test("card-only system turn (no text) also uses the full reading measure", () => {
     const html = renderToStaticMarkup(
       <OperatorMessage variant="system">

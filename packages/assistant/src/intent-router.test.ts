@@ -13,6 +13,10 @@ const CONTEXT: IntentRouterContext = {
     { id: "yunyao", displayName: "云遥" },
   ],
   rooms: [{ id: "main" }, { id: "sect-hall" }],
+  worlds: [
+    { id: "cultivation", name: "云岭修仙界" },
+    { id: "software-company", name: "软件公司" },
+  ],
   worldId: "cultivation",
   defaultRoomId: "main",
 };
@@ -255,6 +259,94 @@ describe("ModelBackedIntentRouter", () => {
     await expect(router.classify("现在世界什么状态？", CONTEXT)).resolves.toMatchObject({
       kind: "inspect",
       target: "world-state",
+    });
+  });
+
+  test("world-switch: resolves a model-named world to a concrete id", async () => {
+    const router = new ModelBackedIntentRouter({
+      complete: async () => JSON.stringify({ kind: "world-switch", worldName: "软件公司" }),
+    });
+    await expect(router.classify("切换到软件公司", CONTEXT)).resolves.toEqual({
+      kind: "world-switch",
+      worldId: "software-company",
+    });
+  });
+
+  test("world-switch: resolves by exact id when the model supplies one", async () => {
+    const router = new ModelBackedIntentRouter({
+      complete: async () => JSON.stringify({ kind: "world-switch", worldId: "cultivation" }),
+    });
+    await expect(router.classify("打开云岭修仙界", CONTEXT)).resolves.toEqual({
+      kind: "world-switch",
+      worldId: "cultivation",
+    });
+  });
+
+  test("world-switch: unknown world falls back to the deterministic path, never a wrong switch", async () => {
+    const router = new ModelBackedIntentRouter({
+      complete: async () =>
+        JSON.stringify({ kind: "world-switch", worldId: "ghost", worldName: "幽冥界" }),
+    });
+    // No "幽冥界" in the roster → must NOT emit a switch. The deterministic path has
+    // no switch marker + no name match either, so it degrades to a calm inspect.
+    const intent = await router.classify("切换到幽冥界", CONTEXT);
+    expect(intent.kind).not.toBe("world-switch");
+    expect(intent).toMatchObject({ kind: "inspect", target: "world-state" });
+  });
+
+  test("NO-QUESTION-WRITE: model returning god for an interrogative goal is downgraded to inspect", async () => {
+    const router = new ModelBackedIntentRouter({
+      complete: async () =>
+        JSON.stringify({ kind: "god", targetRoleId: "gu-chenfeng", action: "mute", reason: "x" }),
+    });
+    // "顾辰风被禁言了吗？" is a question — must NEVER become a write even if the model says so.
+    const intent = await router.classify("顾辰风被禁言了吗？", CONTEXT);
+    expect(intent.kind).not.toBe("god");
+    expect(intent).toMatchObject({ kind: "inspect", target: "world-state" });
+  });
+
+  test("NO-QUESTION-WRITE: model returning state-patch for an interrogative goal is downgraded to inspect", async () => {
+    const router = new ModelBackedIntentRouter({
+      complete: async () =>
+        JSON.stringify({
+          kind: "state-patch",
+          operations: [
+            { op: "append", path: "/privateState/roles/leijun/conditions", value: "中毒" },
+          ],
+          reason: "x",
+        }),
+    });
+    const intent = await router.classify("雷军中毒了吗？", CONTEXT);
+    expect(intent.kind).not.toBe("state-patch");
+    expect(intent).toMatchObject({ kind: "inspect" });
+  });
+
+  test("NO-QUESTION-WRITE: model returning world-switch for an interrogative goal is downgraded", async () => {
+    const router = new ModelBackedIntentRouter({
+      complete: async () => JSON.stringify({ kind: "world-switch", worldId: "software-company" }),
+    });
+    // A question that merely names a world must read, not switch.
+    const intent = await router.classify("软件公司现在什么状态？", CONTEXT);
+    expect(intent.kind).not.toBe("world-switch");
+    expect(intent).toMatchObject({ kind: "inspect", target: "world-state" });
+  });
+
+  test("imperative god write is still honored (question guard does not over-block)", async () => {
+    const router = new ModelBackedIntentRouter({
+      complete: async () =>
+        JSON.stringify({
+          kind: "god",
+          targetRoleId: "gu-chenfeng",
+          action: "mute",
+          reason: "扰乱秩序",
+        }),
+    });
+    // "把顾辰风禁言" is an imperative, not a question → the model write stands.
+    await expect(router.classify("把顾辰风禁言", CONTEXT)).resolves.toEqual({
+      kind: "god",
+      targetRoleId: "gu-chenfeng",
+      action: "mute",
+      reason: "扰乱秩序",
     });
   });
 });
