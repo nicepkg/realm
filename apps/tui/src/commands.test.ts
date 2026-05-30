@@ -1,5 +1,5 @@
 import { describe, expect, test } from "bun:test";
-import { parseTuiCommand, renderTuiHelp } from "./commands.ts";
+import { parseTrustCommandArg, parseTuiCommand, renderTuiHelp } from "./commands.ts";
 
 describe("TUI commands", () => {
   test("parses command palette input", () => {
@@ -82,5 +82,20 @@ describe("TUI commands", () => {
     expect(renderTuiHelp()).toContain(":state [json-pointer]");
     expect(renderTuiHelp("zh-CN")).toContain("失败草稿");
     expect(renderTuiHelp("zh-CN")).toContain("配置补丁");
+    expect(renderTuiHelp()).toContain(":trust [tier]");
+    expect(renderTuiHelp("zh-CN")).toContain(":trust [tier]");
+  });
+
+  test("parses :trust argument into a trust tier", () => {
+    // Bare :trust defaults to run-roles (smallest tier that unblocks writes).
+    expect(parseTrustCommandArg(undefined)).toEqual({ tier: "run-roles" });
+    expect(parseTrustCommandArg("")).toEqual({ tier: "run-roles" });
+    expect(parseTrustCommandArg("  ")).toEqual({ tier: "run-roles" });
+    expect(parseTrustCommandArg("run-roles")).toEqual({ tier: "run-roles" });
+    expect(parseTrustCommandArg("read-only")).toEqual({ tier: "read-only" });
+    expect(parseTrustCommandArg("elevated-tools")).toEqual({ tier: "elevated-tools" });
+    // Unknown tiers are reported as invalid so the caller surfaces a named error
+    // instead of POSTing a bad value.
+    expect(parseTrustCommandArg("bogus")).toEqual({ invalid: "bogus" });
   });
 });

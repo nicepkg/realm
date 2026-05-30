@@ -143,7 +143,14 @@ function renderMessages(
 ): string {
   const dict = t(locale);
   if (messages.length === 0) {
-    return `${dict.messages}\n  ${dict.noMessages}`;
+    // Empty state invites plain language as the primary path, not command syntax.
+    return [
+      dict.messages,
+      fit(`  ${dict.noMessages}`, width),
+      fit(`  ${dict.nlInvite}`, width),
+      fit(`    · ${dict.nlExampleWorld}`, width),
+      fit(`    · ${dict.nlExampleTurn}`, width),
+    ].join("\n");
   }
   const offset = clampScrollOffset(messages.length, window, scrollOffset);
   const end = messages.length - offset;

@@ -32,7 +32,7 @@ export const tuiZhCn: TuiDictionary = {
   draftSaved: (id, filePath) =>
     `发送失败。草稿 ${id} 已保存到 ${filePath}。可用 :draft ${id}、:edit-draft ${id} <消息>、:copy-draft ${id} 或 :retry-draft ${id}。`,
   eventsRecorded: "已记录事件",
-  footer: "Ctrl+K 命令 · Esc 关闭 · ? 帮助 · Ctrl+C 退出",
+  footer: "直接对天道说话 · Ctrl+K 命令 · Esc 关闭 · ? 帮助 · Ctrl+C 退出",
   godActionApplied: (action, target) => `上帝动作 ${action} 已应用到 ${target}。`,
   godActionCancelled: "上帝动作已取消。",
   godConsoleBody: (roleLines) =>
@@ -135,6 +135,13 @@ export const tuiZhCn: TuiDictionary = {
   identitySwitchConfirmHint: "输入 y 确认，或输入 cancel 取消。",
   godActionPrompt: (action, target, world) => `神明对 ${world} 中的 ${target} 执行 ${action}？`,
   godActionReasonLine: (reason) => `原因：${reason}。`,
+  statePatchPrompt: (world, summary) => `修改世界 ${world} 的状态：${summary}？`,
+  statePatchReasonLine: (reason) => `依据：${reason}。`,
+  statePatchApplied: (world) => `世界 ${world} 的状态已更新。`,
+  statePatchCancelled: "状态修改已取消。",
+  nlInvite: "直接用一句话对天道说，例如：",
+  nlExampleWorld: "创建一个有宗门的修真世界",
+  nlExampleTurn: "让顾辰风发言一回合",
   confirmTypeWorldId: (worldId) => `输入 ${worldId} 确认，或输入 cancel 取消。`,
   simTickConfirmPrompt: (world, ticks) =>
     `推进世界 ${world} ${ticks} 个回合？这将写入世界状态，无法自动撤销。`,
@@ -185,7 +192,7 @@ export const tuiZhCn: TuiDictionary = {
   slashWorldDescription: "切换世界并重置为 Boss 身份",
   shortcutKeys: "Enter 发送 · Ctrl+K 命令 · Ctrl+L 房间 · Ctrl+R 角色 · Esc 关闭 · ? 帮助",
   shortcutSlash: (identity, roomId) =>
-    `斜杠命令：/send <message> · /as ${identity} · /room ${roomId} · /state · /patch`,
+    `直接说："让顾辰风发言一回合" · 快捷命令 /send · /as ${identity} · /room ${roomId} · /state`,
   speaking: "发送身份",
   model: "模型",
   modelDescription: "Realm 角色回合默认使用的模型。",
@@ -196,6 +203,11 @@ export const tuiZhCn: TuiDictionary = {
   transcriptNewer: (count) => `↓ 还有 ${count} 条更新（PgDn / Ctrl+N）`,
   transcriptOlder: (count) => `↑ 还有 ${count} 条更早（PgUp / Ctrl+P）`,
   trustTier: "信任级别",
+  trustReadOnlyHint:
+    "当前为只读，写入被阻止。运行 `realm trust --tier run-roles` 或输入 :trust 以启用写入。",
+  trustElevated: (tier) => `信任级别已提升至 ${tier}，现在可以写入。`,
+  trustInvalidTier: (tier, allowed) => `未知信任级别“${tier}”。可选值：${allowed}。`,
+  slashTrustDescription: "提升项目信任级别以启用写入",
   useCtrlCToExit: "按 Ctrl+C 退出 Pi TUI。",
   pressCtrlCAgain: "再次按 Ctrl+C 退出。",
   visibleRoles: "可见角色",

@@ -7,6 +7,31 @@ import type {
   TuiWorldMode,
 } from "./types.ts";
 
+/** Trust tiers accepted by `POST /api/trust` (mirrors setTrustRequestSchema). */
+export const TUI_TRUST_TIERS = ["read-only", "run-roles", "elevated-tools"] as const;
+export type TuiTrustTier = (typeof TUI_TRUST_TIERS)[number];
+
+/**
+ * Parses a `:trust [tier]` argument into a concrete trust tier. With no
+ * argument it defaults to `run-roles` (the smallest tier that unblocks writes /
+ * role turns under the read-only gate). Returns `{ invalid }` for an
+ * unrecognized tier so the caller can surface a localized error instead of
+ * silently POSTing a bad value.
+ */
+export function parseTrustCommandArg(arg: string | undefined): {
+  tier?: TuiTrustTier;
+  invalid?: string;
+} {
+  const value = arg?.trim();
+  if (!value) {
+    return { tier: "run-roles" };
+  }
+  if ((TUI_TRUST_TIERS as readonly string[]).includes(value)) {
+    return { tier: value as TuiTrustTier };
+  }
+  return { invalid: value };
+}
+
 const GOD_ROLE_ACTIONS = new Set<TuiGodRoleAction>(["kill", "mute", "revive"]);
 const ROOM_TYPES = new Set<TuiRoomType>(["group", "dm", "god-channel", "system"]);
 const WORLD_MODES = new Set<TuiWorldMode>(["debate", "workflow", "game", "simulation", "sandbox"]);
@@ -179,6 +204,16 @@ function splitCommandWords(input: string): string[] {
 export function renderTuiHelp(locale: TuiLocale = "en"): string {
   if (locale === "zh-CN") {
     return [
+      "直接对天道说话（主要方式）：",
+      "  用一句话下达指令，天道会自动执行——危险写入仍会先预览再确认。",
+      "  · 创建一个有宗门的修真世界      → 生成创建世界提案，确认后建立",
+      "  · 加一个叫云遥的炼丹师          → 生成创建角色提案",
+      "  · 让顾辰风发言一回合            → 运行该角色回合（需确认）",
+      "  · 让顾辰风心生退意            → 修改角色状态（需确认）",
+      "  · 把顾辰风禁言                → 上帝裁判（需确认）",
+      "  · 现在世界什么状态？          → 查看世界状态（只读）",
+      "  普通聊天会直接作为消息发送。",
+      "",
       "按键：",
       "  Enter                 发送输入内容",
       "  Ctrl+K                命令面板",
@@ -187,7 +222,7 @@ export function renderTuiHelp(locale: TuiLocale = "en"): string {
       "  Esc                   关闭覆盖层",
       "  ?                     帮助",
       "",
-      "命令：",
+      "命令（高级快捷方式，可选）：",
       "  :send <message>        用当前身份发送",
       "  :id <identity>         切换发送身份",
       "  :world <world-id>       切换世界",
@@ -211,6 +246,7 @@ export function renderTuiHelp(locale: TuiLocale = "en"): string {
       "  :god <action> <role> <reason>",
       "                         受保护的上帝动作；需输入角色 id 确认",
       "  :rollback [history-id]  将配置回滚到某个历史记录",
+      "  :trust [tier]          提升信任级别（read-only|run-roles|elevated-tools）以启用写入",
       "  :drafts                查看失败草稿",
       "  :draft <id>            查看草稿详情",
       "  :edit-draft <id> <msg>  修改草稿内容",
@@ -224,6 +260,16 @@ export function renderTuiHelp(locale: TuiLocale = "en"): string {
   }
   const dict = t(locale);
   return [
+    "Just talk to 天道 (the primary path):",
+    "  Give an instruction in plain language; risky writes still preview + confirm.",
+    "  · Create a cultivation world with a sect → propose + build a world",
+    "  · Add an alchemist named 云遥             → propose a new role",
+    "  · Have 顾辰风 take a turn                 → run that role's turn (confirm)",
+    "  · Make 顾辰风 want to retreat             → patch role state (confirm)",
+    "  · Mute 顾辰风                            → God adjudication (confirm)",
+    "  · What is the world state now?           → inspect world state (read)",
+    "  Plain chatter is posted as a chat message.",
+    "",
     "Keys:",
     "  Enter                 send composer text",
     "  Ctrl+K                command palette",
@@ -232,7 +278,7 @@ export function renderTuiHelp(locale: TuiLocale = "en"): string {
     "  Esc                   close overlay",
     "  ?                     help",
     "",
-    "Commands:",
+    "Commands (optional power-user fast path):",
     "  :send <message>        send as current identity",
     "  :id <identity>         switch speaking identity",
     "  :world <world-id>       switch world",
@@ -256,6 +302,7 @@ export function renderTuiHelp(locale: TuiLocale = "en"): string {
     "  :god <action> <role> <reason>",
     "                         guarded God action; type role id to confirm",
     "  :rollback [history-id]  roll config back to a history entry",
+    "  :trust [tier]          raise trust tier (read-only|run-roles|elevated-tools) to enable writes",
     "  :drafts                list failed drafts",
     "  :draft <id>            show draft details",
     "  :edit-draft <id> <msg>  edit draft content",

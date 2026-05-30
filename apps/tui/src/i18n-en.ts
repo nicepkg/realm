@@ -33,7 +33,7 @@ export const tuiEn: TuiDictionary = {
   draftSaved: (id, filePath) =>
     `Send failed. Draft ${id} saved at ${filePath}. Use :draft ${id}, :edit-draft ${id} <message>, :copy-draft ${id}, or :retry-draft ${id}.`,
   eventsRecorded: "Events recorded",
-  footer: "Ctrl+K commands · Esc close · ? help · Ctrl+C exit",
+  footer: "Just talk to 天道 · Ctrl+K commands · Esc close · ? help · Ctrl+C exit",
   godActionApplied: (action, target) => `God ${action} applied to ${target}.`,
   godActionCancelled: "God action cancelled.",
   godConsoleBody: (roleLines) =>
@@ -151,6 +151,13 @@ export const tuiEn: TuiDictionary = {
   identitySwitchConfirmHint: "Type y to confirm or cancel to abort.",
   godActionPrompt: (action, target, world) => `God ${action} ${target} in ${world}?`,
   godActionReasonLine: (reason) => `Reason: ${reason}.`,
+  statePatchPrompt: (world, summary) => `Patch ${world} state: ${summary}?`,
+  statePatchReasonLine: (reason) => `Reason: ${reason}.`,
+  statePatchApplied: (world) => `State of ${world} updated.`,
+  statePatchCancelled: "State change cancelled.",
+  nlInvite: "Just talk to 天道 in plain language, e.g.:",
+  nlExampleWorld: "Create a cultivation world with a sect",
+  nlExampleTurn: "Have 顾辰风 take a turn",
   room: "Room",
   roomCreated: (room) => `Room created: ${room}.`,
   roomSwitched: (room) => `Room switched to ${room}.`,
@@ -188,7 +195,7 @@ export const tuiEn: TuiDictionary = {
   slashWorldDescription: "switch world and reset identity to Boss",
   shortcutKeys: "Enter send · Ctrl+K commands · Ctrl+L rooms · Ctrl+R roles · Esc close · ? help",
   shortcutSlash: (identity, roomId) =>
-    `Slash: /send <message> · /as ${identity} · /room ${roomId} · /state · /patch`,
+    `Say: "Have 顾辰风 take a turn" · or /send <message> · /as ${identity} · /room ${roomId} · /state`,
   speaking: "Speaking",
   model: "Model",
   modelDescription: "Default model used by Realm role turns.",
@@ -199,6 +206,11 @@ export const tuiEn: TuiDictionary = {
   transcriptNewer: (count) => `↓ ${count} newer (PgDn / Ctrl+N)`,
   transcriptOlder: (count) => `↑ ${count} older (PgUp / Ctrl+P)`,
   trustTier: "Trust tier",
+  trustReadOnlyHint:
+    "Read-only: writes are blocked. Run `realm trust --tier run-roles` or type :trust to enable writing.",
+  trustElevated: (tier) => `Trust tier raised to ${tier}; writes are now enabled.`,
+  trustInvalidTier: (tier, allowed) => `Unknown trust tier "${tier}". Choose one of: ${allowed}.`,
+  slashTrustDescription: "raise project trust tier to enable writes",
   useCtrlCToExit: "Use Ctrl+C to exit the Pi TUI.",
   pressCtrlCAgain: "Press Ctrl+C again to exit.",
   visibleRoles: "Visible roles",

@@ -1,7 +1,30 @@
+import type { RealmHttpClient } from "@realm/client-sdk";
+import { parseTrustCommandArg, TUI_TRUST_TIERS } from "./commands.ts";
 import { renderConfigPatchPreview } from "./config-patch-preview.ts";
+import type { TuiDictionary } from "./i18n.ts";
 import type { TuiCommandHandlers } from "./tui-command-router.ts";
 import { armModelChange, armOrRunSimAction } from "./tui-extended-confirmations.ts";
 import { proposeRoleFromTui, proposeWorldFromTui } from "./tui-world-actions.ts";
+
+/**
+ * Elevates project trust live via `POST /api/trust`. Closes the TUI's trust
+ * dead-end: under `requireTrust:true` the fake runtime boots read-only, so the
+ * operator needs an in-app way to leave read-only instead of every write being
+ * silently rejected. Validates the requested tier first and returns a localized
+ * notice (success) or error (unknown tier) without throwing.
+ */
+export async function runTrustElevation(
+  client: RealmHttpClient,
+  dictionary: TuiDictionary,
+  arg: string | undefined,
+): Promise<string> {
+  const parsed = parseTrustCommandArg(arg);
+  if (!parsed.tier) {
+    return dictionary.trustInvalidTier(parsed.invalid ?? "", TUI_TRUST_TIERS.join(" | "));
+  }
+  const response = await client.setTrust(parsed.tier);
+  return dictionary.trustElevated(response.trustTier);
+}
 
 /**
  * Minimal surface of `RealmTuiApp` that the command-handler wiring needs. Kept

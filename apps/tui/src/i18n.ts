@@ -132,6 +132,15 @@ export type TuiDictionary = {
   identitySwitchConfirmHint: string;
   godActionPrompt: (action: string, target: string, world: string) => string;
   godActionReasonLine: (reason: string) => string;
+  // NL state-patch typed-confirm gate (mirrors the God gate; re-type world id to apply).
+  statePatchPrompt: (world: string, summary: string) => string;
+  statePatchReasonLine: (reason: string) => string;
+  statePatchApplied: (world: string) => string;
+  statePatchCancelled: string;
+  // Empty-state / status invitation that teaches plain-language as the primary path.
+  nlInvite: string;
+  nlExampleWorld: string;
+  nlExampleTurn: string;
   room: string;
   roomCreated: (room: string) => string;
   roomSwitched: (room: string) => string;
@@ -177,6 +186,12 @@ export type TuiDictionary = {
   traceTurn: (status: string, actor: string) => string;
   traceWorldEvent: (title: string) => string;
   trustTier: string;
+  // Trust elevation: surfaced when a write/role-turn hits the read-only gate, and
+  // by the in-app `:trust [tier]` command that POSTs the new tier live.
+  trustReadOnlyHint: string;
+  trustElevated: (tier: string) => string;
+  trustInvalidTier: (tier: string, allowed: string) => string;
+  slashTrustDescription: string;
   useCtrlCToExit: string;
   pressCtrlCAgain: string;
   visibleRoles: string;

@@ -6,6 +6,7 @@
   "dependencies": {
     "@earendil-works/pi-tui": "0.75.5",
     "@realm/api-contract": "workspace:*",
+    "@realm/assistant": "workspace:*",
     "@realm/client-sdk": "workspace:*"
   },
   "exports": {

@@ -1,15 +1,24 @@
 import { stdout as output } from "node:process";
+import type { ConfigPatchProposal } from "@realm/api-contract";
 import { RealmHttpClient } from "@realm/client-sdk";
 import { parseTuiCommand, renderTuiHelp } from "./commands.ts";
 import { handleDraftCommand } from "./draft-command-handler.ts";
+import { errorMessage } from "./error-message.ts";
 import {
   createGodActionConfirmation,
   formatGodActionConfirmation,
 } from "./god-action-confirmation.ts";
 import { resolveTuiLocale, type TuiDictionary, type TuiLocale, t } from "./i18n.ts";
-import { renderWhereami, slashToCommand } from "./interactive-helpers.ts";
+import {
+  buildAppCommandHandlers,
+  createNlHost,
+  renderWhereami,
+  routeFreeFormOrSend,
+  slashToCommand,
+} from "./interactive-helpers.ts";
 import { runInteractiveSession } from "./interactive-session.ts";
-import { buildTuiCommandHandlers } from "./realm-tui-command-handlers.ts";
+import { matchTrustCommand } from "./realm-tui-app-trust.ts";
+import { runTrustElevation } from "./realm-tui-command-handlers.ts";
 import { loadTuiState } from "./realm-tui-state-loader.ts";
 import {
   createRoleSendConfirmation,
@@ -21,7 +30,7 @@ import {
   loadSettingsSummary as loadSettingsSummaryForTui,
   updateDefaultModelSettings,
 } from "./settings-actions.ts";
-import { routeTuiCommand, type TuiCommandHandlers } from "./tui-command-router.ts";
+import { routeTuiCommand } from "./tui-command-router.ts";
 import {
   type ExtendedConfirmationContext,
   resolveModelChangeConfirmation,
@@ -30,6 +39,11 @@ import {
   type TuiExtendedPending,
 } from "./tui-extended-confirmations.ts";
 import { detectSystemLocale, persistTuiLocale } from "./tui-locale.ts";
+import {
+  type NlHost,
+  resolveStatePatchConfirmation,
+  type TuiPendingStatePatch,
+} from "./tui-nl-router.ts";
 import type { TuiOptions } from "./tui-options.ts";
 import { applyTuiPaletteItem } from "./tui-palette.ts";
 import {
@@ -58,15 +72,13 @@ import { renderTui } from "./view-model.ts";
 export class RealmTuiApp {
   private readonly client: RealmHttpClient;
   private readonly pending: TuiPendingConfirmations = {};
-  // Two additional irreversible/medium-risk gates the shared TuiPendingConfirmations
-  // bag does not cover yet (multi-tick/fork sim writes, default-model change).
-  // Resolved before the shared resolver so the role-send/identity/God/role-turn
-  // record stays untouched.
+  // Irreversible/medium-risk gates the shared pending bag does not cover (sim
+  // tick/fork writes, default-model change); resolved before the shared resolver.
   private readonly extendedPending: TuiExtendedPending = {};
-  // Last config patch history id applied this session, surfaced in the apply
-  // notice and used as the implicit `:rollback` target so the operator never
-  // has to copy it by hand.
+  // Last config patch history id applied this session; the implicit `:rollback` target.
   private lastConfigHistoryId: string | undefined;
+  // NL-routed state-patch awaiting a typed world-id confirmation (write-gated).
+  private pendingStatePatch: TuiPendingStatePatch | undefined;
   private selectedRoomId: string | undefined;
   private selectedWorldId: string | undefined;
   private state: TuiState | undefined;
@@ -81,18 +93,12 @@ export class RealmTuiApp {
     this.dictionary = t(this.locale);
   }
 
-  /**
-   * Current interface locale. Exposed so the interactive session can read the
-   * live value after a `:locale` switch instead of capturing it once.
-   */
+  /** Current interface locale; read live so a `:locale` switch re-renders. */
   getLocale(): TuiLocale {
     return this.locale;
   }
 
-  /**
-   * Clears every armed transient confirmation. Returns true when at least one
-   * pending confirmation was actually discarded.
-   */
+  /** Clears every armed transient confirmation; true if at least one was discarded. */
   clearTransient(): boolean {
     const hadPending = Boolean(
       this.pending.roleSend ||
@@ -100,20 +106,22 @@ export class RealmTuiApp {
         this.pending.godAction ||
         this.pending.roleTurn ||
         this.extendedPending.sim ||
-        this.extendedPending.modelChange,
+        this.extendedPending.modelChange ||
+        this.pendingStatePatch,
     );
     this.resetPendings();
     return hadPending;
   }
 
   /** Discards every armed transient confirmation across both pending bags. */
-  private resetPendings(): void {
+  resetPendings(): void {
     this.pending.roleSend = undefined;
     this.pending.identitySwitch = undefined;
     this.pending.godAction = undefined;
     this.pending.roleTurn = undefined;
     this.extendedPending.sim = undefined;
     this.extendedPending.modelChange = undefined;
+    this.pendingStatePatch = undefined;
   }
 
   async render(): Promise<string> {
@@ -182,6 +190,9 @@ export class RealmTuiApp {
     if (this.extendedPending.modelChange) {
       return resolveModelChangeConfirmation(this.extendedConfirmationContext(), trimmed);
     }
+    if (this.pendingStatePatch) {
+      return resolveStatePatchConfirmation(this.nlHost(), this.pendingStatePatch, trimmed);
+    }
     const confirmationNotice = await resolvePendingConfirmation(
       this.pendingConfirmationContext(),
       trimmed,
@@ -200,12 +211,22 @@ export class RealmTuiApp {
     if (trimmed === "/whereami") {
       return renderWhereami(await this.load(), this.locale);
     }
+    // `:trust [tier]` leaves read-only live; intercepted ahead of parseTuiCommand so
+    // a bare token never posts as chat. Reload after so the new tier re-renders.
+    const trustArg = matchTrustCommand(trimmed);
+    if (trustArg !== undefined) {
+      const notice = await runTrustElevation(this.client, this.dictionary, trustArg || undefined);
+      await this.reload();
+      return notice;
+    }
     const command = parseTuiCommand(trimmed.startsWith("/") ? slashToCommand(trimmed) : trimmed);
     if (command.kind === "quit") {
       return this.dictionary.useCtrlCToExit;
     }
     if (command.kind === "send") {
-      return this.handleSend(command.content);
+      // Free-form text is the primary surface: route through the NL commander,
+      // falling back to a verbatim chat message (explicit :send/:/send bypass it).
+      return routeFreeFormOrSend(this.nlHost(), trimmed, () => this.handleSend(command.content));
     }
     const draftNotice = await (async () => {
       try {
@@ -225,33 +246,11 @@ export class RealmTuiApp {
       }
       return draftNotice;
     }
-    return routeTuiCommand(this.commandHandlers(), command);
+    return this.dispatchCommand(command);
   }
 
-  private commandHandlers(): TuiCommandHandlers {
-    return buildTuiCommandHandlers({
-      client: this.client,
-      dictionary: this.dictionary,
-      locale: this.locale,
-      load: () => this.load(),
-      switchWorld: (worldId) => this.switchWorld(worldId),
-      switchRoom: (roomId) => this.switchRoom(roomId),
-      createRoom: (command) => this.createRoom(command),
-      stageProposal: (result) => this.stageProposal(result),
-      extendedConfirmationContext: () => this.extendedConfirmationContext(),
-      rollbackConfig: (historyId) => this.rollbackConfig(historyId),
-      switchLocale: (locale) => this.switchLocale(locale),
-      requestRoleTurn: (command) => this.requestRoleTurn(command),
-      requestIdentitySwitch: (identity) => this.requestIdentitySwitch(identity),
-      inspectWorldState: (path) => this.inspectWorldState(path),
-      inspectRoleMemory: (roleId) => this.inspectRoleMemory(roleId),
-      setAssistantProposal: async (proposal) => {
-        this.state = { ...(await this.load()), assistantProposal: proposal };
-      },
-      applyPendingConfigPatch: (confirmation) => this.applyPendingConfigPatch(confirmation),
-      requestGodAction: (command) => this.requestGodAction(command),
-      handle: (command) => this.handle(command),
-    });
+  async setAssistantProposal(proposal: ConfigPatchProposal | undefined): Promise<void> {
+    this.state = { ...(await this.load()), assistantProposal: proposal };
   }
 
   private async handleSend(content: string): Promise<string> {
@@ -280,7 +279,25 @@ export class RealmTuiApp {
     }
   }
 
-  private async requestGodAction(command: Extract<TuiCommand, { kind: "god" }>): Promise<string> {
+  // NL + state-patch host hooks: dispatch a command, arm/clear the state-patch gate.
+  dispatchCommand(command: TuiCommand): Promise<string> {
+    const handlers = buildAppCommandHandlers(this, {
+      client: this.client,
+      dictionary: this.dictionary,
+      locale: this.locale,
+    });
+    return routeTuiCommand(handlers, command);
+  }
+
+  setPendingStatePatch(pending: TuiPendingStatePatch | undefined): void {
+    this.pendingStatePatch = pending;
+  }
+
+  private nlHost(): NlHost {
+    return createNlHost(this, { client: this.client, dictionary: this.dictionary });
+  }
+
+  async requestGodAction(command: Extract<TuiCommand, { kind: "god" }>): Promise<string> {
     const pending = createGodActionConfirmation(await this.load(), command);
     if (!pending) {
       return this.dictionary.cannotApplyGodWithoutWorld;
@@ -339,7 +356,7 @@ export class RealmTuiApp {
     return this.state;
   }
 
-  private async handle(command: TuiCommand): Promise<string> {
+  async handle(command: TuiCommand): Promise<string> {
     if (command.kind === "help") {
       output.write(`${renderTuiHelp(this.locale)}\n`);
     } else if (command.kind === "refresh") {
@@ -352,7 +369,7 @@ export class RealmTuiApp {
     return this.dictionary.commandApplied;
   }
 
-  private async switchWorld(worldId: string): Promise<string> {
+  async switchWorld(worldId: string): Promise<string> {
     this.selectedWorldId = worldId;
     this.selectedRoomId = undefined;
     this.resetPendings();
@@ -362,13 +379,13 @@ export class RealmTuiApp {
     return this.dictionary.worldSwitched(state.world?.name ?? worldId);
   }
 
-  private async switchRoom(roomId: string): Promise<string> {
+  async switchRoom(roomId: string): Promise<string> {
     this.selectedRoomId = roomId;
     this.state = await this.load(roomId);
     return this.dictionary.roomSwitched(this.state.room?.name ?? roomId);
   }
 
-  private async createRoom(command: Extract<TuiCommand, { kind: "createRoom" }>): Promise<string> {
+  async createRoom(command: Extract<TuiCommand, { kind: "createRoom" }>): Promise<string> {
     const result = await createRuntimeRoom(
       this.client,
       await this.load(),
@@ -384,12 +401,12 @@ export class RealmTuiApp {
   }
 
   /** Stages a world/role create proposal as the active config patch. */
-  private async stageProposal(result: TuiProposalResult): Promise<string> {
+  async stageProposal(result: TuiProposalResult): Promise<string> {
     this.state = { ...(await this.load()), assistantProposal: result.patch };
     return result.notice;
   }
 
-  private extendedConfirmationContext(): ExtendedConfirmationContext {
+  extendedConfirmationContext(): ExtendedConfirmationContext {
     return {
       client: this.client,
       dictionary: this.dictionary,
@@ -405,21 +422,17 @@ export class RealmTuiApp {
     };
   }
 
-  private async rollbackConfig(historyId?: string): Promise<string> {
-    const result = await rollbackConfig(
-      this.extendedConfirmationContext(),
-      historyId,
-      this.lastConfigHistoryId,
-    );
+  async rollbackConfig(historyId?: string): Promise<string> {
+    const ctx = this.extendedConfirmationContext();
+    const result = await rollbackConfig(ctx, historyId, this.lastConfigHistoryId);
     if (result.rolledBack) {
-      // The rollback itself produces a new history entry; clear the stale
-      // last-applied id so a follow-up `:rollback` does not silently reuse it.
+      // Rollback creates a new history entry; clear the stale last-applied id.
       this.lastConfigHistoryId = undefined;
     }
     return result.notice;
   }
 
-  private async switchLocale(locale: TuiLocale): Promise<string> {
+  async switchLocale(locale: TuiLocale): Promise<string> {
     this.locale = locale;
     this.dictionary = t(locale);
     await persistTuiLocale(locale);
@@ -440,12 +453,12 @@ export class RealmTuiApp {
     };
   }
 
-  private async reload(): Promise<void> {
+  async reload(): Promise<void> {
     this.state = undefined;
     await this.load();
   }
 
-  private async requestIdentitySwitch(identity: string): Promise<string> {
+  async requestIdentitySwitch(identity: string): Promise<string> {
     const state = await this.load();
     const result = armIdentitySwitch(this.pending, state, identity, this.dictionary);
     if (result.kind === "switchedToOwner") {
@@ -454,36 +467,29 @@ export class RealmTuiApp {
     return result.notice;
   }
 
-  private async requestRoleTurn(
-    command: Extract<TuiCommand, { kind: "runRole" }>,
-  ): Promise<string> {
+  async requestRoleTurn(command: Extract<TuiCommand, { kind: "runRole" }>): Promise<string> {
     return armRoleTurn(this.pending, await this.load(), command, this.dictionary);
   }
 
-  private async inspectWorldState(path?: string): Promise<string> {
+  async inspectWorldState(path?: string): Promise<string> {
     const result = await inspectWorldStateMutation(this.stateMutationDeps(), path);
     this.state = result.state;
     return result.notice;
   }
 
-  private async inspectRoleMemory(roleId: string): Promise<string> {
+  async inspectRoleMemory(roleId: string): Promise<string> {
     const result = await inspectRoleMemoryMutation(this.stateMutationDeps(), roleId);
     this.state = result.state;
     return result.notice;
   }
 
-  private async applyPendingConfigPatch(confirmation?: string): Promise<string> {
+  async applyPendingConfigPatch(confirmation?: string): Promise<string> {
     const result = await applyConfigPatchMutation(this.stateMutationDeps(), confirmation);
     if (result.state) {
       this.state = result.state;
-      // Remember the history id so a bare `:rollback` can undo this apply
-      // without the operator copying the id out of the notice manually.
+      // Remember the history id so a bare `:rollback` can undo this apply.
       this.lastConfigHistoryId = result.historyId;
     }
     return result.notice;
   }
-}
-
-function errorMessage(error: unknown): string {
-  return error instanceof Error ? error.message : String(error);
 }

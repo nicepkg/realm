@@ -1,6 +1,7 @@
 import type { RealmHttpClient } from "@realm/client-sdk";
 import type { SavedTuiDraft } from "./draft-store.ts";
 import { saveFailedDraft } from "./draft-store.ts";
+import { errorMessage } from "./error-message.ts";
 import type { TuiDictionary } from "./i18n.ts";
 import {
   createRoleSendConfirmation,
@@ -35,12 +36,48 @@ export async function sendWithDraftOnFailure(
   try {
     await sendFromState(client, state, content, dictionary);
   } catch (error) {
-    const draft = await saveStateDraft(state, content, errorMessage(error), draftsDir);
+    const reason = errorMessage(error);
+    const draft = await saveStateDraft(state, content, reason, draftsDir);
     if (draft) {
-      throw new Error(dictionary.draftSaved(draft.record.id, draft.filePath));
+      throw new Error(
+        withReadOnlyHint(
+          dictionary.draftSaved(draft.record.id, draft.filePath),
+          reason,
+          dictionary,
+        ),
+      );
     }
-    throw error;
+    throw new Error(withReadOnlyHint(reason, reason, dictionary));
   }
+}
+
+/**
+ * Marker carried by the policy gate's read-only denial reason
+ * ("Project is trusted for read-only inspection only"). Matched case-insensitively
+ * so a send/role-turn blocked under `requireTrust:true` can be turned into an
+ * actionable elevation hint instead of a dead-ending raw English gate error.
+ */
+const READ_ONLY_GATE_MARKER = "read-only inspection only";
+
+/** True when an error message is the policy gate's read-only denial. */
+export function isReadOnlyGateError(message: string): boolean {
+  return message.toLowerCase().includes(READ_ONLY_GATE_MARKER);
+}
+
+/**
+ * Appends the localized trust-elevation hint when the failure reason is the
+ * read-only gate. Keeps the original notice (e.g. draft-saved) intact so the
+ * operator both keeps their text and learns how to unblock writes.
+ */
+export function withReadOnlyHint(
+  notice: string,
+  reason: string,
+  dictionary: TuiDictionary,
+): string {
+  if (!isReadOnlyGateError(reason)) {
+    return notice;
+  }
+  return `${notice} ${dictionary.trustReadOnlyHint}`;
 }
 
 export async function sendOneShotWithDraft(
@@ -83,8 +120,11 @@ export async function confirmPendingRoleSend(
       idempotencyKey: `tui-message-${Date.now()}`,
     });
   } catch (error) {
-    const draft = await savePendingRoleDraft(pending, errorMessage(error), draftsDir);
-    throw new Error(dictionary.draftSaved(draft.record.id, draft.filePath));
+    const reason = errorMessage(error);
+    const draft = await savePendingRoleDraft(pending, reason, draftsDir);
+    throw new Error(
+      withReadOnlyHint(dictionary.draftSaved(draft.record.id, draft.filePath), reason, dictionary),
+    );
   }
 }
 
@@ -128,8 +168,4 @@ async function saveStateDraft(
     },
     draftsDir,
   );
-}
-
-function errorMessage(error: unknown): string {
-  return error instanceof Error ? error.message : String(error);
 }

@@ -1,4 +1,5 @@
 import type { RealmHttpClient } from "@realm/client-sdk";
+import { errorMessage } from "./error-message.ts";
 import {
   decideGodActionConfirmation,
   formatGodActionConfirmation,
@@ -234,8 +235,4 @@ export function armRoleTurn(
   pending.roleSend = undefined;
   pending.godAction = undefined;
   return formatRoleTurnConfirmation(confirmation, dictionary);
-}
-
-function errorMessage(error: unknown): string {
-  return error instanceof Error ? error.message : String(error);
 }
