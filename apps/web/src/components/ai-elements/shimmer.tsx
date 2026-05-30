@@ -1,7 +1,7 @@
 "use client";
 
 import type { MotionProps } from "motion/react";
-import { motion } from "motion/react";
+import { motion, useReducedMotion } from "motion/react";
 import type { CSSProperties, ElementType, JSX } from "react";
 import { memo, useMemo } from "react";
 import { cn } from "@/lib/utils";
@@ -39,8 +39,27 @@ const ShimmerComponent = ({
   spread = 2,
 }: TextShimmerProps) => {
   const MotionComponent = getMotionComponent(Component as keyof JSX.IntrinsicElements);
+  // Hard taste rule: the infinite background sweep below is a JS/WAAPI animation
+  // driven by motion. The global CSS `prefers-reduced-motion` guard cannot stop a
+  // JS-driven animation, so Shimmer must self-guard. When reduced motion is on we
+  // render static muted text with no MotionComponent and no infinite sweep.
+  const shouldReduceMotion = useReducedMotion();
 
   const dynamicSpread = useMemo(() => (children?.length ?? 0) * spread, [children, spread]);
+
+  if (shouldReduceMotion) {
+    // Static fallback. Keep the same muted text color/size as the animated path's
+    // resting state (`--color-muted-foreground`) so enabling reduced motion never
+    // shifts layout or changes the placeholder's perceived weight.
+    return (
+      <Component
+        className={cn("inline-block text-[color:var(--color-muted-foreground)]", className)}
+        data-reduced-motion="true"
+      >
+        {children}
+      </Component>
+    );
+  }
 
   return (
     <MotionComponent

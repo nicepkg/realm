@@ -1,6 +1,7 @@
-import { AlertTriangle, GitFork, Pause, Play, Square } from "lucide-react";
-import { type KeyboardEvent, useCallback, useEffect, useRef, useState } from "react";
+import { AlertTriangle, GitFork, Loader2, Pause, Play, Square } from "lucide-react";
+import { type KeyboardEvent, useCallback, useEffect, useMemo, useRef, useState } from "react";
 import type { RealmAppController } from "@/app/types.ts";
+import { formatElapsedSeconds } from "@/components/messenger/role-turn-action.tsx";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import {
@@ -12,62 +13,22 @@ import {
   DialogTitle,
 } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
-import { type Locale, useI18n } from "@/i18n/index.tsx";
+import { useI18n } from "@/i18n/index.tsx";
+import {
+  consequenceCopy,
+  type Outcome,
+  outcomeText,
+  type PendingConfirm,
+  type SimulationCopy,
+} from "./world-simulation-copy.tsx";
+
+// Re-exported so existing consumers/tests keep importing from this entry point.
+export { consequenceCopy, outcomeText };
 
 /** Simulation status shape, derived from the SDK call so apps/web needs no zod. */
 type SimulationStatus = Awaited<
   ReturnType<RealmAppController["client"]["simulation"]["getStatus"]>
 >;
-
-/**
- * Consequence copy lives here, not in the shared i18n dicts: those dicts are
- * owned by the realm-i18n-leaks item, and the existing risk/confirm keys
- * (`sheet.god.*`, `sheet.config.*`) describe rollback-able patches, which is the
- * opposite of an irreversible tick advance. To keep new literals out of the
- * dicts while still rendering proper zh-CN/en, these are file-local, keyed by
- * the active locale. They follow the brief's required phrasing.
- */
-export const consequenceCopy: Record<
-  Locale,
-  {
-    runTitle: string;
-    runBody: (world: string, ticks: number) => string;
-    forkTitle: string;
-    forkBody: (label: string) => string;
-    irreversible: string;
-    runNotice: (clock: number, events: number) => string;
-    forkNotice: (label: string) => string;
-  }
-> = {
-  "zh-CN": {
-    runTitle: "推进世界？",
-    runBody: (world, ticks) => `推进世界 ${world} ${ticks} 个回合将写入世界状态，无法自动撤销。`,
-    forkTitle: "创建世界分支？",
-    forkBody: (label) => `Fork 将创建世界分支 ${label}，并写入磁盘。`,
-    irreversible: "运行时无法自动撤销推进的回合，请确认后再继续。",
-    runNotice: (clock, events) => `已推进至时钟 ${clock}，写入 ${events} 个事件。`,
-    forkNotice: (label) => `已创建分支 ${label}。`,
-  },
-  en: {
-    runTitle: "Advance world?",
-    runBody: (world, ticks) =>
-      `Advancing world ${world} by ${ticks} ticks writes world state and cannot be automatically undone.`,
-    forkTitle: "Create world fork?",
-    forkBody: (label) => `Fork will create the world branch ${label} and write it to disk.`,
-    irreversible:
-      "The runtime cannot automatically revert advanced ticks. Confirm before you continue.",
-    runNotice: (clock, events) => `Advanced to tick ${clock}, wrote ${events} events.`,
-    forkNotice: (label) => `Created fork ${label}.`,
-  },
-};
-
-type PendingConfirm = { kind: "run"; ticks: number } | { kind: "fork"; label: string } | undefined;
-
-type Outcome =
-  | { kind: "run"; clock: number; events: number }
-  | { kind: "fork"; label: string }
-  | { kind: "export"; events: number }
-  | undefined;
 
 /**
  * First real web consumer of `RealmSimulationClient`: status row plus
@@ -87,18 +48,46 @@ export function WorldSimulationTab({ app }: { app: RealmAppController }) {
   const [outcome, setOutcome] = useState<Outcome>();
   const [pending, setPending] = useState<PendingConfirm>();
   const [busy, setBusy] = useState(false);
+  // FB2-1: status is unknown until the first fetch resolves; default to loading
+  // so the metric row shows placeholders instead of asserting 空闲/tick 0.
+  const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | undefined>();
+  // EP-R2-7: a Run Ticks write is a single uninterruptible promise. Track when
+  // it started so we can surface an elapsed timer while it is in flight.
+  const [runningTicks, setRunningTicks] = useState(false);
+  const [runStartedAt, setRunStartedAt] = useState<string | undefined>();
+  const [now, setNow] = useState(() => Date.now());
 
+  // FB2-2: both the initial load and any mutator failure set the same `error`
+  // state, so a single orange error box + Retry recovers either case.
   const refreshStatus = useCallback(async () => {
     if (!worldId) {
+      setLoading(false);
       return;
     }
-    setStatus(await app.client.simulation.getStatus(worldId));
+    setLoading(true);
+    setError(undefined);
+    try {
+      setStatus(await app.client.simulation.getStatus(worldId));
+    } catch (caught) {
+      setError(caught instanceof Error ? caught.message : String(caught));
+    } finally {
+      setLoading(false);
+    }
   }, [app.client, worldId]);
 
   useEffect(() => {
     void refreshStatus();
   }, [refreshStatus]);
+
+  // Keep the run-in-flight elapsed timer ticking once per second while busy.
+  useEffect(() => {
+    if (!runningTicks) {
+      return;
+    }
+    const timer = window.setInterval(() => setNow(Date.now()), 1000);
+    return () => window.clearInterval(timer);
+  }, [runningTicks]);
 
   const runAction = useCallback(
     async (action: () => Promise<Outcome>) => {
@@ -137,11 +126,19 @@ export function WorldSimulationTab({ app }: { app: RealmAppController }) {
       return;
     }
     if (job.kind === "run") {
-      // Re-read the clock from status after the run for an accurate delta.
+      // Re-read the clock from status after the run for an accurate delta. The
+      // run-in-flight flags drive the uninterruptible notice + elapsed timer.
+      setRunStartedAt(new Date().toISOString());
+      setNow(Date.now());
+      setRunningTicks(true);
       void runAction(async () => {
-        const result = await app.client.simulation.runTicks(worldId ?? "", { ticks: job.ticks });
-        const refreshed = await app.client.simulation.getStatus(worldId ?? "");
-        return { kind: "run", clock: refreshed.tick, events: result.eventCount };
+        try {
+          const result = await app.client.simulation.runTicks(worldId ?? "", { ticks: job.ticks });
+          const refreshed = await app.client.simulation.getStatus(worldId ?? "");
+          return { kind: "run", clock: refreshed.tick, events: result.eventCount };
+        } finally {
+          setRunningTicks(false);
+        }
       });
       return;
     }
@@ -158,141 +155,205 @@ export function WorldSimulationTab({ app }: { app: RealmAppController }) {
     }
   }
 
+  // FB2-1: idle/running/paused are only meaningful once status is defined; until
+  // then the status metric shows a loading placeholder rather than a false 空闲.
+  const isPaused = status?.paused === true;
+  const isRunning = Boolean(status && status.activeRuns.length > 0);
+  const statusValue = status
+    ? isPaused
+      ? t("inspector.simPaused")
+      : isRunning
+        ? t("inspector.simRunning")
+        : t("inspector.simIdle")
+    : undefined;
+  const elapsed = useMemo(() => formatElapsedSeconds(runStartedAt, now), [runStartedAt, now]);
+
   return (
-    <div className="space-y-3" data-testid="world-simulation-tab">
-      <div className="grid grid-cols-2 gap-2 text-[12px]">
-        <Metric
-          label={t("inspector.simStatus")}
-          value={
-            status?.paused
-              ? t("inspector.simPaused")
-              : status && status.activeRuns.length > 0
-                ? t("inspector.simRunning")
-                : t("inspector.simIdle")
-          }
-        />
-        <Metric label={t("inspector.simTick")} value={String(status?.tick ?? 0)} />
-      </div>
-      <div className="flex flex-wrap items-end gap-2">
-        <label className="space-y-1" htmlFor="sim-ticks-count">
-          <span className="text-[11px] text-[var(--realm-fg-muted)]">
-            {t("inspector.simTicksCount")}
-          </span>
-          <Input
-            className="w-24"
-            data-testid="sim-ticks-count"
-            id="sim-ticks-count"
-            max={100}
-            min={1}
-            onChange={(event) =>
-              setTicks(Math.max(1, Math.min(100, Number(event.currentTarget.value) || 1)))
-            }
-            onKeyDown={onTicksKeyDown}
-            type="number"
-            value={ticks}
+    <div className="space-y-4" data-testid="world-simulation-tab">
+      {/* CL-5: altitude 1 — calm, read-only status. No mutating control lives
+          here, so the default view reads as "what is the world doing now". */}
+      <section aria-label={copy.groupStatus} className="space-y-2">
+        <div className="grid grid-cols-2 gap-2 text-[12px]">
+          <Metric
+            label={t("inspector.simStatus")}
+            loading={loading}
+            loadingLabel={copy.loading}
+            value={statusValue}
           />
-        </label>
-        <Button
-          data-testid="sim-run-ticks"
-          disabled={busy}
-          onClick={requestRunTicks}
-          size="sm"
-          type="button"
-          variant="secondary"
-        >
-          <Play className="size-4" />
-          {t("inspector.simRunTicks")}
-        </Button>
-      </div>
-      <div className="flex flex-wrap gap-2">
-        <Button
-          data-testid="sim-pause"
-          disabled={busy}
-          onClick={() =>
-            void runAction(async () => {
-              await app.client.simulation.pause(worldId ?? "", {});
-              return undefined;
-            })
-          }
-          size="sm"
-          type="button"
-          variant="secondary"
-        >
-          <Pause className="size-4" />
-          {t("inspector.simPause")}
-        </Button>
-        <Button
-          data-testid="sim-resume"
-          disabled={busy}
-          onClick={() =>
-            void runAction(async () => {
-              await app.client.simulation.resume(worldId ?? "", {});
-              return undefined;
-            })
-          }
-          size="sm"
-          type="button"
-          variant="secondary"
-        >
-          <Play className="size-4" />
-          {t("inspector.simResume")}
-        </Button>
-        <Button
-          data-testid="sim-export"
-          disabled={busy}
-          onClick={() =>
-            void runAction(async () => {
-              const result = await app.client.simulation.exportWorld(worldId ?? "");
-              return { kind: "export", events: result.events.length };
-            })
-          }
-          size="sm"
-          type="button"
-          variant="secondary"
-        >
-          <Square className="size-4" />
-          {t("inspector.simExport")}
-        </Button>
-      </div>
-      <div className="flex flex-wrap items-end gap-2">
-        <label className="flex-1 space-y-1" htmlFor="sim-fork-name">
-          <span className="text-[11px] text-[var(--realm-fg-muted)]">
-            {t("inspector.simForkName")}
-          </span>
-          <Input
-            data-testid="sim-fork-name"
-            id="sim-fork-name"
-            onChange={(event) => setForkLabel(event.currentTarget.value)}
-            value={forkLabel}
+          <Metric
+            label={t("inspector.simTick")}
+            loading={loading}
+            loadingLabel={copy.loading}
+            value={status ? String(status.tick) : undefined}
           />
-        </label>
-        <Button
-          data-testid="sim-fork"
-          disabled={busy || !forkLabel.trim()}
-          onClick={() => setPending({ kind: "fork", label: forkLabel.trim() })}
-          size="sm"
-          type="button"
-          variant="secondary"
-        >
-          <GitFork className="size-4" />
-          {t("inspector.simFork")}
-        </Button>
-      </div>
-      {outcome ? (
-        <div
-          className="rounded-md bg-[#e6f7ee] p-2 text-[#087a43] text-[12px]"
-          data-testid="sim-outcome"
-        >
-          {outcomeText(outcome, copy, t)}
         </div>
-      ) : null}
+        {/* EP-R2-7: a Run Ticks write is one uninterruptible promise, so instead
+            of a silently-disabled UI we state it cannot be cancelled and show a
+            live elapsed timer + the current tick readout. */}
+        {runningTicks ? (
+          <div
+            className="flex flex-col gap-1 rounded-md bg-[#f7f7f8] p-2 text-[12px] text-[#1f1f21]"
+            data-testid="sim-run-in-flight"
+          >
+            <div className="flex items-center gap-2">
+              <Loader2
+                aria-hidden="true"
+                className="size-4 animate-spin text-[#07c160] motion-reduce:animate-none"
+              />
+              <span>{copy.runUninterruptible}</span>
+            </div>
+            <div className="text-[var(--realm-fg-muted)]" data-testid="sim-run-elapsed">
+              {copy.runElapsed(elapsed)}
+              {status ? ` · ${copy.runTickReadout(status.tick)}` : ""}
+            </div>
+          </div>
+        ) : null}
+        {outcome ? (
+          <div
+            className="rounded-md bg-[#e6f7ee] p-2 text-[#087a43] text-[12px]"
+            data-testid="sim-outcome"
+          >
+            {outcomeText(outcome, copy, t)}
+          </div>
+        ) : null}
+      </section>
+
+      {/* CL-5: altitude 2 — mutating controls grouped at secondary weight under
+          a clearly-labelled "Advance / branch" heading. */}
+      <section aria-label={copy.groupAdvance} className="space-y-3">
+        <div className="font-medium text-[11px] text-[var(--realm-fg-muted)] uppercase tracking-wide">
+          {copy.groupAdvance}
+        </div>
+        <div className="flex flex-wrap items-end gap-2">
+          <label className="space-y-1" htmlFor="sim-ticks-count">
+            <span className="text-[11px] text-[var(--realm-fg-muted)]">
+              {t("inspector.simTicksCount")}
+            </span>
+            <Input
+              className="w-24"
+              data-testid="sim-ticks-count"
+              id="sim-ticks-count"
+              max={100}
+              min={1}
+              onChange={(event) =>
+                setTicks(Math.max(1, Math.min(100, Number(event.currentTarget.value) || 1)))
+              }
+              onKeyDown={onTicksKeyDown}
+              type="number"
+              value={ticks}
+            />
+          </label>
+          <Button
+            data-testid="sim-run-ticks"
+            disabled={busy}
+            onClick={requestRunTicks}
+            size="sm"
+            type="button"
+            variant="secondary"
+          >
+            <Play className="size-4" />
+            {t("inspector.simRunTicks")}
+          </Button>
+        </div>
+        <div className="flex flex-wrap gap-2">
+          {/* CL-5 transport mapping: only the contextually-valid control shows —
+              Pause while running, Resume while paused — instead of both. */}
+          {isPaused ? (
+            <Button
+              data-testid="sim-resume"
+              disabled={busy}
+              onClick={() =>
+                void runAction(async () => {
+                  await app.client.simulation.resume(worldId ?? "", {});
+                  return { kind: "resume" };
+                })
+              }
+              size="sm"
+              type="button"
+              variant="secondary"
+            >
+              <Play className="size-4" />
+              {t("inspector.simResume")}
+            </Button>
+          ) : (
+            <Button
+              data-testid="sim-pause"
+              disabled={busy}
+              onClick={() =>
+                void runAction(async () => {
+                  await app.client.simulation.pause(worldId ?? "", {});
+                  return { kind: "pause" };
+                })
+              }
+              size="sm"
+              type="button"
+              variant="secondary"
+            >
+              <Pause className="size-4" />
+              {t("inspector.simPause")}
+            </Button>
+          )}
+          <Button
+            data-testid="sim-export"
+            disabled={busy}
+            onClick={() =>
+              void runAction(async () => {
+                const result = await app.client.simulation.exportWorld(worldId ?? "");
+                return { kind: "export", events: result.events.length };
+              })
+            }
+            size="sm"
+            type="button"
+            variant="secondary"
+          >
+            <Square className="size-4" />
+            {t("inspector.simExport")}
+          </Button>
+        </div>
+        <div className="flex flex-wrap items-end gap-2">
+          <label className="flex-1 space-y-1" htmlFor="sim-fork-name">
+            <span className="text-[11px] text-[var(--realm-fg-muted)]">
+              {t("inspector.simForkName")}
+            </span>
+            <Input
+              data-testid="sim-fork-name"
+              id="sim-fork-name"
+              onChange={(event) => setForkLabel(event.currentTarget.value)}
+              value={forkLabel}
+            />
+          </label>
+          <Button
+            data-testid="sim-fork"
+            disabled={busy || !forkLabel.trim()}
+            onClick={() => setPending({ kind: "fork", label: forkLabel.trim() })}
+            size="sm"
+            type="button"
+            variant="secondary"
+          >
+            <GitFork className="size-4" />
+            {t("inspector.simFork")}
+          </Button>
+        </div>
+      </section>
       {error ? (
+        // FB2-2: one recovery surface for both initial-load and mutator failures.
+        // Retry simply re-runs refreshStatus.
         <div
-          className="rounded-md bg-[#fff4e5] p-2 text-[#7a4a00] text-[12px]"
+          className="space-y-2 rounded-md bg-[#fff4e5] p-2 text-[#7a4a00] text-[12px]"
           data-testid="sim-error"
         >
           <div className="font-medium">{t("inspector.simFailed")}</div>
           <div>{error}</div>
+          <Button
+            data-testid="sim-retry"
+            disabled={busy || loading}
+            onClick={() => void refreshStatus()}
+            size="sm"
+            type="button"
+            variant="outline"
+          >
+            {t("common.retry")}
+          </Button>
         </div>
       ) : null}
       <SimulationConfirmDialog
@@ -304,20 +365,6 @@ export function WorldSimulationTab({ app }: { app: RealmAppController }) {
       />
     </div>
   );
-}
-
-export function outcomeText(
-  outcome: NonNullable<Outcome>,
-  copy: (typeof consequenceCopy)[Locale],
-  t: ReturnType<typeof useI18n>["t"],
-): string {
-  if (outcome.kind === "run") {
-    return copy.runNotice(outcome.clock, outcome.events);
-  }
-  if (outcome.kind === "fork") {
-    return copy.forkNotice(outcome.label);
-  }
-  return `${t("inspector.simExported")}: ${outcome.events}`;
 }
 
 /**
@@ -333,7 +380,7 @@ function SimulationConfirmDialog({
   pending,
   worldName,
 }: {
-  copy: (typeof consequenceCopy)[Locale];
+  copy: SimulationCopy;
   onCancel: () => void;
   onConfirm: () => void;
   pending: PendingConfirm;
@@ -395,12 +442,35 @@ function SimulationConfirmDialog({
   );
 }
 
-function Metric({ label, value }: { label: string; value: string }) {
+/**
+ * FB2-1: while `loading`, the metric renders an em-dash placeholder plus an
+ * sr-only loading label, so screen readers announce the pending state and the
+ * UI never asserts a false 空闲 / tick 0 before status resolves.
+ */
+function Metric({
+  label,
+  value,
+  loading,
+  loadingLabel,
+}: {
+  label: string;
+  value: string | undefined;
+  loading?: boolean;
+  loadingLabel?: string;
+}) {
+  const isLoading = Boolean(loading) || value === undefined;
   return (
     <div className="rounded-[6px] bg-[#f7f7f8] p-3">
       <div className="text-[11px] text-[var(--realm-fg-muted)]">{label}</div>
       <div className="mt-1 flex items-center gap-2">
-        <Badge className="border-transparent bg-white text-[#1f1f21]">{value}</Badge>
+        <Badge className="border-transparent bg-white text-[#1f1f21]">
+          {isLoading ? "—" : value}
+        </Badge>
+        {isLoading && loadingLabel ? (
+          <span aria-live="polite" className="sr-only" role="status">
+            {loadingLabel}
+          </span>
+        ) : null}
       </div>
     </div>
   );

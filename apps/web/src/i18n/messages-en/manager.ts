@@ -16,6 +16,17 @@ export const managerEn = {
   "manager.trustBannerError": "Could not raise trust. Try again.",
   "manager.trustBannerPending": "Trusting...",
   "manager.trustBannerTitle": "Project is read-only",
+  "manager.trustConfirmTitle": "Trust this project?",
+  "manager.trustConfirmBody": (rootPath?: string) =>
+    rootPath
+      ? `Trusting ${rootPath} lets AI roles run real model turns in this project. This is the most security-sensitive change in Realm — review what it unlocks before continuing.`
+      : "Trusting this project lets AI roles run real model turns. This is the most security-sensitive change in Realm — review what it unlocks before continuing.",
+  "manager.trustConfirmCapRoles": "Roles can run real model turns (sends and replies execute).",
+  "manager.trustConfirmCapShell": "Roles may run project shell commands.",
+  "manager.trustConfirmCapNetwork": "Roles may make network requests.",
+  "manager.trustConfirmAccept": "Trust and run roles",
+  "manager.trustRevert": "Revert to read-only",
+  "manager.trustReverting": "Reverting...",
   "manager.trustElevated": "Elevated tools",
   "manager.trustReadOnly": "Read-only",
   "manager.trustRunRoles": "Run roles",

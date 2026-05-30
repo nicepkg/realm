@@ -14,6 +14,7 @@ import {
   resizeComposer,
 } from "./composer-mentions.ts";
 import { MentionPopover, ReadOnlyHint } from "./composer-parts.tsx";
+import { RunRolePicker } from "./composer-run-role-picker.tsx";
 import { EmojiPicker } from "./emoji-picker.tsx";
 import {
   canRunRoleTurn,
@@ -254,11 +255,25 @@ export function Composer({ app, onOpenGod }: { app: RealmAppController; onOpenGo
               empty-room case is owned by RoleTurnEmptyCta in the timeline, hence
               the roomIsPopulated gate keeps the two from doubling up. */}
           {isTurnInFlight ? (
+            // A turn is running/errored: only Cancel/Retry belong here. The run
+            // role chooser is intentionally NOT mounted — you do not re-target a
+            // turn that is already in flight (Don Norman: constraints).
             <div className="flex shrink-0 items-center" data-testid="composer-run-turn">
               <RoleTurnActionGroup app={app} readOnly={trust.isReadOnly} variant="row" />
             </div>
           ) : showIdleRun && canRun ? (
-            <div className="flex shrink-0 items-center" data-testid="composer-run-turn">
+            // DISC-R2-1: choosing WHO runs the turn sits immediately to the LEFT
+            // of the run control, so the most central multi-member action — pick a
+            // role, then run them — is co-located and discoverable without docs
+            // (Don Norman: mapping + discoverability). The picker self-hides for a
+            // 0-member room and shows a static label for a single-member room.
+            <div className="flex shrink-0 items-center gap-1.5" data-testid="composer-run-turn">
+              <RunRolePicker
+                onPick={app.setRunRoleId}
+                roles={app.state.roles}
+                room={app.selectedRoom}
+                runRoleId={app.runRoleId}
+              />
               <RoleTurnActionGroup app={app} readOnly={trust.isReadOnly} variant="row" />
             </div>
           ) : showIdleRun && !trust.isReadOnly && idleRunBlockReason ? (

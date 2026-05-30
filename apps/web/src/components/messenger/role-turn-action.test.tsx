@@ -3,7 +3,11 @@ import type { RoleSummary, Room, WorldSummary } from "@realm/api-contract";
 import { renderToStaticMarkup } from "react-dom/server";
 import type { RealmAppController } from "@/app/types.ts";
 import { I18nProvider } from "@/i18n/index.tsx";
-import { formatElapsedSeconds, RoleTurnActionGroup } from "./role-turn-action.tsx";
+import {
+  formatElapsedSeconds,
+  RoleTurnActionGroup,
+  RunTurnPreviewBody,
+} from "./role-turn-action.tsx";
 
 describe("role turn action", () => {
   test("formats elapsed runtime for role-turn feedback", () => {
@@ -107,6 +111,67 @@ describe("role turn action", () => {
   });
 });
 
+describe("run turn preview body", () => {
+  function renderBody(runtime: { adapterKind: string } | undefined): string {
+    const app = mockApp({ status: "idle" });
+    const second: RoleSummary = {
+      displayName: "Yun Yao",
+      id: "yunyao",
+      model: "default",
+      source: "config",
+    };
+    const room: Room = {
+      id: "main",
+      memberIds: ["owner", "leijun", "yunyao"],
+      name: "All Hands",
+      type: "world-main",
+      worldId: "cultivation",
+    };
+    app.selectedRoom = room;
+    app.state.rooms = [room];
+    app.state.roles = [app.state.roles[0] as RoleSummary, second];
+    return renderToStaticMarkup(
+      <I18nProvider>
+        <RunTurnPreviewBody
+          activeRole={{ displayName: "Lei Jun", model: "default" }}
+          activeRoom={room}
+          activeWorld={{ name: "Cultivation Sim" }}
+          app={app}
+          runtime={runtime}
+        />
+      </I18nProvider>,
+    );
+  }
+
+  test("exposes the run-role chooser so a wrong target is fixable at the gate (DISC-R2-5)", () => {
+    // The same multi-member chooser the composer uses is mounted in the gate, so
+    // the operator can re-target WHO runs without cancelling + navigating away.
+    // The radio options live in a closed Radix menu, so assert the trigger.
+    expect(renderBody({ adapterKind: "fake" })).toContain('data-testid="composer-run-role-picker"');
+  });
+
+  test("surfaces the runtime row, naming the mock adapter explicitly (DISC-R2-5)", () => {
+    const html = renderBody({ adapterKind: "fake" });
+    expect(html).toContain('data-testid="run-turn-preview-runtime"');
+    // zh-CN default: the fake adapter is named "模拟运行时" so a simulated reply
+    // is never mistaken for a real provider one.
+    expect(html).toContain("模拟运行时");
+    expect(html).toContain("运行时");
+  });
+
+  test("names a real provider runtime as-is", () => {
+    const html = renderBody({ adapterKind: "openai" });
+    expect(html).toContain('data-testid="run-turn-preview-runtime"');
+    expect(html).toContain("openai");
+    expect(html).not.toContain("模拟运行时");
+  });
+
+  test("omits the runtime row until health resolves (no mislabel)", () => {
+    const html = renderBody(undefined);
+    expect(html).not.toContain('data-testid="run-turn-preview-runtime"');
+  });
+});
+
 function mockApp(turnRun: RealmAppController["turnRun"]): RealmAppController {
   const role: RoleSummary = {
     displayName: "Lei Jun",
@@ -131,11 +196,15 @@ function mockApp(turnRun: RealmAppController["turnRun"]): RealmAppController {
   return {
     cancelActiveTurn: async () => undefined,
     clearTurnError: () => undefined,
+    client: {
+      getHealth: async () => ({ ok: true, runtime: { adapterKind: "fake" } }),
+    },
     runSelectedRoleTurn: async () => undefined,
     runRoleId: role.id,
     selectedRole: role,
     selectedRoom: room,
     selectedWorld: world,
+    setRunRoleId: () => undefined,
     state: {
       conversationMessages: [],
       events: [],

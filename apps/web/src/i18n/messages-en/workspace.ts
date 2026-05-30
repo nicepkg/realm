@@ -93,6 +93,10 @@ export const workspaceEn = {
   "workspace.runTurnPreviewTitle": "Run role turn",
   "workspace.runTurnPreviewRole": "Role",
   "workspace.runTurnPreviewModel": "Model",
+  // Which runtime will answer the turn — the mock adapter is named explicitly so
+  // a simulated reply is never mistaken for a real provider one (DISC-R2-5).
+  "workspace.runTurnPreviewRuntime": "Runtime",
+  "workspace.runTurnRuntimeMock": "Mock runtime",
   "workspace.runTurnPreviewTarget": "Target room",
   "workspace.runTurnPreviewPermissions": "Permissions",
   "workspace.runTurnPreviewCancelHint": "You can cancel anytime once it starts.",

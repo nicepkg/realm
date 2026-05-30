@@ -26,6 +26,11 @@ export const sheetsEn = {
   "sheet.god.noValidAction": "No valid action for this role state.",
   "sheet.god.recoveryReason":
     "This ruling is recorded as an auditable world event; reverse it by issuing a compensating God action.",
+  "sheet.god.undoSeeded":
+    "Seeds a reviving ruling for the same role. Re-confirm above to send it through the same gate.",
+  "sheet.god.undoReason": "Undo previous ruling",
+  "sheet.god.obsoleteNote":
+    "Rulings cannot be edited or hidden — they stay recorded as auditable world events. To reverse one, issue a new God action above.",
   "sheet.god.refreshFailed": "Ruling applied — could not refresh view; reload to confirm",
   "sheet.god.reload": "Reload",
   "sheet.assistant.description":

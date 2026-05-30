@@ -24,6 +24,49 @@ describe("composer run-turn affordance", () => {
     expect(html).toContain("运行 Lei Jun 的回合");
   });
 
+  test("a multi-member room renders the run-role chooser left of the run control (DISC-R2-1)", () => {
+    const app = mockApp({ messages: [message("m1")] });
+    const second: RoleSummary = {
+      displayName: "Yun Yao",
+      id: "yunyao",
+      model: "default",
+      source: "config",
+    };
+    // Two role members → the chooser is a real dropdown, not a static label, so
+    // WHO runs the turn is selectable right next to the run button.
+    const room: Room = {
+      id: "main",
+      memberIds: ["owner", "leijun", "yunyao"],
+      name: "All Hands",
+      type: "world-main",
+      worldId: "cultivation",
+    };
+    app.selectedRoom = room;
+    app.state.rooms = [room];
+    app.state.roles = [...app.state.roles, second];
+    const html = renderToStaticMarkup(
+      <I18nProvider>
+        <Composer app={app} onOpenGod={() => undefined} />
+      </I18nProvider>,
+    );
+    // The chooser trigger names the bound role and sits inside the run group;
+    // the radio options live in a Radix menu that only mounts on open.
+    expect(html).toContain('data-testid="composer-run-role-picker"');
+    expect(html).toContain("Lei Jun");
+  });
+
+  test("a single-member room shows the static run-role label, not a dead dropdown", () => {
+    const html = renderToStaticMarkup(
+      <I18nProvider>
+        <Composer app={mockApp({ messages: [message("m1")] })} onOpenGod={() => undefined} />
+      </I18nProvider>,
+    );
+    // Only leijun is a member → nothing to choose, so the target is shown as a
+    // calm static label rather than a no-op dropdown.
+    expect(html).toContain('data-testid="composer-run-role-static"');
+    expect(html).not.toContain('data-testid="composer-run-role-picker"');
+  });
+
   test("an empty room hides the composer run control so it never doubles the empty CTA (item 5)", () => {
     const html = renderToStaticMarkup(
       <I18nProvider>
@@ -167,8 +210,10 @@ function mockApp(overrides: { messages: Message[] }): RealmAppController {
       setTrust: async () => ({ trustTier: "run-roles" }),
     },
     draft: "",
+    runRoleId: role.id,
     runSelectedRoleTurn: async () => undefined,
     selectedRole: role,
+    setRunRoleId: () => undefined,
     selectedRoom: room,
     selectedWorld: world,
     sendMessage: async () => undefined,

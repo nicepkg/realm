@@ -18,6 +18,17 @@ export const managerZhCn = {
   "manager.trustBannerError": "提升信任失败，请重试。",
   "manager.trustBannerPending": "正在信任…",
   "manager.trustBannerTitle": "项目处于只读模式",
+  "manager.trustConfirmTitle": "信任此项目？",
+  "manager.trustConfirmBody": (rootPath?: string) =>
+    rootPath
+      ? `信任 ${rootPath} 后，AI 角色将能在本项目中运行真实模型回合。这是 Realm 中最敏感的安全操作——继续前请确认它解锁的权限。`
+      : "信任此项目后，AI 角色将能运行真实模型回合。这是 Realm 中最敏感的安全操作——继续前请确认它解锁的权限。",
+  "manager.trustConfirmCapRoles": "角色可运行真实模型回合（发送与回复将实际执行）。",
+  "manager.trustConfirmCapShell": "角色可运行项目内的 shell 命令。",
+  "manager.trustConfirmCapNetwork": "角色可发起网络请求。",
+  "manager.trustConfirmAccept": "信任并运行角色",
+  "manager.trustRevert": "恢复只读",
+  "manager.trustReverting": "正在恢复…",
   "manager.trustElevated": "高级工具",
   "manager.trustReadOnly": "只读",
   "manager.trustRunRoles": "运行角色",

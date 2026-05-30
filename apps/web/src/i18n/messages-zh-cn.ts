@@ -1,4 +1,5 @@
 import type { MessageValue } from "./message-types.ts";
+import { chatZhCn } from "./messages-zh-cn/chat.ts";
 import { inspectorZhCn } from "./messages-zh-cn/inspector.ts";
 import { managerZhCn } from "./messages-zh-cn/manager.ts";
 import { navZhCn } from "./messages-zh-cn/nav.ts";
@@ -18,4 +19,5 @@ export const zhCN = {
   ...sheetsZhCn,
   ...workspaceZhCn,
   ...systemZhCn,
+  ...chatZhCn,
 } satisfies Record<string, MessageValue>;

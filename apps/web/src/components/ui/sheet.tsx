@@ -30,6 +30,10 @@ function SheetOverlay({
   return (
     <SheetPrimitive.Overlay
       data-slot="sheet-overlay"
+      // Stable test selector so the dimmed backdrop can be targeted to assert
+      // tap-on-backdrop dismiss. Radix's Overlay already closes on
+      // pointer-down-outside; no redundant onClick is added here.
+      data-testid="sheet-overlay"
       className={cn(
         "fixed inset-0 z-50 bg-black/50 data-[state=closed]:animate-out data-[state=closed]:fade-out-0 data-[state=open]:animate-in data-[state=open]:fade-in-0",
         className,

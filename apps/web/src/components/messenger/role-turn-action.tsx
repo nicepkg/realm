@@ -1,20 +1,17 @@
 import { Bot, RotateCcw, Square, X } from "lucide-react";
 import { type ReactNode, useEffect, useMemo, useState } from "react";
 import { Button } from "@/components/ui/button";
-import {
-  Dialog,
-  DialogContent,
-  DialogDescription,
-  DialogFooter,
-  DialogHeader,
-  DialogTitle,
-} from "@/components/ui/dialog";
 import { useI18n } from "@/i18n/index.tsx";
 import type { Locale } from "@/i18n/messages.ts";
 import { cn } from "@/lib/utils.ts";
-import { roomDisplayName } from "@/view-models/labels.ts";
 import type { RealmAppController } from "../../app/types.ts";
 import { roomMembersForAvatar } from "./messenger-primitives.tsx";
+import { RunTurnPreviewDialog } from "./run-turn-preview-dialog.tsx";
+
+// Re-exported so the existing import surface stays stable: external callers
+// (app-shell, role-turn-action.test) keep importing the preview from here even
+// though it now lives in its own co-located module to keep this file in budget.
+export { RunTurnPreviewBody, RunTurnPreviewDialog } from "./run-turn-preview-dialog.tsx";
 
 /**
  * Resolve the run-turn target the same way every surface does: prefer the role /
@@ -246,6 +243,7 @@ export function RoleTurnActionGroup({
         activeRole={turn.activeRole}
         activeRoom={turn.activeRoom}
         activeWorld={turn.activeWorld}
+        app={app}
         onConfirm={() => void app.runSelectedRoleTurn()}
         onOpenChange={turn.setPreviewOpen}
         open={turn.previewOpen}
@@ -294,80 +292,11 @@ export function RoleTurnEmptyCta({
         activeRole={turn.activeRole}
         activeRoom={turn.activeRoom}
         activeWorld={turn.activeWorld}
+        app={app}
         onConfirm={() => void app.runSelectedRoleTurn()}
         onOpenChange={turn.setPreviewOpen}
         open={turn.previewOpen}
       />
-    </>
-  );
-}
-
-/**
- * Shared run-turn confirmation. Exported so any Enter-driven surface (composer
- * row, empty CTA, command palette) can mount its own controlled instance and
- * route through the exact same preview gate — there is no direct-execute run
- * path anywhere (Don Norman: error prevention).
- */
-export function RunTurnPreviewDialog({
-  activeRole,
-  activeRoom,
-  activeWorld,
-  onConfirm,
-  onOpenChange,
-  open,
-}: {
-  activeRole: { displayName: string; model?: string };
-  activeRoom: Parameters<typeof roomDisplayName>[1];
-  activeWorld: { name: string };
-  onConfirm: () => void;
-  onOpenChange: (open: boolean) => void;
-  open: boolean;
-}) {
-  const { t } = useI18n();
-  return (
-    <Dialog onOpenChange={onOpenChange} open={open}>
-      <DialogContent data-testid="run-turn-preview">
-        <DialogHeader>
-          <DialogTitle>{t("workspace.runTurnPreviewTitle")}</DialogTitle>
-          <DialogDescription>{t("workspace.runTurnPreviewCancelHint")}</DialogDescription>
-        </DialogHeader>
-        <dl className="grid grid-cols-[auto_minmax(0,1fr)] gap-x-4 gap-y-2 text-[14px]">
-          <PreviewRow label={t("workspace.runTurnPreviewRole")} value={activeRole.displayName} />
-          <PreviewRow
-            label={t("workspace.runTurnPreviewModel")}
-            value={activeRole.model ?? t("common.default")}
-          />
-          <PreviewRow
-            label={t("workspace.runTurnPreviewTarget")}
-            value={`${activeWorld.name} · ${roomDisplayName(t, activeRoom)}`}
-          />
-        </dl>
-        <DialogFooter>
-          <Button onClick={() => onOpenChange(false)} type="button" variant="outline">
-            {t("common.cancel")}
-          </Button>
-          <Button
-            data-testid="run-turn-preview-confirm"
-            onClick={() => {
-              onOpenChange(false);
-              onConfirm();
-            }}
-            type="button"
-          >
-            <Bot className="size-4" />
-            {t("workspace.runTurn")}
-          </Button>
-        </DialogFooter>
-      </DialogContent>
-    </Dialog>
-  );
-}
-
-function PreviewRow({ label, value }: { label: string; value: string }) {
-  return (
-    <>
-      <dt className="text-[var(--realm-fg-muted)]">{label}</dt>
-      <dd className="truncate font-medium text-[var(--realm-fg)]">{value}</dd>
     </>
   );
 }

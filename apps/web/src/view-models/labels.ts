@@ -45,3 +45,57 @@ export function roomDisplayName(t: Translate, room: { type: Room["type"]; name: 
     !authored || PLACEHOLDER_ROOM_NAMES.has(authored) || ENGLISH_WORLD_MAIN_DEFAULTS.has(authored);
   return isLeakedDefault ? t("workspace.allHands") : authored;
 }
+
+/**
+ * A single ambient world-pulse fact: a zh-CN `label` and a short stringified
+ * `value` (e.g. {label:"时令", value:"初春"}). Pure-data so the ultra-wide
+ * WorldPulseGutter can render the live world snapshot without owning any
+ * state-shape knowledge — it reads the SAME `worldState.state` object the context
+ * rail flattens, never a separate data path.
+ */
+export type WorldPulseFact = { key: string; label: string; value: string };
+
+/** Read a scalar (string / number) from a possibly-missing nested record. */
+function scalarAt(record: Record<string, unknown> | undefined, key: string): string | undefined {
+  const value = record?.[key];
+  if (typeof value === "string") {
+    const trimmed = value.trim();
+    return trimmed.length > 0 ? trimmed : undefined;
+  }
+  if (typeof value === "number") {
+    return String(value);
+  }
+  return undefined;
+}
+
+/** Narrow an unknown to a plain (non-array) object so nested reads stay safe. */
+function asRecord(value: unknown): Record<string, unknown> | undefined {
+  return typeof value === "object" && value !== null && !Array.isArray(value)
+    ? (value as Record<string, unknown>)
+    : undefined;
+}
+
+/**
+ * Extract the OPTIONAL ambient time/place facts (时令 / 天数 / 地点) from a live
+ * world state. These live under the curated `publicState.world` container in the
+ * canonical schema (see the cultivation example: season / day / location). Only
+ * facts that are actually present are returned — nothing is fabricated — so the
+ * gutter gracefully shows fewer rows on a sparse world. Pure + unit-testable.
+ */
+export function worldPulseFacts(state: Record<string, unknown> | undefined): WorldPulseFact[] {
+  const world = asRecord(asRecord(asRecord(state)?.publicState)?.world);
+  const facts: WorldPulseFact[] = [];
+  const season = scalarAt(world, "season");
+  if (season) {
+    facts.push({ key: "season", label: "时令", value: season });
+  }
+  const day = scalarAt(world, "day");
+  if (day) {
+    facts.push({ key: "day", label: "天数", value: `第 ${day} 天` });
+  }
+  const location = scalarAt(world, "location");
+  if (location) {
+    facts.push({ key: "location", label: "地点", value: location });
+  }
+  return facts;
+}

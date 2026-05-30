@@ -8,7 +8,6 @@ import {
   PlugZap,
   Plus,
   Search,
-  ShieldAlert,
 } from "lucide-react";
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { GroupAvatarGrid } from "@/components/messenger/messenger-primitives.tsx";
@@ -19,11 +18,14 @@ import { ScrollArea } from "@/components/ui/scroll-area";
 import { useI18n } from "@/i18n/index.tsx";
 import { worldModeLabel } from "@/view-models/labels.ts";
 import { filterWorldsForManager } from "@/view-models/world-manager-view-model.ts";
+import {
+  type TrustCapabilities,
+  WorldManagerTrustSection,
+} from "./trust-elevation-confirm-dialog.tsx";
 import type { RealmAppController } from "./types.ts";
+import { useWorldManagerTrust } from "./use-world-manager-trust.ts";
 import type { OperatorInfo } from "./world-manager-parts.tsx";
 import { QuickStart, WorldManagerHeader, WorldManagerSkeleton } from "./world-manager-parts.tsx";
-
-type TrustTier = "read-only" | "run-roles" | "elevated-tools";
 
 /**
  * The command-palette shortcut hint, rendered next to the affordance so the
@@ -41,11 +43,6 @@ function commandShortcutLabel(): string {
   ).toLowerCase();
   return platform.includes("mac") ? "⌘K" : "Ctrl K";
 }
-
-type TrustState =
-  | { status: "loading" }
-  | { status: "ready"; tier: TrustTier }
-  | { status: "error" };
 
 export function WorldManagerPage({
   app,
@@ -73,24 +70,19 @@ export function WorldManagerPage({
   const visibleWorlds = filterWorldsForManager(app.state.worlds, app.state.roles, worldSearch);
   const health = app.state.status === "error" ? t("manager.healthAttention") : t("common.ready");
 
-  const [trust, setTrust] = useState<TrustState>({ status: "loading" });
-  const [trusting, setTrusting] = useState(false);
-  const [trustFailed, setTrustFailed] = useState(false);
   const [operator, setOperator] = useState<OperatorInfo>({ isMockRuntime: false });
+  // Concrete capabilities (shell / network) the project's security config unlocks
+  // alongside run-roles, named in the confirmation so the blast radius is legible.
+  const [capabilities, setCapabilities] = useState<TrustCapabilities>({
+    network: false,
+    shell: false,
+  });
   const [copied, setCopied] = useState(false);
 
-  const refreshTrust = useCallback(async () => {
-    try {
-      const policy = await client.getEffectivePolicy();
-      setTrust({ status: "ready", tier: policy.trustTier });
-    } catch {
-      setTrust({ status: "error" });
-    }
-  }, [client]);
-
-  useEffect(() => {
-    void refreshTrust();
-  }, [refreshTrust]);
+  // EP-R2-2 / MC-R2-3: trust tier, the elevation confirmation gate, and the
+  // always-safe revert path all live in one tested unit, fed the security-derived
+  // capabilities so the confirmation can name the concrete blast radius.
+  const trust = useWorldManagerTrust(app, capabilities);
 
   // Resolve operator context (project path / provider / runtime) for the strip.
   useEffect(() => {
@@ -111,23 +103,19 @@ export function WorldManagerPage({
         isMockRuntime:
           healthRes.status === "fulfilled" && healthRes.value.runtime.adapterKind === "fake",
       });
+      if (settings.status === "fulfilled") {
+        // project.security gates whether run-roles also unlocks shell / network,
+        // so surface those flags in the elevation confirmation (EP-R2-2).
+        const security = settings.value.project.security;
+        setCapabilities({
+          network: security.allowNetworkByDefault,
+          shell: security.allowProjectShellByDefault,
+        });
+      }
     })();
     return () => {
       cancelled = true;
     };
-  }, [client]);
-
-  const handleTrustProject = useCallback(async () => {
-    setTrusting(true);
-    setTrustFailed(false);
-    try {
-      const response = await client.setTrust("run-roles");
-      setTrust({ status: "ready", tier: response.trustTier });
-    } catch {
-      setTrustFailed(true);
-    } finally {
-      setTrusting(false);
-    }
   }, [client]);
 
   const copyRootPath = useCallback(() => {
@@ -140,14 +128,13 @@ export function WorldManagerPage({
   }, [operator.rootPath]);
 
   const trustLabel =
-    trust.status === "ready"
-      ? trust.tier === "read-only"
-        ? t("manager.trustReadOnly")
-        : trust.tier === "run-roles"
-          ? t("manager.trustRunRoles")
-          : t("manager.trustElevated")
-      : t("common.loading");
-  const isReadOnly = trust.status === "ready" && trust.tier === "read-only";
+    trust.tier === "read-only"
+      ? t("manager.trustReadOnly")
+      : trust.tier === "run-roles"
+        ? t("manager.trustRunRoles")
+        : trust.tier === "elevated-tools"
+          ? t("manager.trustElevated")
+          : t("common.loading");
 
   // QuickStart's enter-room step is only actionable when worlds exist (it is
   // disabled at zero), so this always enters the first world at its call site.
@@ -181,39 +168,14 @@ export function WorldManagerPage({
 
       <ScrollArea className="min-h-0 flex-1">
         <section className="mx-auto flex w-full max-w-5xl flex-col gap-3 px-4 py-4">
-          {isReadOnly ? (
-            <div
-              className="realm-rise flex flex-col gap-3 rounded-xl bg-[var(--realm-impersonate-soft)] p-4 sm:flex-row sm:items-center"
-              data-testid="trust-banner"
-            >
-              <ShieldAlert className="size-5 shrink-0 text-[var(--realm-warning)]" />
-              <div className="min-w-0 flex-1">
-                <div className="font-medium text-[14px] text-[var(--realm-fg)]">
-                  {t("manager.trustBannerTitle")}
-                </div>
-                <p className="mt-0.5 text-[13px] text-[var(--realm-fg-muted)] leading-5">
-                  {t("manager.trustBannerBody")}
-                </p>
-                {trustFailed ? (
-                  <p
-                    className="mt-1 text-[12px] text-[var(--realm-danger)]"
-                    data-testid="trust-banner-error"
-                  >
-                    {t("manager.trustBannerError")}
-                  </p>
-                ) : null}
-              </div>
-              <Button
-                className="h-9 shrink-0 rounded-lg px-4 text-[14px]"
-                data-testid="trust-project"
-                disabled={trusting}
-                onClick={() => void handleTrustProject()}
-                type="button"
-              >
-                {trusting ? t("manager.trustBannerPending") : t("manager.trustBannerAction")}
-              </Button>
-            </div>
-          ) : null}
+          {/* EP-R2-2 / MC-R2-3: read-only elevation banner (gated by a confirm),
+           * the non-read-only trust-status row with the always-safe revert
+           * control, and the shared confirmation dialog — one trust unit. */}
+          <WorldManagerTrustSection
+            rootPath={operator.rootPath}
+            trust={trust}
+            trustLabel={trustLabel}
+          />
 
           {/* DISC-4: when no provider is configured (or the live runtime is the
            * mock adapter) role turns silently use the fake runtime. Surface a

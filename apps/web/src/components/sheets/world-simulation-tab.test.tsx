@@ -2,7 +2,7 @@ import { describe, expect, test } from "bun:test";
 import { renderToStaticMarkup } from "react-dom/server";
 import type { RealmAppController } from "@/app/types.ts";
 import { I18nProvider } from "@/i18n/index.tsx";
-import { consequenceCopy, WorldSimulationTab } from "./world-simulation-tab.tsx";
+import { consequenceCopy, outcomeText, WorldSimulationTab } from "./world-simulation-tab.tsx";
 
 describe("world simulation tab gating copy", () => {
   test("zh-CN run consequence names the world, the tick count, and irreversibility", () => {
@@ -15,6 +15,21 @@ describe("world simulation tab gating copy", () => {
 
   test("zh-CN fork consequence names the branch label", () => {
     expect(consequenceCopy["zh-CN"].forkBody("分支一")).toContain("分支一");
+  });
+
+  test("L6-R2-3: zh-CN fork body drops the raw English 'Fork' and uses 世界分支", () => {
+    const body = consequenceCopy["zh-CN"].forkBody("分支一");
+    expect(body).not.toContain("Fork");
+    // Same term as forkTitle / forkNotice.
+    expect(body).toContain("世界分支");
+    expect(consequenceCopy["zh-CN"].forkTitle).toContain("世界分支");
+  });
+
+  test("FB2-3: pause and resume produce localized green-notice confirmations", () => {
+    expect(consequenceCopy["zh-CN"].pauseNotice).toContain("已暂停");
+    expect(consequenceCopy["zh-CN"].resumeNotice).toContain("已恢复");
+    expect(consequenceCopy.en.pauseNotice).toContain("Paused");
+    expect(consequenceCopy.en.resumeNotice).toContain("Resumed");
   });
 
   test("en run consequence states it cannot be undone", () => {
@@ -41,6 +56,13 @@ describe("world simulation tab gating copy", () => {
     expect(consequenceCopy["zh-CN"].runNotice(12, 4)).toContain("4");
     expect(consequenceCopy["zh-CN"].forkNotice("分支一")).toContain("分支一");
   });
+
+  test("FB2-3: outcomeText routes pause/resume to the localized notices", () => {
+    const copy = consequenceCopy["zh-CN"];
+    const noop = ((key: string) => key) as never;
+    expect(outcomeText({ kind: "pause" }, copy, noop)).toBe(copy.pauseNotice);
+    expect(outcomeText({ kind: "resume" }, copy, noop)).toBe(copy.resumeNotice);
+  });
 });
 
 describe("world simulation tab render", () => {
@@ -60,6 +82,32 @@ describe("world simulation tab render", () => {
     // The confirm dialog and outcome notice are not present until an action.
     expect(html).not.toContain('data-testid="sim-confirm-accept"');
     expect(html).not.toContain('data-testid="sim-outcome"');
+  });
+
+  test("FB2-1: status is loading on first paint, not a false idle/tick-0", () => {
+    const html = renderToStaticMarkup(
+      <I18nProvider>
+        <WorldSimulationTab app={mockApp()} />
+      </I18nProvider>,
+    );
+    // Status effect has not resolved during static render, so metrics show the
+    // em-dash placeholder with an sr-only loading label, never 空闲 / Idle / 0.
+    expect(html).toContain("—");
+    expect(html).toContain(consequenceCopy["zh-CN"].loading);
+    expect(html).not.toContain(">空闲<");
+  });
+
+  test("CL-5: only the contextually-valid transport control renders (idle → Pause)", () => {
+    const html = renderToStaticMarkup(
+      <I18nProvider>
+        <WorldSimulationTab app={mockApp()} />
+      </I18nProvider>,
+    );
+    // Status is not yet paused on first paint, so Pause shows and Resume does not.
+    expect(html).toContain('data-testid="sim-pause"');
+    expect(html).not.toContain('data-testid="sim-resume"');
+    // The mutating controls sit under the "Advance / branch" altitude-2 heading.
+    expect(html).toContain(consequenceCopy["zh-CN"].groupAdvance);
   });
 });
 

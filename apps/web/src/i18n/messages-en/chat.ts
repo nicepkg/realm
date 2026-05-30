@@ -1,0 +1,41 @@
+/**
+ * English: the God Chat surface — shell, composer, seeded suggestions,
+ * inline action cards (config / God / state-patch / run-turn), feedback,
+ * and the context rail. zh-CN is authoritative; this is the parallel.
+ */
+export const chatEn = {
+  "chat.title": "Talk to Heaven",
+  "chat.placeholder": "Talk to “Heaven” — create, shape, and command this world…",
+  "chat.send": "Send",
+  "chat.busy": "Heaven is acting…",
+  "chat.confirm": "Confirm",
+  "chat.cancel": "Cancel",
+  "chat.advanced": "Advanced",
+  "chat.error.retry": "Retry",
+  "chat.suggestion.createWorld": "Create a cultivation world with three realms",
+  "chat.suggestion.controlRole": "Have the protagonist break through to Foundation Establishment",
+  "chat.suggestion.inspect": "Show me the current state of this world",
+  "chat.card.configTitle": "Config change",
+  "chat.card.godTitle": "Decree of Heaven",
+  "chat.card.statePatchTitle": "State update",
+  "chat.card.runTurnTitle": "Role turn",
+  "chat.feedback.applied": "Applied",
+  "chat.feedback.failed": "Failed to apply",
+  "chat.contextRail.worldState": "World state",
+  "chat.contextRail.roles": "Roles",
+  "chat.contextSheet.title": "Current world",
+  "chat.contextSheet.description":
+    "Glance at this world's state and roles, or make a precise tweak.",
+  "chat.contextSheet.stateTitle": "World state",
+  "chat.contextSheet.rolesTitle": "Roles",
+  "chat.contextSheet.emptyState": "This world is still a blank slate.",
+  "chat.contextSheet.emptyRoles": "No roles yet.",
+  "chat.contextSheet.stateMeta": (version: number, fieldCount: number) =>
+    `v${version} · ${fieldCount} fields`,
+  "chat.contextSheet.rolesMeta": (count: number) => `${count} roles`,
+  "chat.contextSheet.tweaksTitle": "Precise tweaks",
+  "chat.contextSheet.commandPalette": "Command palette",
+  "chat.contextSheet.commandPaletteHint": "Finer actions and advanced surfaces (⌘K)",
+  "chat.contextSheet.settings": "Settings",
+  "chat.contextSheet.settingsHint": "Model, runtime, and config import/export",
+};

@@ -1,4 +1,5 @@
 import type { MessageValue } from "./message-types.ts";
+import { chatEn } from "./messages-en/chat.ts";
 import { inspectorEn } from "./messages-en/inspector.ts";
 import { managerEn } from "./messages-en/manager.ts";
 import { navEn } from "./messages-en/nav.ts";
@@ -18,4 +19,5 @@ export const en = {
   ...sheetsEn,
   ...workspaceEn,
   ...systemEn,
+  ...chatEn,
 } satisfies Record<string, MessageValue>;

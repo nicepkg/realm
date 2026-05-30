@@ -140,6 +140,11 @@ export const sheetsZhCn = {
   "sheet.god.noValidAction": "当前角色状态无可执行操作。",
   "sheet.god.recoveryReason":
     "该裁决已记入可审计的世界事件；如需撤销，请发起一次补偿性的上帝裁决。",
+  "sheet.god.undoSeeded":
+    "已为同一角色预填一条复活裁决，请在上方重新确认，让它走同一道门槛后生效。",
+  "sheet.god.undoReason": "撤销上一条裁决",
+  "sheet.god.obsoleteNote":
+    "裁决无法编辑或隐藏，会作为可审计的世界事件长期保留。如需撤销，请在上方发起一次新的上帝裁决。",
   "sheet.config.applying": "应用中...",
   "sheet.config.revising": "生成中...",
   "sheet.createWorld.previewing": "预览中...",

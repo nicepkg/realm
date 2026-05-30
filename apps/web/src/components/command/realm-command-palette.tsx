@@ -135,7 +135,11 @@ export function RealmCommandPalette({
           <CommandEmpty>{t("command.empty")}</CommandEmpty>
           <CommandGroup heading={t("command.group.navigation")}>
             {mode === "workspace" ? (
-              <CommandItem value="back worlds manager" onSelect={() => runCommand(onBackToWorlds)}>
+              <CommandItem
+                data-testid="command-back-to-worlds"
+                value="back worlds manager"
+                onSelect={() => runCommand(onBackToWorlds)}
+              >
                 <ArrowLeft className="size-4" />
                 <span>{t("command.backToManager")}</span>
               </CommandItem>

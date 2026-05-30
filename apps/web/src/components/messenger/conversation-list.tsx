@@ -9,6 +9,7 @@ import {
   RoomAvatar,
 } from "@/components/messenger/messenger-primitives.tsx";
 import { openChatWithRole } from "@/components/sheets/role-inspector-actions.ts";
+import { Button } from "@/components/ui/button";
 import { useI18n } from "@/i18n/index.tsx";
 import { cn } from "@/lib/utils.ts";
 import type { ConversationSectionKey } from "@/view-models/conversation-prefs.ts";
@@ -308,21 +309,25 @@ function RoleRow({
 }) {
   const { t } = useI18n();
   const [opening, setOpening] = useState(false);
+  // The most-tapped contact affordance must never fail silently: a rejected
+  // resolve-or-create (read-only, trust, network) surfaces inline on the row so
+  // the operator sees a recoverable failure instead of a spinner that vanishes.
+  const [failed, setFailed] = useState(false);
 
-  // Resolve-or-create the DM and land the messenger in it. Failure leaves the
-  // contact list intact; the messenger surfaces send/turn errors in-pane, so a
-  // transient open failure simply leaves the operator where they were.
+  // Resolve-or-create the DM and land the messenger in it. On failure we keep
+  // the operator on the contact list and raise a calm inline error + Retry, the
+  // same recoverable-failure grammar used by the in-pane send-error surface.
   async function openChat() {
     if (opening) {
       return;
     }
     setOpening(true);
+    setFailed(false);
     try {
       await openChatWithRole(app, role);
       onSelect?.();
     } catch {
-      // Swallowed: the row stays selectable and the operator can retry. A toast
-      // layer is out of scope for this list primitive.
+      setFailed(true);
     } finally {
       setOpening(false);
     }
@@ -358,6 +363,37 @@ function RoleRow({
       >
         <Info aria-hidden="true" className="size-4" />
       </button>
+      {failed && !opening ? (
+        <RoleOpenError onRetry={() => void openChat()} roleId={role.id} />
+      ) : null}
+    </div>
+  );
+}
+
+/**
+ * Calm inline failure for a contact open. Not a banner: a quiet danger line +
+ * a Retry that re-invokes the open, mirroring the in-pane send-error recovery
+ * grammar (message + retry) while staying inside the contact row's footprint.
+ */
+export function RoleOpenError({ onRetry, roleId }: { onRetry: () => void; roleId: string }) {
+  const { t } = useI18n();
+  return (
+    <div
+      className="flex items-center gap-2 px-3 pt-0 pb-2 text-[12px] text-[var(--realm-danger)]"
+      data-testid={`role-row-${roleId}-open-error`}
+      role="alert"
+    >
+      <span className="min-w-0 flex-1 truncate">{t("inspector.openChatFailed")}</span>
+      <Button
+        className="h-6 shrink-0 px-2 text-[12px]"
+        data-testid={`role-row-${roleId}-open-retry`}
+        onClick={onRetry}
+        size="sm"
+        type="button"
+        variant="ghost"
+      >
+        {t("common.retry")}
+      </Button>
     </div>
   );
 }

@@ -186,8 +186,10 @@ function GodResultNotice({ result }: { result: StatePatchResult }) {
  * answer forming in place — the real token text, not an opaque "thinking…". A
  * live elapsed counter + inline Cancel stay available throughout. The body's
  * min-height is reserved so the bubble never collapses/jumps as tokens append
- * (taste rule: streaming must not shift layout). reduced-motion is handled by
- * Shimmer and the bubble entrance honors the global reduced-motion guard.
+ * (taste rule: streaming must not shift layout). Shimmer self-guards reduced
+ * motion via `useReducedMotion` (rendering static muted text instead of the
+ * infinite JS-driven sweep), and the bubble entrance honors the global
+ * CSS reduced-motion guard.
  */
 function RunningTurnBubble({
   cancelDisabled,

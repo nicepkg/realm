@@ -276,3 +276,33 @@ select {
 .realm-mode-root {
   view-transition-name: realm-mode;
 }
+
+/* ─────────────── Ultra-wide (≥1536px / 2xl) composition cap ───────────────
+ * On ≥1536px viewports the chat shell (conversation column + context rail) is a
+ * full-bleed flex row. Because the rail is pinned to the right edge while the
+ * reading column is capped at max-w-4xl and centered INSIDE the (very wide)
+ * conversation column, the right half drifts empty: a large dead gutter opens
+ * between the reading column's right edge and the rail, and another past the
+ * rail to the viewport edge. The 864px reading measure itself is correct Apple
+ * chat typography (NOT a bug), so we do NOT touch the reading width.
+ *
+ * Fix (pure CSS, no TSX change): cap the WHOLE shell composition and center it
+ * in the viewport. This re-balances the layout symmetrically — the surplus that
+ * was all on the right is split into matching left/right gutters — so the right
+ * half no longer reads as uniquely empty, while the reading column and composer
+ * (which share the same `mx-auto max-w-4xl` measure inside the conversation
+ * column) stay perfectly aligned to one another and are not torn apart.
+ *
+ * The cap equals the breakpoint (1536px) so the transition is seamless: at
+ * exactly 1536px viewport the shell is still full width (no jump at the
+ * boundary); centering gutters only grow as the viewport exceeds 1536px (e.g.
+ * 192px each side at 1920px). Scoped to ≥1536px, so <1536px is pixel-identical.
+ * Hooks the root shell via its stable data-testid; touches only inline size +
+ * centering, leaving height / dvh / safe-area / reduced-motion rules untouched.
+ */
+@media (min-width: 1536px) {
+  [data-testid="god-chat-shell"] {
+    max-width: 1536px;
+    margin-inline: auto;
+  }
+}

@@ -91,6 +91,9 @@ export const workspaceZhCn = {
   "workspace.runTurnPreviewTitle": "运行角色回合",
   "workspace.runTurnPreviewRole": "角色",
   "workspace.runTurnPreviewModel": "模型",
+  // 本轮由哪个运行时作答——显式标注模拟运行时，避免把模拟回复误当成真实模型输出（DISC-R2-5）。
+  "workspace.runTurnPreviewRuntime": "运行时",
+  "workspace.runTurnRuntimeMock": "模拟运行时",
   "workspace.runTurnPreviewTarget": "目标房间",
   "workspace.runTurnPreviewPermissions": "权限",
   "workspace.runTurnPreviewCancelHint": "运行后可随时取消。",

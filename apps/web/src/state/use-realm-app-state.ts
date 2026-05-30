@@ -22,6 +22,13 @@ import {
 import { useConversationPrefs } from "@/state/use-conversation-prefs.ts";
 import { useMessageSend } from "@/state/use-message-send.ts";
 import { useTurnActions } from "@/state/use-turn-actions.ts";
+import {
+  persistableWorldId,
+  readLastWorldId,
+  resolveLoadedWorld,
+  resolveSelectedWorld,
+  writeLastWorldId,
+} from "@/state/world-selection.ts";
 import { buildConversationRows, isTraceEvent } from "@/view-models/realm-view-model.ts";
 
 export type {
@@ -31,6 +38,21 @@ export type {
   SendError,
   TurnRunState,
 } from "@/state/realm-app-state-model.ts";
+
+// Re-export so existing import sites (and tests) keep their path while the impl
+// lives co-located with the rest of world-selection in `world-selection.ts`.
+export { readLastWorldId, writeLastWorldId } from "@/state/world-selection.ts";
+
+/**
+ * `loadRealm` options extended with the world-selection authority flag. Kept local
+ * (rather than widening the shared model type) because authority is a concern of
+ * THIS hook's world-switch orchestration, not of the pure model. When true, the
+ * requested `preferredWorldId` is treated as an authoritative selection that wins
+ * even before it lands in the loaded roster (a just-created world racing a reload).
+ */
+type LoadRealmCallOptions = LoadRealmOptions & {
+  authoritativeWorld?: boolean;
+};
 
 export function useRealmAppState() {
   const { t } = useI18n();
@@ -44,8 +66,15 @@ export function useRealmAppState() {
   // id = that role account's view (Boss remains the audited real operator).
   const [viewerIdentity, setViewerIdentityState] = useState("owner");
   const [runRoleId, setRunRoleId] = useState("");
-  const [selectedWorldId, setSelectedWorldId] = useState<string | undefined>();
+  // Restore the operator's last-selected world across reloads. `loadRealm` already
+  // falls back cleanly (defaultWorldId → worlds[0]) and re-persists the resolved id
+  // via `setSelectedWorldId`, so a stale stored id self-heals on the first load.
+  const [selectedWorldId, setSelectedWorldId] = useState<string | undefined>(readLastWorldId);
   const [selectedRoomId, setSelectedRoomId] = useState<string | undefined>();
+  // Live mirror of the selected world so a background reload reconciles the CURRENT
+  // selection, never the id captured at effect setup (the stale-closure revert bug).
+  const selectedWorldIdRef = useRef<string | undefined>(selectedWorldId);
+  selectedWorldIdRef.current = selectedWorldId;
   // A persisted non-owner viewer identity is never silently re-activated on world
   // entry (L4-01). It is stashed here as a suggestion the operator can confirm
   // through the gated takeover dialog via `resumeIdentity`.
@@ -74,13 +103,22 @@ export function useRealmAppState() {
   const reconcileGodActionRoleRef = useRef<(roles: AppState["roles"]) => void>(() => {});
 
   const loadRealm = useCallback(
-    async (preferredWorldId?: string, preferredRoomId?: string, options: LoadRealmOptions = {}) => {
+    async (
+      preferredWorldId?: string,
+      preferredRoomId?: string,
+      options: LoadRealmCallOptions = {},
+    ) => {
       try {
         const effective = await client.getEffectiveConfig();
-        const world =
-          effective.worlds.find((candidate) => candidate.id === preferredWorldId) ??
-          effective.worlds.find((candidate) => candidate.id === effective.project.defaultWorldId) ??
-          effective.worlds[0];
+        // Resolve the world WITHOUT the old silent snap to worlds[0]: an authoritative
+        // selection wins even when absent (just-created world racing a reload); an
+        // implicit restore self-heals a stale id. See `resolveLoadedWorld`.
+        const resolution = resolveLoadedWorld(effective.worlds, {
+          preferredWorldId,
+          defaultWorldId: effective.project.defaultWorldId,
+          authoritative: Boolean(options.authoritativeWorld),
+        });
+        const world = resolution.world;
         const rooms = world ? (await client.listRooms(world.id)).rooms : [];
         const room =
           rooms.find((candidate) => candidate.id === preferredRoomId) ??
@@ -119,8 +157,12 @@ export function useRealmAppState() {
               }
             : undefined,
         });
-        setSelectedWorldId(world?.id);
-        setSelectedRoomId(room?.id);
+        // Keep the requested id for an authoritative-but-absent world (never revert);
+        // only touch the room when a real world resolved (an absent world has none).
+        setSelectedWorldId(resolution.selectedWorldId);
+        if (world) {
+          setSelectedRoomId(room?.id);
+        }
         setIdentity((current) =>
           resolveIdentityAfterRealmLoad(current, nextIdentities, options.resetIdentity),
         );
@@ -142,32 +184,43 @@ export function useRealmAppState() {
           ),
         );
         reconcileGodActionRoleRef.current(effective.roles);
+        return resolution;
       } catch (error) {
         setState((current) => ({
           ...current,
           error: error instanceof Error ? error.message : String(error),
           status: "error",
         }));
+        return undefined;
       }
     },
     [client],
   );
 
-  const scheduleReload = useCallback(
-    (preferredWorldId?: string, preferredRoomId?: string) => {
-      if (reloadTimerRef.current) {
-        return;
-      }
-      reloadTimerRef.current = setTimeout(() => {
-        reloadTimerRef.current = undefined;
-        void loadRealm(preferredWorldId, preferredRoomId);
-      }, 100);
+  // Void-returning reload adapter for consumers that only need the side effect
+  // (turn actions), keeping `loadRealm`'s resolution return for the world-switch path.
+  const reloadRealm = useCallback(
+    async (preferredWorldId?: string, preferredRoomId?: string): Promise<void> => {
+      await loadRealm(preferredWorldId, preferredRoomId);
     },
     [loadRealm],
   );
 
-  const selectedWorld =
-    state.worlds.find((world) => world.id === selectedWorldId) ?? state.worlds[0];
+  // A background reload (SSE event / reconnect) reconciles the CURRENT selection
+  // read from refs at fire time, NOT an id captured at effect setup — killing the
+  // stale-closure bug that reverted a just-selected world. Non-authoritative: it may
+  // self-heal a genuinely stale id, but the live id is always the fresh selection.
+  const scheduleReload = useCallback(() => {
+    if (reloadTimerRef.current) {
+      return;
+    }
+    reloadTimerRef.current = setTimeout(() => {
+      reloadTimerRef.current = undefined;
+      void loadRealm(selectedWorldIdRef.current, selectedRoomIdRef.current);
+    }, 100);
+  }, [loadRealm]);
+
+  const selectedWorld = resolveSelectedWorld(state.worlds, selectedWorldId);
   const selectedRoom =
     state.rooms.find((room) => room.id === selectedRoomId) ??
     state.rooms.find((room) => room.id === selectedWorld?.defaultRoomId) ??
@@ -205,7 +258,7 @@ export function useRealmAppState() {
   const turn = useTurnActions({
     client,
     events: state.events,
-    loadRealm,
+    loadRealm: reloadRealm,
     runRoleId,
     selectedRoom,
     selectedWorld,
@@ -244,7 +297,10 @@ export function useRealmAppState() {
   useEffect(() => {
     let disconnect = () => {};
     let disposed = false;
-    void loadRealm(selectedWorldId, selectedRoomId).then(() => {
+    // Boot load (implicit restore) + a mount-once SSE subscription that reconciles
+    // the LIVE selection via `scheduleReload` (refs), so switching worlds never
+    // rebuilds the stream and a background reload never reverts a just-made selection.
+    void loadRealm(selectedWorldIdRef.current, selectedRoomIdRef.current).then(() => {
       if (disposed) {
         return;
       }
@@ -253,7 +309,7 @@ export function useRealmAppState() {
           if (seq !== undefined && seq <= latestEventSeqRef.current) {
             return;
           }
-          scheduleReload(selectedWorldId, selectedRoomId);
+          scheduleReload();
         },
         latestEventSeqRef.current,
         (status) => {
@@ -264,7 +320,7 @@ export function useRealmAppState() {
           // connection only replays from `lastSeq`, but a full reload reconciles
           // room/world state that changed during the outage.
           if (recovered) {
-            scheduleReload(selectedWorldId, selectedRoomId);
+            scheduleReload();
           }
         },
       );
@@ -277,7 +333,7 @@ export function useRealmAppState() {
         reloadTimerRef.current = undefined;
       }
     };
-  }, [loadRealm, scheduleReload, selectedWorldId, selectedRoomId]);
+  }, [loadRealm, scheduleReload]);
 
   /**
    * Switch the viewer account (WeChat-style account login). The whole messenger
@@ -327,7 +383,12 @@ export function useRealmAppState() {
     // honest pending flag the header reads while the realm reload is in flight.
     setSwitching(true);
     setSelectedWorldId(worldId);
+    // Imperatively advance the live ref too, so a concurrent SSE-triggered reload
+    // reconciles THIS id, not the previous selection captured before this render
+    // commits — the just-created world must win the moment it is selected.
+    selectedWorldIdRef.current = worldId;
     setSelectedRoomId(undefined);
+    selectedRoomIdRef.current = undefined;
     setDraft("");
     turn.resetTurnRun();
     setActiveSection("chats");
@@ -340,7 +401,17 @@ export function useRealmAppState() {
     setIdentity("owner");
     setPendingResumeIdentity(pendingResumeFromStoredIdentity(restoredViewer));
     try {
-      await loadRealm(worldId, undefined, { resetIdentity: true });
+      // Authoritative: this selection wins even if the world has not yet landed in the
+      // roster (a just-created world racing a reload), so the load can NEVER snap back
+      // to worlds[0]. Persist ONLY the id that resolved to a real world (no ghost id).
+      const resolution = await loadRealm(worldId, undefined, {
+        resetIdentity: true,
+        authoritativeWorld: true,
+      });
+      const persistId = resolution ? persistableWorldId(resolution) : undefined;
+      if (persistId) {
+        writeLastWorldId(persistId);
+      }
     } finally {
       setSwitching(false);
     }
@@ -351,6 +422,9 @@ export function useRealmAppState() {
     // honest pending flag the header reads while the realm reload is in flight.
     setSwitching(true);
     setSelectedRoomId(roomId);
+    // Keep the live ref in lockstep so a concurrent background reload reconciles the
+    // room just selected, not the previous one captured before this render commits.
+    selectedRoomIdRef.current = roomId;
     setActiveSection("chats");
     // MC-R4-1 decision: switching to a room the impersonated viewer is NOT a member
     // of does NOT auto-exit takeover (that would be a surprising side effect) and

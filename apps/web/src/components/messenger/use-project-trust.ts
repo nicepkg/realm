@@ -57,8 +57,17 @@ export function useProjectTrust(app: RealmAppController) {
     }
   }, [client]);
 
+  // Lowering back to read-only is always safe (it only removes capability), so
+  // unlike raiseTrust it needs no confirmation gate. Mirrors raiseTrust so both
+  // the composer and the World Manager can offer a one-call revert (MC-R2-3).
+  const lowerTrust = useCallback(async () => {
+    const response = await client.setTrust("read-only");
+    setTrust({ status: "ready", tier: response.trustTier });
+  }, [client]);
+
   return {
     isReadOnly: trust.status === "ready" && trust.tier === "read-only",
+    lowerTrust,
     raiseFailed,
     raiseTrust,
     raising,
