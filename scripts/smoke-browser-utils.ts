@@ -87,12 +87,28 @@ async function clickInPage(
       const element = document.querySelector(${JSON.stringify(selector)});
       if (!element) throw new Error("Missing selector: ${selector}");
       if (element instanceof HTMLElement) element.focus();
-      const pointerOptions = { bubbles: true, button: 0, cancelable: true, pointerType: "mouse" };
+      // Radix SelectItem commits its value only when a correlated pointerdown →
+      // pointermove → pointerup sequence lands on the SAME item (it tracks the
+      // pointerId and treats an uncorrelated tap as a no-op). Carry a stable
+      // pointerId + isPrimary across the whole sequence so Select items, menu
+      // items, dialog buttons, and plain controls all commit reliably under
+      // automation — without this a Select silently keeps its previous value.
+      const pointerOptions = {
+        bubbles: true,
+        button: 0,
+        cancelable: true,
+        isPrimary: true,
+        pointerId: 1,
+        pointerType: "mouse",
+      };
       const mouseOptions = { bubbles: true, button: 0, cancelable: true };
+      element.dispatchEvent(new PointerEvent("pointerover", pointerOptions));
+      element.dispatchEvent(new PointerEvent("pointerenter", pointerOptions));
+      element.dispatchEvent(new PointerEvent("pointermove", pointerOptions));
       element.dispatchEvent(new PointerEvent("pointerdown", pointerOptions));
       element.dispatchEvent(new MouseEvent("mousedown", mouseOptions));
-      element.dispatchEvent(new MouseEvent("mouseup", mouseOptions));
       element.dispatchEvent(new PointerEvent("pointerup", pointerOptions));
+      element.dispatchEvent(new MouseEvent("mouseup", mouseOptions));
       element.click();
       return true;
     })();

@@ -19,6 +19,13 @@ import {
 // it matches before any repaint) — the script exits 4 if help never opens,
 // which `run()` surfaces as a failure; then Esc dismisses it and we exit.
 //
+// We match the help overlay's FIRST visible line ("the primary path"), not the
+// "Keys:" heading: the NL-first rebuild prepended a "Just talk to 天道" intro
+// section, and the overlay box (maxHeight 70%) renders only its top portion to
+// the PTY, so "Keys:" now sits below the fold and never reaches the stream. The
+// intro's first line is contiguous (no OSC-8 hyperlink splits) and unique to the
+// help overlay, so it stays a reliable proof that "?" opened help.
+//
 // The richer interactive behaviors are asserted DETERMINISTICALLY elsewhere,
 // because the TUI repaints with full-screen clears (CSI 2J/3J) that make
 // mid-sequence overlay frames and per-glyph-styled composer text unmatchable in
@@ -32,7 +39,7 @@ import {
 const PTY_INTERACTION_BODY = `
 send "?"
 expect {
-  -re "Keys:" {}
+  -re "the primary path" {}
   timeout { puts stderr "Help overlay did not open on bare ?"; exit 4 }
 }
 send "\\033"

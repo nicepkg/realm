@@ -10,6 +10,7 @@ import {
   assertIncludes,
   assertTrue,
   drain,
+  elevateTrust,
   findAvailablePort,
   parseJsonPayload,
   run,
@@ -55,6 +56,10 @@ void server.exited.then((code) => {
 
 try {
   await waitForHttp(`${url}/api/health`, () => serverExitCode);
+  // The example ships requireTrust:true and the CLI no longer auto-grants trust,
+  // so the fake runtime boots read-only. Elevate exactly as the web smoke does
+  // before any write/send assertion, otherwise every send is blocked by the gate.
+  await elevateTrust(url, "run-roles");
   await runOneShotRender();
   await runOneShotSend();
   await runStatefulInteractionSmoke();
@@ -145,7 +150,7 @@ async function runStatefulInteractionSmoke(): Promise<void> {
   // Picker selection: applyPaletteItem is exactly what the Ctrl+K SelectList
   // onSelect calls. Selecting the whereami item returns the current context.
   const pickerNotice = await app.applyPaletteItem("whereami");
-  assertIncludes(pickerNotice ?? "", "Cultivation", "TUI command palette selection applies");
+  assertIncludes(pickerNotice ?? "", "云岭", "TUI command palette selection applies");
 
   const settingsNotice = await app.handleInteractiveInput("/settings", showHelp, showSettings);
   assertIncludes(settingsNotice ?? "", "Settings", "TUI settings shortcut notice");
@@ -153,8 +158,10 @@ async function runStatefulInteractionSmoke(): Promise<void> {
 
   const identityNotice = await app.handleInteractiveInput(":id leijun", showHelp, showSettings);
   assertIncludes(identityNotice ?? "", "Switch composer identity", "TUI role switch gate");
-  const switchedNotice = await app.handleInteractiveInput("y", showHelp, showSettings);
-  assertIncludes(switchedNotice ?? "", "Speaking as Lei Jun", "TUI role switch confirmation");
+  // Identity takeover is an L2 action: a bare "y" must not commit it. The gate
+  // requires typing the exact target role id (leijun) to confirm.
+  const switchedNotice = await app.handleInteractiveInput("leijun", showHelp, showSettings);
+  assertIncludes(switchedNotice ?? "", "Speaking as 雷军", "TUI role switch confirmation");
 
   const roleMessage = `tui role takeover smoke ${Date.now()}`;
   const rolePrompt = await app.handleInteractiveInput(
@@ -162,9 +169,9 @@ async function runStatefulInteractionSmoke(): Promise<void> {
     showHelp,
     showSettings,
   );
-  assertIncludes(rolePrompt ?? "", "Send as Lei Jun", "TUI role send gate");
+  assertIncludes(rolePrompt ?? "", "Send as 雷军", "TUI role send gate");
   const roleSent = await app.handleInteractiveInput("y", showHelp, showSettings);
-  assertIncludes(roleSent ?? "", "Message sent as Lei Jun", "TUI role send confirmation");
+  assertIncludes(roleSent ?? "", "Message sent as 雷军", "TUI role send confirmation");
   await assertMessagePersisted(roleMessage, "leijun");
 
   const stateNotice = await app.handleInteractiveInput(":state", showHelp, showSettings);
@@ -188,9 +195,9 @@ async function runDraftRecoverySmoke(
       error: "smoke simulated provider failure",
       identity: "owner",
       roomId: "main",
-      roomName: "All Hands",
+      roomName: "全员议事",
       worldId: "cultivation",
-      worldName: "Cultivation Sim",
+      worldName: "云岭修仙界",
     },
     draftsDir,
   );
@@ -254,8 +261,13 @@ async function runNewCommandsSmoke(): Promise<void> {
     // :sim status reports the simulation runtime for the active world.
     const simStatus = await app.handleInteractiveInput(":sim status", noop, noopAsync);
     assertIncludes(simStatus ?? "", "Simulation", "TUI :sim status notice");
-    const simTick = await app.handleInteractiveInput(":sim tick 1", noop, noopAsync);
-    assertIncludes(simTick ?? "", "tick", "TUI :sim tick notice");
+    // Even a single tick writes irreversible persisted world truth, so :sim tick
+    // arms a confirmation gate (no fast-path for ticks === 1). Confirm requires
+    // re-typing the exact world id; a bare "y" must never advance the world.
+    const simTickGate = await app.handleInteractiveInput(":sim tick 1", noop, noopAsync);
+    assertIncludes(simTickGate ?? "", "Advance world", "TUI :sim tick confirmation gate");
+    const simTicked = await app.handleInteractiveInput("cultivation", noop, noopAsync);
+    assertIncludes(simTicked ?? "", "tick", "TUI :sim tick notice");
 
     // :create-world / :create-role propose a config patch (review-before-apply).
     const worldProposal = await app.handleInteractiveInput(
@@ -276,11 +288,19 @@ async function runNewCommandsSmoke(): Promise<void> {
     // role turns, so we assert the observable gate (which proves the running
     // path is wired) and cancel instead of confirming.
     const runGate = await app.handleInteractiveInput(":run-role leijun ping", noop, noopAsync);
-    assertIncludes(runGate ?? "", "Run Lei Jun", "TUI :run-role confirmation gate");
+    assertIncludes(runGate ?? "", "Run 雷军", "TUI :run-role confirmation gate");
     assertIncludes(runGate ?? "", "Model:", "TUI :run-role shows model/provider");
     assertIncludes(runGate ?? "", "Ctrl+C cancels", "TUI :run-role shows cancel line");
     const runCancelled = await app.handleInteractiveInput("n", noop, noopAsync);
     assertIncludes(runCancelled ?? "", "cancelled", "TUI :run-role cancels cleanly");
+
+    // :trust elevates project trust live against the running server (closing the
+    // read-only dead-end). An unknown tier is rejected with a named reason; a
+    // valid tier reports the new tier so the operator sees writes are enabled.
+    const trustInvalid = await app.handleInteractiveInput(":trust bogus", noop, noopAsync);
+    assertIncludes(trustInvalid ?? "", "bogus", "TUI :trust rejects unknown tier");
+    const trustElevated = await app.handleInteractiveInput(":trust run-roles", noop, noopAsync);
+    assertIncludes(trustElevated ?? "", "run-roles", "TUI :trust elevates to run-roles");
   } finally {
     if (previousRealmHome === undefined) {
       delete process.env.REALM_HOME;

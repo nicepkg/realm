@@ -1,6 +1,7 @@
 import type { spawn as spawnNode } from "node:child_process";
 import net from "node:net";
 import os from "node:os";
+import { RealmHttpClient } from "../packages/client-sdk/src/index.ts";
 
 /**
  * Process / IO / assertion helpers shared by the TUI smoke entrypoint and its
@@ -50,6 +51,21 @@ export async function waitForHttp(
     }
   }
   throw new Error(`Timed out waiting for ${target}`);
+}
+
+/**
+ * Elevates project trust against the running server, exactly as the web smoke
+ * does before any write assertion. The CLI no longer auto-grants trust under
+ * `requireTrust:true` (security hardening), so the fake runtime boots read-only;
+ * without this the TUI send / role-turn smokes would be blocked by the policy
+ * gate. The SDK `setTrust` POSTs `/api/trust` and the server live-updates the
+ * policy gate, so subsequent sends are allowed.
+ */
+export async function elevateTrust(
+  baseUrl: string,
+  tier: "read-only" | "run-roles" | "elevated-tools" = "run-roles",
+): Promise<void> {
+  await new RealmHttpClient({ baseUrl }).setTrust(tier);
 }
 
 export async function waitForText(

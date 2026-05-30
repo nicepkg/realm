@@ -36,16 +36,20 @@ try {
     "document.querySelector('#hero-title')?.textContent === 'Realm'",
   );
   await assertPage(
-    "Docs home exposes real product preview",
-    "document.querySelector('.product-preview')?.textContent?.includes('Create World') === true",
+    "Docs home exposes the NL-first chat preview empty-state prompt",
+    "document.querySelector('[data-testid=\"docs-chat-preview\"]')?.textContent?.includes('Talk to 天道') === true",
   );
   await assertPage(
-    "Docs home product preview uses a WeChat nine-grid group avatar collage",
-    "document.querySelector('.group-avatar')?.getAttribute('data-wechat-grid') === 'member-collage' && document.querySelector('.group-avatar')?.getAttribute('data-wechat-grid-shape') === 'nine-grid' && document.querySelectorAll('.group-avatar i').length === 9 && Array.from(document.querySelectorAll('.group-avatar i')).every((cell) => Boolean(cell.textContent?.trim()))",
+    "Docs home chat preview offers plain-language suggestion chips",
+    "(() => { const chips = Array.from(document.querySelectorAll('[data-testid=\"docs-suggestion-chips\"] .suggestion-chip')); if (chips.length < 2 || chips.length > 3) return false; const text = chips.map((chip) => chip.textContent ?? '').join(' '); return text.includes('Create a cultivation world') && text.includes(\"What's the world state now?\"); })()",
   );
   await assertPage(
-    "Docs home product preview exposes WeChat top-bar actions through the ellipsis menu",
-    "(() => { const menu = document.querySelector('.topbar-menu'); if (!menu) return false; const text = menu.textContent ?? ''; return text.includes('Command') && text.includes('World Inspector') && text.includes('God') && text.includes('Settings'); })()",
+    "Docs home chat preview shows an inline preview/confirm card for the risky write",
+    "(() => { const card = document.querySelector('[data-testid=\"docs-confirm-card\"]'); if (!card) return false; const text = card.textContent ?? ''; return text.includes('Cultivation Realm') && text.includes('risky write') && Boolean(card.querySelector('button')); })()",
+  );
+  await assertPage(
+    "Docs home chat preview keeps a natural-language composer placeholder",
+    "(() => { const composer = document.querySelector('[data-testid=\"docs-chat-preview\"] .composer'); return Boolean(composer) && (composer.textContent ?? '').includes('Tell 天道'); })()",
   );
   await assertPage(
     "Docs home surfaces user-facing value props",
@@ -65,7 +69,7 @@ try {
   await browser("wait", "[data-testid='docs-topic-page']");
   await assertPage(
     "English docs topic route renders a shareable Web UI page",
-    "location.pathname === '/en/web-ui' && document.querySelector('[data-testid=\"docs-topic-page\"]')?.textContent?.includes('Create world first') === true",
+    "location.pathname === '/en/web-ui' && document.querySelector('[data-testid=\"docs-topic-page\"]')?.textContent?.includes('One chat window, driven by natural language') === true",
   );
   await assertPage(
     "English docs topic route has no horizontal overflow",

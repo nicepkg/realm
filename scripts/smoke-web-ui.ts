@@ -9,6 +9,7 @@ import {
   findAvailablePort,
   readFlag,
 } from "./smoke-browser-utils.ts";
+import { runGodRecoveryStep } from "./smoke-web-god-recovery.ts";
 
 /**
  * End-to-end browser smoke for the rebuilt Web UI. It drives the real product
@@ -31,6 +32,7 @@ const examplePath = path.join(repoRoot, "examples", "cultivation-sim");
 const cdpPort = readFlag("--cdp-port") ?? process.env.REALM_CDP_PORT;
 const session = `realm-web-smoke-${Date.now()}`;
 const outputDir = path.join(os.tmpdir(), session);
+const driver = createAgentBrowserSmoke(session, outputDir);
 const {
   assertPage,
   browser,
@@ -41,7 +43,7 @@ const {
   waitForHttp,
   waitForPageExpression,
   waitForSelector,
-} = createAgentBrowserSmoke(session, outputDir);
+} = driver;
 
 await ensureCommand("agent-browser");
 await access(cliPath, constants.R_OK);
@@ -72,14 +74,68 @@ try {
   await browser("set", "viewport", "1440", "900");
   await browser("open", url);
 
+  // 0. The natural-language-first home (nl-first-vision) is the God chat shell:
+  //    one chat window the operator talks to. Per the vision the 高级 button no
+  //    longer swaps to the legacy 5-tab app — it opens a minimal inline context
+  //    sheet whose ONLY route to the demoted manager/workspace surfaces is the
+  //    command palette (the gated power-user path). The smoke still exercises
+  //    that real (reused) manager + messenger backend, so it walks the actual
+  //    operator path: chat home → 高级 context sheet → command palette → worlds.
+  await waitForSelector("[data-testid='god-chat-shell']");
+  await assertPage(
+    "Chat home defaults to the zh-CN locale on first paint",
+    "document.documentElement.lang === 'zh-CN'",
+  );
+  await screenshot("god-chat-home.png");
+  // Reaching the world manager from the NL home is a two-hop gated route:
+  //   (a) 高级 opens the context sheet; its 命令面板 row opens the command palette.
+  //   (b) The palette's "open worlds" command enters the world's workspace
+  //       (realm-shell); from workspace the palette exposes "back to worlds",
+  //       which lands on the world list (manager) the steps below assert against.
+  // This is the real navigation an operator takes now that the legacy app is
+  // demoted behind the palette (nl-first-vision F7), not a direct surface swap.
+  const openManager = async () => {
+    await clickInPage("[data-testid='god-chat-advanced']");
+    await waitForSelector("[data-testid='god-chat-context-sheet']");
+    await clickInPage("[data-testid='god-chat-context-sheet-command']");
+    await waitForSelector("[data-testid='command-palette-input']");
+    // "open worlds" enters the selected world's workspace (realm-shell). Filter
+    // by its cmdk value tokens, confirm selection, then commit with Enter.
+    await browser("fill", "[data-testid='command-palette-input']", "open worlds");
+    await waitForPageExpression(
+      "document.querySelector('[cmdk-item][data-selected=\"true\"]') !== null",
+    );
+    await browser("press", "Enter");
+    await waitForSelector("[data-testid='realm-shell']");
+    // From the workspace, the command palette now exposes "back to worlds" — the
+    // real path to the world list (manager). Open it from the chat-header more
+    // menu (the keyboard shortcut needs document focus the headless session does
+    // not always hold right after a surface swap).
+    await clickInPage("[data-testid='topbar-more']");
+    await waitForSelector("[data-testid='topbar-command-palette']");
+    await clickInPage("[data-testid='topbar-command-palette']");
+    await waitForSelector("[data-testid='command-back-to-worlds']");
+    // Filter using the item's own cmdk value tokens ("back worlds manager") so
+    // the fuzzy matcher selects exactly this row, then commit with Enter the way
+    // a keyboard operator would.
+    await browser("fill", "[data-testid='command-palette-input']", "back worlds manager");
+    await waitForPageExpression(
+      "document.querySelector(\"[data-testid='command-back-to-worlds'][data-selected='true']\") !== null",
+    );
+    await browser("press", "Enter");
+    await waitForSelector("[data-testid='world-manager']");
+  };
+  await openManager();
+
   // 1. World manager renders on the unconditional zh-CN default. The smoke
   //    forces the default deterministically by clearing any saved locale and
   //    reloading; the i18n layer must then first-paint Chinese (zh-CN) even on
   //    an en-locale automation browser. This guards "明明是中文产品，界面却满屏英文".
-  await waitForSelector("[data-testid='world-manager']");
+  //    A reload returns to the chat home, so re-open the advanced route after it.
   await browserEval("localStorage.removeItem('realm-locale'); true;");
   await browser("reload");
-  await waitForSelector("[data-testid='world-manager']");
+  await waitForSelector("[data-testid='god-chat-shell']");
+  await openManager();
   await screenshot("world-manager.png");
   await assertPage(
     "World Manager defaults to the zh-CN locale on first paint",
@@ -99,9 +155,58 @@ try {
   );
   // Reload to clear the search box deterministically (the controlled input is
   // not reliably reset to empty through the automation fill API), returning the
-  // manager to its full list on the persisted zh-CN default.
+  // manager to its full list on the persisted zh-CN default. The reload lands on
+  // the chat home, so re-open the advanced route to get back to the manager.
   await browser("reload");
+  await waitForSelector("[data-testid='god-chat-shell']");
+  await openManager();
   await waitForSelector("[data-testid='world-row-cultivation']");
+
+  // 2b. Trust elevation is the most security-sensitive write (it lets AI roles
+  //     run real turns + project shell/network), so it must be gated behind a
+  //     confirmation — never a single reflex click (EP-R2-2). The bundled example
+  //     ships requireTrust:true, so the project boots read-only with the trust
+  //     banner. Clicking "Trust this project" must OPEN the confirm dialog (with
+  //     Cancel auto-focused so Enter cannot commit), not elevate directly.
+  await waitForSelector("[data-testid='trust-banner']");
+  await clickInPage("[data-testid='trust-project']");
+  await waitForSelector("[data-testid='trust-confirm']");
+  await assertPage(
+    "Trust elevation opens a confirmation dialog (no direct-elevate path) with Cancel default-focused",
+    "(() => { const dialog = document.querySelector(\"[data-testid='trust-confirm']\"); const cancel = document.querySelector(\"[data-testid='trust-confirm-cancel']\"); const accept = document.querySelector(\"[data-testid='trust-confirm-accept']\"); return Boolean(dialog && cancel && accept) && document.activeElement === cancel; })()",
+  );
+  // Cancelling must NOT elevate: the project stays read-only with its banner.
+  await clickInPage("[data-testid='trust-confirm-cancel']");
+  await waitForPageExpression("document.querySelector(\"[data-testid='trust-confirm']\") === null");
+  await assertPage(
+    "Cancelling the trust confirmation leaves the project read-only (no elevation)",
+    "document.querySelector(\"[data-testid='trust-banner']\") !== null && document.querySelector(\"[data-testid='trust-status']\") === null",
+  );
+  // Only an explicit confirm elevates. The confirmed tier surfaces a trust-status
+  // row carrying a working "Revert to read-only" control (MC-R2-3).
+  await clickInPage("[data-testid='trust-project']");
+  await waitForSelector("[data-testid='trust-confirm']");
+  await clickInPage("[data-testid='trust-confirm-accept']");
+  await waitForSelector("[data-testid='trust-status']");
+  await assertPage(
+    "Confirming elevates trust and reveals a working revert-to-read-only control (MC-R2-3)",
+    "(() => { const status = document.querySelector(\"[data-testid='trust-status']\"); const revert = document.querySelector(\"[data-testid='trust-revert']\"); return Boolean(status && revert) && revert.hasAttribute('disabled') === false && document.querySelector(\"[data-testid='trust-banner']\") === null; })()",
+  );
+  await screenshot("trust-elevated.png");
+  // Reverting is always safe (capability only goes down), so it needs no confirm:
+  // one click drops back to read-only and the banner returns immediately.
+  await clickInPage("[data-testid='trust-revert']");
+  await waitForSelector("[data-testid='trust-banner']");
+  await assertPage(
+    "Reverting drops trust back to read-only without a confirmation gate",
+    "document.querySelector(\"[data-testid='trust-banner']\") !== null && document.querySelector(\"[data-testid='trust-status']\") === null",
+  );
+  // Re-elevate (through the same confirm gate) so the downstream send / role-turn
+  // steps run against a trusted project as before.
+  await clickInPage("[data-testid='trust-project']");
+  await waitForSelector("[data-testid='trust-confirm']");
+  await clickInPage("[data-testid='trust-confirm-accept']");
+  await waitForSelector("[data-testid='trust-status']");
 
   // 3. Entering the world swaps the manager for the responsive messenger shell
   //    with its rail, conversation list, and chat pane. The all-hands room is
@@ -313,6 +418,11 @@ try {
   await screenshot("settings.png");
   await browser("press", "Escape");
   await browser("wait", "200");
+
+  // 9b. The God controller is the highest-consequence surface, so its recovery
+  //     must be LIVE (kill → seeded revive undo, same gate). Extracted to keep
+  //     this orchestrator under the 500-line file-size guard.
+  await runGodRecoveryStep(driver);
 
   // 10. The command palette opens from the keyboard and surfaces the operator
   //     commands (World Inspector entry proves the workspace-mode command set).
