@@ -47,21 +47,43 @@ export function isSameRoleSpeech(a: string, b: string): boolean {
 }
 
 /**
- * The already-rendered role-speech bubbles, reduced to the two keys
+ * The CONTENT fingerprint of a role-speech utterance: `speaker::foldedText`. This is
+ * the AUTHORITATIVE dedup key for role speech (round-6 architecture decision) — it is
+ * fully decoupled from backend message id, room id, and world-load timing, so any
+ * posted message whose speaker + folded content matches an already-rendered bubble is
+ * structurally impossible to re-fold, no matter when the room resolves or whether the
+ * bubble ever bound an id. Reuses `foldSpeechText` (the same whitespace-fold the fuzzy
+ * matcher uses) so a streamed reply and its posted twin that differ only by incidental
+ * whitespace collide on the EXACT same fingerprint. Pure + exported so the id-gate
+ * layer (`selectFoldsWithIdGate`) shares one fingerprint definition (DRY).
+ */
+export function roleSpeechFingerprint(speaker: string, text: string): string {
+  return `${speaker}::${foldSpeechText(text)}`;
+}
+
+/**
+ * The already-rendered role-speech bubbles, reduced to the keys
  * `selectRoleMessagesToFold` / `findPostedTwinForStream` dedupe against:
  *  - `seenMessageIds`: ids a bubble was reconciled / settled from
  *    (`sourceMessageId`), so a posted message is matched id-exactly. A
  *    stream-settled bubble now binds its posted twin's id, so a reply rendered by
  *    the active-run-turn effect is hit here even though it was never "posted-folded".
- *  - `texts`: folded display texts of every role-speech bubble (streamed, settled,
- *    or posted) — the fuzzy-text backstop for when the stream finished before its
- *    posted twin landed (no id to bind yet) and the two differ by trailing tokens.
+ *    This is now an ACCELERATION bypass, not the primary key.
+ *  - `fingerprints`: the AUTHORITATIVE `speaker::foldedText` content fingerprints of
+ *    every role-speech bubble (streamed, settled, or posted). A posted message whose
+ *    fingerprint is already present can never re-fold, independent of id/room/world
+ *    timing — the structural fix for the reload accumulation loop.
+ *  - `texts`: folded display texts (no speaker prefix) — the fuzzy CONTAINMENT
+ *    backstop for when a streamed detail and its posted content differ by trailing
+ *    tokens (a prefix relationship the exact fingerprint can't catch).
  */
 function existingRoleSpeechKeys(existing: ChatTurn[]): {
   seenMessageIds: Set<string>;
+  fingerprints: Set<string>;
   texts: string[];
 } {
   const seenMessageIds = new Set<string>();
+  const fingerprints = new Set<string>();
   const texts: string[] = [];
   for (const turn of existing) {
     if (turn.sourceMessageId) {
@@ -73,9 +95,19 @@ function existingRoleSpeechKeys(existing: ChatTurn[]): {
     const folded = foldSpeechText(turn.card.detail);
     if (folded.length > 0) {
       texts.push(folded);
+      fingerprints.add(roleSpeechFingerprint(turn.card.speakerName, turn.card.detail));
     }
   }
-  return { seenMessageIds, texts };
+  return { seenMessageIds, fingerprints, texts };
+}
+
+/**
+ * The set of `speaker::foldedText` content fingerprints every already-rendered
+ * role-speech bubble carries — the AUTHORITATIVE dedup key, exported so the id-gate
+ * layer and the transcript-sync hook share one definition (round-6). Pure.
+ */
+export function existingRoleSpeechFingerprints(existing: ChatTurn[]): Set<string> {
+  return existingRoleSpeechKeys(existing).fingerprints;
 }
 
 /**
@@ -130,10 +162,16 @@ function isClaimedByPendingReply(
  *  1. `pendingReply` — the active-run-turn settle is about to materialize this exact
  *     reply but its bubble isn't committed to `existing` yet (same-render split
  *     brain); we yield ownership to the settle effect so it renders the ONE bubble;
- *  2. by `sourceMessageId` — a settled stream binds the posted message id, so a
- *     LATER pass's `seenMessageIds` hits it exactly;
- *  3. by fuzzy text containment against any existing role-speech bubble — covers a
- *     streamed detail / posted content differing by trailing tokens / whitespace.
+ *  2. by CONTENT FINGERPRINT (`speaker::foldedText`) — the AUTHORITATIVE key
+ *     (round-6): a posted message whose speaker + folded content matches an
+ *     already-rendered bubble can NEVER re-fold, fully decoupled from id/room/world
+ *     timing. This alone kills the reload accumulation loop (an id-less persisted
+ *     bubble re-folded at the tail because the id-gate was blind to it);
+ *  3. by `sourceMessageId` — a settled stream binds the posted message id, so a
+ *     LATER pass's `seenMessageIds` hits it exactly (an ACCELERATION bypass);
+ *  4. by fuzzy text containment against any existing role-speech bubble — covers a
+ *     streamed detail / posted content differing by trailing tokens (a prefix
+ *     relationship the exact fingerprint can't catch).
  * Pure + idempotent: re-running with the same inputs adds nothing.
  */
 export function selectRoleMessagesToFold(input: {
@@ -151,10 +189,14 @@ export function selectRoleMessagesToFold(input: {
   }
   const roleById = new Map(roles.map((role) => [role.id, role] as const));
   const ownerSet = new Set(ownerIds);
-  const { seenMessageIds, texts } = existingRoleSpeechKeys(existing);
-  // Mutable so each newly folded message also dedupes the rest of this same pass
-  // (two roles posting identical-looking lines stay distinct; a single line never
-  // doubles).
+  const { seenMessageIds, fingerprints, texts } = existingRoleSpeechKeys(existing);
+  // The AUTHORITATIVE content-fingerprint gate (round-6): grows in place so two roles
+  // posting identical lines stay distinct while a single utterance never doubles —
+  // and a posted message matching ANY already-rendered bubble's `speaker::foldedText`
+  // is structurally vetoed regardless of id/room/world timing.
+  const seenFingerprints = new Set(fingerprints);
+  // Mutable so each newly folded message also dedupes the rest of this same pass via
+  // the fuzzy CONTAINMENT backstop (a prefix the exact fingerprint can't catch).
   const seenRoleTexts = [...texts];
   const folded: { message: Message; speakerName: string }[] = [];
   // The pending settle claims at most ONE posted message; once claimed, later
@@ -183,12 +225,20 @@ export function selectRoleMessagesToFold(input: {
       pendingClaimed = true;
       continue;
     }
-    // Skip a posted message already represented by a streamed/settled bubble even
-    // when the text differs by trailing tokens (the double-bubble root cause).
+    // PRIMARY veto: a posted message whose `speaker::foldedText` fingerprint already
+    // belongs to a rendered bubble can NEVER re-fold — the structural fix for the
+    // reload accumulation loop, decoupled from id/room/world timing.
+    const fingerprint = roleSpeechFingerprint(role.displayName, message.content);
+    if (seenFingerprints.has(fingerprint)) {
+      continue;
+    }
+    // Secondary fuzzy CONTAINMENT backstop: covers a streamed detail / posted content
+    // differing by a trailing token (a prefix the exact fingerprint misses).
     if (seenRoleTexts.some((seen) => isSameRoleSpeech(seen, message.content))) {
       continue;
     }
     folded.push({ message, speakerName: role.displayName });
+    seenFingerprints.add(fingerprint);
     seenRoleTexts.push(foldSpeechText(message.content));
   }
   return folded;

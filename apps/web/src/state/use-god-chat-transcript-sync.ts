@@ -5,9 +5,7 @@ import { type Dispatch, type SetStateAction, useCallback, useEffect, useMemo, us
 import {
   hasUnboundIdLessSpeech,
   insertFoldsByTimestamp,
-  mergeBoundIdsFromTurns,
   reconcileIdLessSpeechTurns,
-  seedFoldedIdsFromTurns,
   selectFoldsWithIdGate,
   settleBoundMessageId,
 } from "@/state/god-chat-fold-id-gate.ts";
@@ -20,7 +18,13 @@ import {
   roleSpeechStreamingTurn,
   settleRunTurn,
 } from "@/state/god-chat-model.ts";
+// The content-fingerprint dedup key (round-6) — the AUTHORITATIVE role-speech dedup,
+// decoupled from id/room/world timing. Imported from the owned role-turn module
+// (which re-exports it) so the hook registers a just-settled bubble's fingerprint into
+// the same cross-render gate the posted-fold effect vetoes against.
+import { roleSpeechFingerprint } from "@/state/god-chat-role-turn.ts";
 import { accumulateStreamedText, latestDenialReason } from "@/state/realm-app-state-model.ts";
+import { seedAndHealFoldGates } from "@/state/use-god-chat-fold-gates.ts";
 // Reuse the SAME scope-key derivation persistence uses so the sync hook's
 // scope-change detection stays in lockstep with the transcript reload it must not race.
 import { transcriptScopeKey } from "@/state/use-god-chat-helpers.ts";
@@ -104,28 +108,6 @@ export function useGodChatTranscriptSync(input: TranscriptSyncInput): void {
     worldId,
   } = input;
 
-  // AUTHORITATIVE cross-render fold gate (reload P1). The posted-fold effect dedupes
-  // against the in-render `turns` snapshot, but on hydration that snapshot settles
-  // across several rapid re-renders and lags its own prior pass's append (setTurns is
-  // async), so the same backend message.id passed the "not represented" check 2-3×
-  // and got re-appended at the bottom. This ref holds every backend message.id the
-  // component has already folded (posted-fold OR active-settle bound); we add ids
-  // SYNCHRONOUSLY in the same tick, so the decision is independent of `turns` timing
-  // and one backend message folds AT MOST ONCE for the component's lifetime.
-  //
-  // SEED IT FROM THE HYDRATED TRANSCRIPT (reload DOUBLE-bubble): on mount/reload this
-  // ref would otherwise start EMPTY while persistence has already loaded `turns` with
-  // the settled role-speech bubble bound to its backend message id. An empty gate
-  // re-folds that persisted message from fresh `scopedMessages` (the fuzzy-text
-  // backstop alone can miss an id-less settle). Seeding from the INITIAL `turns`'
-  // `sourceMessageId`s means a persisted bubble's bound id blocks the backend re-fold
-  // from the very first render. The lazy initializer runs once; scope changes re-seed
-  // below.
-  const foldedIdsRef = useRef<Set<string>>(undefined as unknown as Set<string>);
-  if (foldedIdsRef.current === undefined) {
-    foldedIdsRef.current = new Set<string>(seedFoldedIdsFromTurns(turns));
-  }
-
   // F2 — the (worldId, identity) scope this hook last folded against. When it
   // changes (an NL world-switch), persistence has already replaced `turns` with the
   // destination's saved transcript, but `messages`/`events` still reflect the
@@ -149,35 +131,30 @@ export function useGodChatTranscriptSync(input: TranscriptSyncInput): void {
   }
   if (scopeChanged) {
     prevWorldScopeRef.current = currentScope;
-    // (a) Re-seed the cross-render fold gate from the DESTINATION's just-reloaded
-    // transcript: ids folded under the departing world must NOT suppress the new
-    // world's messages, AND the destination's own already-settled bubbles (a world
-    // whose saved transcript already holds folded role speech) must immediately block
-    // a backend re-fold across the post-switch hydration re-render storm — the same
-    // reload double-bubble guard the mount seed provides. Persistence has already
-    // swapped `turns` to the destination's saved transcript by this render, so its
-    // `sourceMessageId`s are the correct seed (an empty/fresh world seeds to ∅).
-    foldedIdsRef.current = new Set<string>(seedFoldedIdsFromTurns(turns));
-    // (b) Drop any in-flight run-turn — it could only have been started under the
-    // departing world (a switch and a fresh run-turn cannot co-occur in one render),
-    // so settling it now would leak the departing world's role bubble into the new
-    // world. Persistence owns `turns`; we only clear the leaking active handle.
+    // Drop any in-flight run-turn — it could only have been started under the departing
+    // world (a switch and a fresh run-turn cannot co-occur in one render), so settling
+    // it now would leak the departing world's role bubble into the new world.
+    // Persistence owns `turns`; we only clear the leaking active handle. (The two fold
+    // gates are re-seeded for the destination scope inside `useGodChatFoldGates`.)
     setActiveRunTurn((prev) => (prev ? undefined : prev));
   }
 
-  // SELF-HEALING gate re-seed (reload DOUBLE-bubble, ID-BOUND path). The lazy seed and
-  // the scope-change re-seed both snapshot `turns` at one instant, but on reload that
-  // instant is too EARLY: `worldId` resolves async, so when the scope settles the
-  // persistence scope-load effect has NOT yet swapped the saved transcript into `turns`
-  // (it runs after that render commits). The bound persisted bubble lands a render
-  // LATER, by which point the gate was already sealed empty — and the posted-fold
-  // effect re-folds that bubble's backend message into a SECOND bubble. Merging the
-  // current transcript's bound `sourceMessageId`s into the gate on EVERY render closes
-  // that window: the instant the hydrated bubble appears its id is in the gate before
-  // the fold effect runs. Monotonic + safe — it only adds ids of bubbles ALREADY in
-  // `turns`, so it can never block a genuinely new message. Runs AFTER the scope-change
-  // replace above, so a switched-to world heals only its OWN bound ids (F2 intact).
-  mergeBoundIdsFromTurns(foldedIdsRef.current, turns);
+  // The two AUTHORITATIVE cross-render dedup gates. `foldedIdsRef` is the ACCELERATION
+  // bypass (id-exact veto); `foldedFingerprintsRef` is the PRIMARY content-fingerprint
+  // gate (round-6) — decoupled from id/room/world timing so a posted message matching
+  // any rendered bubble can never re-fold, even when its persisted twin settled id-LESS
+  // (the freshly-created NL world reload accumulation loop). The refs are declared here
+  // (so React lint sees `.current` as stable) and seeded / per-scope re-seeded / per-
+  // render self-healed by the co-located helper. See `use-god-chat-fold-gates.ts`.
+  const foldedIdsRef = useRef<Set<string>>(undefined as unknown as Set<string>);
+  const foldedFingerprintsRef = useRef<Set<string>>(undefined as unknown as Set<string>);
+  seedAndHealFoldGates({
+    identity,
+    refs: { foldedFingerprintsRef, foldedIdsRef },
+    scopeChanged,
+    turns,
+    worldId,
+  });
 
   // F2 (authoritative anti-bleed) — fold ONLY messages that belong to the active
   // world. After an NL world-switch `worldId` flips immediately, but the controller
@@ -338,6 +315,20 @@ export function useGodChatTranscriptSync(input: TranscriptSyncInput): void {
     if (boundId) {
       foldedIdsRef.current.add(boundId);
     }
+    // Register the just-settled bubble's CONTENT FINGERPRINT into the authoritative gate
+    // this same tick (round-6) — so the posted-fold effect, which reads the same
+    // pre-commit `turns` snapshot, vetoes this reply's posted twin by content even
+    // before the settled bubble lands in `turns`. Decoupled from id/room timing, so a
+    // freshly-created NL world (roomId undefined at settle) is covered too.
+    const settledDetail =
+      settle.kind === "growBubble"
+        ? settle.detail
+        : settle.kind === "settleNew" && settle.turn.card?.variant === "role-speech"
+          ? settle.turn.card.detail
+          : undefined;
+    if (settledDetail !== undefined) {
+      foldedFingerprintsRef.current.add(roleSpeechFingerprint(roleName, settledDetail));
+    }
     if (settle.kind === "growBubble") {
       setTurns((current) =>
         current.map((turn) =>
@@ -422,9 +413,13 @@ export function useGodChatTranscriptSync(input: TranscriptSyncInput): void {
     // `selectFoldsWithIdGate` keeps the existing `existing`/text dedup as a secondary
     // guard but makes the ref's id Set the AUTHORITATIVE gate: any message whose id is
     // already folded is dropped regardless of the (possibly stale) `turns` snapshot.
-    const { folds, idsToRegister } = selectFoldsWithIdGate({
+    const { folds, idsToRegister, fingerprintsToRegister } = selectFoldsWithIdGate({
       existing: turns,
       foldedIds: foldedIdsRef.current,
+      // The AUTHORITATIVE cross-render gate (round-6): a posted message matching any
+      // already-rendered bubble's `speaker::foldedText` fingerprint can never re-fold,
+      // independent of id/room/world timing — the structural fix for the reload loop.
+      foldedFingerprints: foldedFingerprintsRef.current,
       // Active-world messages ONLY — the authoritative anti-bleed gate. While the
       // post-switch `loadRealm` is in flight, `messages` still carries the departing
       // world's role lines (顾辰风 / 雷军); filtering by `message.worldId` here means
@@ -439,10 +434,15 @@ export function useGodChatTranscriptSync(input: TranscriptSyncInput): void {
     if (folds.length === 0) {
       return;
     }
-    // Claim the ids SYNCHRONOUSLY (not via state) so the next hydration re-render of
-    // this effect — which still reads a pre-commit `turns` — already sees them folded.
+    // Claim the ids AND content fingerprints SYNCHRONOUSLY (not via state) so the next
+    // hydration re-render of this effect — which still reads a pre-commit `turns` —
+    // already sees them folded by BOTH the acceleration id-bypass and the authoritative
+    // fingerprint gate.
     for (const id of idsToRegister) {
       foldedIdsRef.current.add(id);
+    }
+    for (const fingerprint of fingerprintsToRegister) {
+      foldedFingerprintsRef.current.add(fingerprint);
     }
     // Insert by each message's ORIGINAL `createdAt`, never blindly at the tail: a
     // re-delivered older message (the reload regression) must land in its chronological

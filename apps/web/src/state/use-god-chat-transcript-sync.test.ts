@@ -234,6 +234,129 @@ describe("reload double-bubble — hydrated transcript seeds the gate (P1)", () 
     expect(harness.turns[0]?.id).toBe("hydrated-bound");
   });
 
+  test("a turn-ANCHORED bubble that hydrates LATE is vetoed by the content fingerprint, NOT the id-gate", () => {
+    // The round-6 freshly-created NL world: the reply settled with the turnId ANCHOR
+    // (`sourceMessageId === "turn:t1"`, never the real backend id `m1`), because the room
+    // was undefined at settle time. On reload the bound (anchored) bubble hydrates a
+    // render LATE, so the gate seed snapshots EMPTY. When the bubble lands its seeded id
+    // is "turn:t1" — which NEVER matches the posted message id `m1`, so the id-gate is
+    // POWERLESS here. ONLY the per-render content-fingerprint self-heal can veto the
+    // re-fold: it puts the bubble's `speaker::foldedText` into the gate the instant it
+    // lands, so the posted-fold effect (still reading the stale empty snapshot) is blocked
+    // by content. Without the fingerprint gate this re-folds a SECOND bubble.
+    const anchoredBubble: ChatTurn = {
+      card: {
+        detail: "我已闭关三日，今日方出。",
+        kind: "run-turn",
+        speakerName: "顾辰风",
+        streaming: false,
+        variant: "role-speech",
+      },
+      id: "hydrated-anchored",
+      role: "system",
+      sourceMessageId: "turn:t1", // the synthetic anchor — NOT the backend id m1
+      text: "",
+    };
+    const harness = makeHarness({
+      deliverMessagesLate: true,
+      hydrateTurnsLate: true,
+      hydratedTurns: [anchoredBubble],
+      messages: [message],
+    });
+
+    harness.render();
+    harness.render();
+    harness.deliverTurns();
+    harness.deliverMessages();
+    for (let i = 0; i < 5; i += 1) {
+      harness.render();
+    }
+
+    // EXACTLY ONE bubble — the persisted anchored one; the fingerprint self-heal vetoed
+    // the re-fold even though the id-gate's seeded "turn:t1" never matched m1.
+    expect(harness.turns.filter((turn) => turn.card?.variant === "role-speech")).toHaveLength(1);
+    expect(harness.turns[0]?.id).toBe("hydrated-anchored");
+  });
+
+  test("freshly-created NL world: anchored id-less reply + room late, reload ×N stays ONE bubble in slot", () => {
+    // The round-6 reload ACCUMULATION loop. A brand-new NL world ran run-turn while
+    // `selectedRoom.id` was still undefined, so the streamed reply found NO posted twin
+    // and settled with the turnId ANCHOR (`sourceMessageId === "turn:t1"`, never the
+    // real backend id). It sits between an operator line and a set-rule card (so a blind
+    // tail-append would strand a re-fold BELOW the set-rule card — the out-of-order
+    // symptom the verifier saw). On reload `app.state.messages` AND the room both arrive
+    // LATE. Because the bubble is ANCHORED (not id-less), the reconcile SKIPS it; and the
+    // id-gate seed holds only "turn:t1", which never matches the real message id. So the
+    // CONTENT FINGERPRINT is the SOLE guard — and it vetoes the re-fold on every reload
+    // pass, yielding EXACTLY ONE role-speech bubble in its original slot, no matter how
+    // many times the world is reloaded.
+    const replyText = "我已闭关三日，今日方出。";
+    const lateMessage = postedMsg("m-late", "guchenfeng", replyText);
+    const operatorTurn: ChatTurn = { id: "op-1", role: "operator", text: "让顾辰风发言" };
+    const setRuleCard: ChatTurn = {
+      card: {
+        detail: "已为世界设定规则。",
+        kind: "state-patch",
+        title: "规则已生效",
+        variant: "result",
+      },
+      id: "rule-1",
+      role: "system",
+      text: "",
+    };
+    // The persisted bubble carries the round-6 turn ANCHOR — NOT the backend message id.
+    // This is exactly what `settleRunTurn` now writes when the room is absent at settle.
+    const anchoredReply: ChatTurn = {
+      card: {
+        detail: replyText,
+        kind: "run-turn",
+        speakerName: "顾辰风",
+        streaming: false,
+        variant: "role-speech",
+      },
+      id: "reply-anchored",
+      role: "system",
+      sourceMessageId: "turn:t1",
+      text: "",
+    };
+
+    function runReload(): { count: number; speechIndex: number; ruleIndex: number } {
+      const harness = makeHarness({
+        deliverMessagesLate: true,
+        deliverRoomLate: true,
+        // Original timeline order: operator → reply (in slot) → set-rule card.
+        hydratedTurns: [operatorTurn, anchoredReply, setRuleCard],
+        messages: [lateMessage],
+      });
+      // Pre-hydration renders: neither the message nor the room has landed yet.
+      harness.render();
+      harness.render();
+      // The backend message + selected room land; the hydration re-render storm follows.
+      harness.deliverMessages();
+      harness.deliverRoom();
+      for (let i = 0; i < 6; i += 1) {
+        harness.render();
+      }
+      const speech = harness.turns.filter((turn) => turn.card?.variant === "role-speech");
+      return {
+        count: speech.length,
+        ruleIndex: harness.turns.findIndex((turn) => turn.id === "rule-1"),
+        speechIndex: harness.turns.findIndex((turn) => turn.card?.variant === "role-speech"),
+      };
+    }
+
+    // Reload twice (the deterministic +1-per-reload symptom): both reloads must yield
+    // EXACTLY ONE bubble, and it must stay ABOVE the set-rule card (original slot),
+    // never stray-appended at the tail.
+    const first = runReload();
+    expect(first.count).toBe(1);
+    expect(first.speechIndex).toBeLessThan(first.ruleIndex);
+
+    const second = runReload();
+    expect(second.count).toBe(1);
+    expect(second.speechIndex).toBeLessThan(second.ruleIndex);
+  });
+
   test("a GENUINELY new posted message still folds after reload (no over-suppression)", () => {
     // Seeding the gate from the hydrated bubble must NOT block a different, newly
     // arrived role line — only the already-rendered message id is suppressed.

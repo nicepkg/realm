@@ -10,6 +10,7 @@ import {
   roleSpeechPostedTurn,
   selectRoleMessagesToFold,
   settleRunTurn,
+  turnAnchorMessageId,
 } from "@/state/god-chat-role-turn.ts";
 
 /**
@@ -390,5 +391,79 @@ describe("id-gate is authoritative across renders (reload P1)", () => {
     expect(
       settleBoundMessageId({ bubbleTurnId: "b1", detail: "我...", kind: "growBubble" }),
     ).toBeUndefined();
+  });
+});
+
+/**
+ * Stable-anchor specs (round-6, reload accumulation loop). A freshly-created NL world
+ * runs run-turn while `selectedRoom.id` is still undefined / arriving async, so
+ * `findPostedTwinForStream` can't resolve the posted twin and (before the round-6
+ * anchor) the streamed reply persisted id-LESS — re-folding at the tail on every
+ * reload. The settle now anchors the bubble on a turnId-derived `sourceMessageId` so
+ * it is always seed-able across reloads, while the `turn:` prefix guarantees it never
+ * collides with a real backend `message.id`.
+ */
+describe("settleRunTurn anchors the settled bubble when no posted twin exists", () => {
+  function settle(args: {
+    bubbleTurnId?: string;
+    streamed?: string;
+    messages?: Message[];
+    roomId?: string;
+  }) {
+    return settleRunTurn({
+      bubbleTurnId: args.bubbleTurnId,
+      denialReason: undefined,
+      events: [] as RealmEvent[],
+      existing: [],
+      messages: args.messages ?? [],
+      ownerIds: ["owner"],
+      roleName: "顾辰风",
+      roles,
+      roomId: args.roomId,
+      streamed: args.streamed,
+      terminal: { kind: "completed" },
+      turnId: "t1",
+    });
+  }
+
+  test("turnAnchorMessageId prefixes with `turn:` (collision-proof vs real message ids)", () => {
+    expect(turnAnchorMessageId("t1")).toBe("turn:t1");
+  });
+
+  test("settleNew with NO room → bubble carries the turn anchor, never id-less", () => {
+    const result = settle({ roomId: undefined, streamed: "我已闭关三日。" });
+    expect(result.kind).toBe("settleNew");
+    if (result.kind === "settleNew") {
+      expect(result.turn.sourceMessageId).toBe(turnAnchorMessageId("t1"));
+    }
+  });
+
+  test("settleNew with a room but the twin not landed yet → still anchored, not id-less", () => {
+    const result = settle({ messages: [], roomId: "main", streamed: "我已闭关三日。" });
+    expect(result.kind).toBe("settleNew");
+    if (result.kind === "settleNew") {
+      expect(result.turn.sourceMessageId).toBe(turnAnchorMessageId("t1"));
+    }
+  });
+
+  test("settleNew binds the REAL posted twin id when it HAS landed (acceleration path)", () => {
+    const message = postedMsg("m1", "guchenfeng", "我已闭关三日，今日方出。");
+    const result = settle({ messages: [message], roomId: "main", streamed: "我已闭关三日，" });
+    expect(result.kind).toBe("settleNew");
+    if (result.kind === "settleNew") {
+      expect(result.turn.sourceMessageId).toBe("m1");
+    }
+  });
+
+  test("growBubble (live streaming bubble) with no twin → anchored on the turn id", () => {
+    const result = settle({
+      bubbleTurnId: "bubble-1",
+      roomId: undefined,
+      streamed: "我已闭关三日。",
+    });
+    expect(result.kind).toBe("growBubble");
+    if (result.kind === "growBubble") {
+      expect(result.sourceMessageId).toBe(turnAnchorMessageId("t1"));
+    }
   });
 });

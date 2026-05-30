@@ -22,10 +22,12 @@ import { classifyBackendError } from "@/state/god-chat-runtime.ts";
 // Re-export the fold/dedup reconciliation surface so every existing import site that
 // pulls these from `@/state/god-chat-role-turn.ts` keeps working unchanged.
 export {
+  existingRoleSpeechFingerprints,
   findPostedTwinForStream,
   foldSpeechText,
   isSameRoleSpeech,
   type PendingRoleReplyClaim,
+  roleSpeechFingerprint,
   roleSpeechPostedTurn,
   selectRoleMessagesToFold,
 } from "@/state/god-chat-role-fold.ts";
@@ -206,7 +208,11 @@ export function settleRunTurn(input: SettleRunTurnResolve): SettleRunTurnResult 
       bubbleTurnId: input.bubbleTurnId,
       detail: input.streamed,
       kind: "growBubble",
-      sourceMessageId: twin?.id,
+      // STABLE ANCHOR (round-6): bind the posted twin's id when it has landed, else a
+      // turnId-derived anchor so the live-streamed bubble never persists id-LESS (the
+      // freshly-created NL world reload accumulation loop). The fingerprint gate is the
+      // authoritative dedup; this just keeps the bubble seed-able across reloads.
+      sourceMessageId: twin?.id ?? turnAnchorMessageId(input.turnId),
     };
   }
   // No live streamed bubble: materialize ONE settled bubble from the streamed text,
@@ -227,7 +233,20 @@ export function settleRunTurn(input: SettleRunTurnResolve): SettleRunTurnResult 
     });
     return {
       kind: "settleNew",
-      turn: roleSpeechSettledTurn(input.turnId, input.roleName, input.streamed, twin?.id),
+      // STABLE ANCHOR (round-6): when the posted twin hasn't landed yet — typically a
+      // freshly-created NL world whose `selectedRoom.id` is still undefined at settle
+      // time, so `findPostedTwinForStream` returns undefined — anchor the bubble on a
+      // turnId-derived `sourceMessageId` instead of persisting it id-LESS. A
+      // persisted, anchored bubble is always seed-able by `seedFoldedIdsFromTurns`, so
+      // it never re-folds at the tail across reloads. Content-fingerprint dedup is the
+      // authoritative key; this anchor + the `turn:` prefix keep the id-acceleration
+      // path consistent without ever colliding with a real backend message id.
+      turn: roleSpeechSettledTurn(
+        input.turnId,
+        input.roleName,
+        input.streamed,
+        twin?.id ?? turnAnchorMessageId(input.turnId),
+      ),
     };
   }
   const posted = selectRoleMessagesToFold({
@@ -250,6 +269,21 @@ type SettleRunTurnResolve = Omit<SettleRunTurnInput, "streamed"> & {
   streamed: string | undefined;
   denialReason: string | undefined;
 };
+
+/**
+ * A STABLE synthetic `sourceMessageId` anchor derived from the backend turn id
+ * (round-6). When a streamed reply settles before its posted twin lands — the
+ * freshly-created NL world case where `selectedRoom.id` is still undefined so
+ * `findPostedTwinForStream` returns undefined — the bubble would otherwise persist
+ * id-LESS and re-fold at the tail on every reload. Anchoring it on the turn id keeps
+ * the persisted bubble seed-able by `seedFoldedIdsFromTurns` (the id-acceleration
+ * path) while the content fingerprint remains the authoritative dedup key. The `turn:`
+ * prefix guarantees it never collides with a real backend `message.id`, so it can
+ * never falsely suppress a genuine posted message.
+ */
+export function turnAnchorMessageId(turnId: string): string {
+  return `turn:${turnId}`;
+}
 
 /**
  * A settled (non-streaming) role-speech turn keyed by the backend turn id — the

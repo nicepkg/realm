@@ -1,8 +1,10 @@
 import type { Message, RoleSummary } from "@realm/api-contract";
 import type { ChatTurn } from "@/state/god-chat-model.ts";
 import {
+  existingRoleSpeechFingerprints,
   isSameRoleSpeech,
   type PendingRoleReplyClaim,
+  roleSpeechFingerprint,
   roleSpeechPostedTurn,
   type SettleRunTurnResult,
   selectRoleMessagesToFold,
@@ -28,15 +30,22 @@ import {
  * `message.id` keeps passing the "not already represented" check and gets appended
  * 2-3 times (once correctly in slot, twice re-appended at the bottom).
  *
- * The fix: a ref-backed `Set<string>` of backend message ids the component has
- * already folded, threaded through this PURE gate. `existing`-based dedup stays as a
- * secondary guard, but `foldedIds` is the AUTHORITATIVE gate — a message whose id is
- * already in the set is dropped no matter what the `turns` snapshot says. The caller
- * registers `idsToRegister` into the ref SYNCHRONOUSLY in the same tick (not via
- * state), so the decision is independent of `turns` settle timing.
+ * The PRIMARY gate (round-6): a CONTENT-FINGERPRINT (`speaker::foldedText`) Set —
+ * `selectRoleMessagesToFold` already vetoes against the in-render `existing` snapshot's
+ * fingerprints, and here we ALSO veto against the cross-render fingerprint set the
+ * caller carries (every already-rendered bubble's fingerprint, refreshed each render).
+ * Because the fingerprint is decoupled from backend message id, room id, and world-load
+ * timing, a posted message matching an already-rendered bubble can never re-fold even
+ * when its persisted twin settled id-LESS (the reload accumulation loop). `foldedIds`
+ * (backend message ids) is kept as an ACCELERATION bypass — a fast id-exact veto for the
+ * common case where the bubble bound an id.
  *
- * Pure + idempotent: re-running with the same `foldedIds` (which the caller grows in
- * place) yields an empty `folds` on every pass after the first.
+ * The caller registers `idsToRegister` AND `fingerprintsToRegister` into its refs
+ * SYNCHRONOUSLY in the same tick (not via state), so the decision is independent of
+ * `turns` settle timing.
+ *
+ * Pure + idempotent: re-running with the same `foldedIds` / `foldedFingerprints` (which
+ * the caller grows in place) yields an empty `folds` on every pass after the first.
  */
 export function selectFoldsWithIdGate(input: {
   messages: Message[];
@@ -45,13 +54,44 @@ export function selectFoldsWithIdGate(input: {
   existing: ChatTurn[];
   ownerIds: string[];
   pendingReply?: PendingRoleReplyClaim;
-  /** Backend message ids the component has already folded (the ref's snapshot). */
+  /** Backend message ids the component has already folded (the acceleration bypass). */
   foldedIds: ReadonlySet<string>;
-}): { folds: { message: Message; speakerName: string }[]; idsToRegister: string[] } {
-  const { foldedIds, ...selectInput } = input;
+  /**
+   * The AUTHORITATIVE cross-render gate: `speaker::foldedText` fingerprints of every
+   * bubble the component has already rendered. Optional so existing call sites that
+   * only pass `foldedIds` keep working (the in-render `existing` fingerprint veto in
+   * `selectRoleMessagesToFold` still applies); the hook threads a ref-backed set so a
+   * re-delivered posted message is vetoed by content even across the hydration storm.
+   */
+  foldedFingerprints?: ReadonlySet<string>;
+}): {
+  folds: { message: Message; speakerName: string }[];
+  idsToRegister: string[];
+  fingerprintsToRegister: string[];
+} {
+  const { foldedIds, foldedFingerprints, ...selectInput } = input;
+  const roleById = new Map(selectInput.roles.map((role) => [role.id, role] as const));
   const candidates = selectRoleMessagesToFold(selectInput);
-  const folds = candidates.filter((entry) => !foldedIds.has(entry.message.id));
-  return { folds, idsToRegister: folds.map((entry) => entry.message.id) };
+  const folds = candidates.filter((entry) => {
+    if (foldedIds.has(entry.message.id)) {
+      return false;
+    }
+    if (foldedFingerprints) {
+      const role = roleById.get(entry.message.authorId);
+      const speaker = role?.displayName ?? entry.speakerName;
+      if (foldedFingerprints.has(roleSpeechFingerprint(speaker, entry.message.content))) {
+        return false;
+      }
+    }
+    return true;
+  });
+  return {
+    fingerprintsToRegister: folds.map((entry) =>
+      roleSpeechFingerprint(entry.speakerName, entry.message.content),
+    ),
+    folds,
+    idsToRegister: folds.map((entry) => entry.message.id),
+  };
 }
 
 /**
@@ -78,6 +118,41 @@ export function seedFoldedIdsFromTurns(turns: ChatTurn[]): string[] {
     }
   }
   return [...ids];
+}
+
+/**
+ * Seed the AUTHORITATIVE content-fingerprint gate from the hydrated transcript
+ * (round-6). The `speaker::foldedText` fingerprint of every persisted role-speech
+ * bubble — id-bound OR id-less — blocks its posted twin from re-folding, decoupled
+ * from id/room/world timing. This is the structural fix for the reload accumulation
+ * loop: an id-less persisted bubble (its twin landed after the live stream finished)
+ * carries no `sourceMessageId` for `seedFoldedIdsFromTurns`, but its content
+ * fingerprint always vetoes the re-fold. Pure: just reads `existingRoleSpeechFingerprints`.
+ */
+export function seedFoldedFingerprintsFromTurns(turns: ChatTurn[]): string[] {
+  return [...existingRoleSpeechFingerprints(turns)];
+}
+
+/**
+ * Self-heal the cross-render fingerprint gate from the CURRENT transcript — the
+ * fingerprint analogue of `mergeBoundIdsFromTurns`. On reload the lazy/scope seed can
+ * snapshot `turns` too early (before persistence swaps in the saved transcript), so we
+ * re-merge every rendered bubble's fingerprint on EVERY render: the instant a hydrated
+ * bubble lands, its content fingerprint is in the gate BEFORE the posted-fold effect
+ * runs, vetoing the re-fold regardless of whether the bubble bound an id. Monotonic +
+ * safe: it only ever ADDS fingerprints of bubbles ALREADY rendered, so it can never
+ * block a genuinely new utterance. Returns true when at least one new fingerprint was
+ * added (caller diagnostics).
+ */
+export function mergeFingerprintsFromTurns(gate: Set<string>, turns: ChatTurn[]): boolean {
+  let added = false;
+  for (const fingerprint of existingRoleSpeechFingerprints(turns)) {
+    if (!gate.has(fingerprint)) {
+      gate.add(fingerprint);
+      added = true;
+    }
+  }
+  return added;
 }
 
 /**

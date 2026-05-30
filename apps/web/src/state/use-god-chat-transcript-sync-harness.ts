@@ -3,13 +3,19 @@ import {
   hasUnboundIdLessSpeech,
   insertFoldsByTimestamp,
   mergeBoundIdsFromTurns,
+  mergeFingerprintsFromTurns,
   reconcileIdLessSpeechTurns,
+  seedFoldedFingerprintsFromTurns,
   seedFoldedIdsFromTurns,
   selectFoldsWithIdGate,
   settleBoundMessageId,
 } from "@/state/god-chat-fold-id-gate.ts";
 import type { ChatTurn } from "@/state/god-chat-model.ts";
-import { roleSpeechPostedTurn, settleRunTurn } from "@/state/god-chat-role-turn.ts";
+import {
+  roleSpeechFingerprint,
+  roleSpeechPostedTurn,
+  settleRunTurn,
+} from "@/state/god-chat-role-turn.ts";
 
 /**
  * Test harnesses + shared fixtures for `useGodChatTranscriptSync` regression specs.
@@ -86,6 +92,16 @@ export function makeHarness(args: {
    * `mergeBoundIdsFromTurns` (the fix) must then heal the gate the instant they land.
    */
   hydrateTurnsLate?: boolean;
+  /**
+   * Models the FRESHLY-CREATED NL world reload accumulation loop (round-6). On a brand
+   * new world `selectedRoom?.id` is undefined / arrives async, so at settle time the
+   * streamed reply's posted twin can't be found AND on reload the id-less reconcile's
+   * `if (!roomId) return` early-exits for the frames the room is missing. When set, the
+   * effects read `roomId === undefined` until `deliverRoom()` is called — so the
+   * reconcile/id paths are DISABLED for those frames and only the content-fingerprint
+   * gate can keep the re-delivered posted message from stacking a second bubble.
+   */
+  deliverRoomLate?: boolean;
 }) {
   const startTurns = args.hydrateTurnsLate ? [] : (args.hydratedTurns ?? []);
   // The hook's lazy `useRef` seed: foldedIdsRef starts seeded from the hydrated
@@ -93,6 +109,12 @@ export function makeHarness(args: {
   // path) the seed sees NOTHING — exactly the sealed-empty gate the fix must heal.
   const foldedIdsRef = {
     current: new Set<string>(seedFoldedIdsFromTurns(startTurns)),
+  };
+  // The AUTHORITATIVE content-fingerprint gate (round-6), seeded from the hydrated
+  // transcript the same way `foldedIdsRef` is. When the transcript hydrates LATE the
+  // seed sees NOTHING — the per-render `mergeFingerprintsFromTurns` heals it.
+  const foldedFingerprintsRef = {
+    current: new Set<string>(seedFoldedFingerprintsFromTurns(startTurns)),
   };
   let committedTurns: ChatTurn[] = [...startTurns];
   // The snapshot the POSTED-FOLD effect reads — deliberately lagged one render behind
@@ -114,6 +136,9 @@ export function makeHarness(args: {
   // `deliverMessagesLate` is set we start EMPTY and reveal `args.messages` only on
   // `deliverMessages()`; otherwise the messages are present from the first render.
   let messages: Message[] = args.deliverMessagesLate ? [] : args.messages;
+  // The selected room id the effects read — undefined until `deliverRoom()` when
+  // `deliverRoomLate` is set (the freshly-created NL world race).
+  let roomId: string | undefined = args.deliverRoomLate ? undefined : "main";
   // The active-run-turn settle runs at most ONCE per turn in the real hook (it clears
   // `activeRunTurn` afterwards). Model that so the settle storm doesn't mint a bubble
   // per render — only the posted-fold dedup is under test across the storm.
@@ -145,7 +170,7 @@ export function makeHarness(args: {
       messages,
       ownerIds: ["owner"],
       roles,
-      roomId: "main",
+      roomId,
       turns,
     });
     const deferMark = messages.length === 0 && hasUnboundIdLessSpeech(turns);
@@ -173,7 +198,7 @@ export function makeHarness(args: {
       ownerIds: ["owner"],
       roleName: "顾辰风",
       roles,
-      roomId: "main",
+      roomId,
       streamed: args.streamed,
       terminal: { kind: "completed" },
       turnId: "t1",
@@ -181,6 +206,15 @@ export function makeHarness(args: {
     const boundId = settleBoundMessageId(settle);
     if (boundId) {
       foldedIdsRef.current.add(boundId);
+    }
+    const settledDetail =
+      settle.kind === "growBubble"
+        ? settle.detail
+        : settle.kind === "settleNew" && settle.turn.card?.variant === "role-speech"
+          ? settle.turn.card.detail
+          : undefined;
+    if (settledDetail !== undefined) {
+      foldedFingerprintsRef.current.add(roleSpeechFingerprint("顾辰风", settledDetail));
     }
     if (settle.kind === "settleNew") {
       setTurns((current) => [...current, { ...settle.turn, id: nextTurnId() }]);
@@ -190,19 +224,23 @@ export function makeHarness(args: {
 
   /** Posted-fold effect body (one pass) — the buggy path, now id-gated. */
   function foldEffect() {
-    const { folds, idsToRegister } = selectFoldsWithIdGate({
+    const { folds, idsToRegister, fingerprintsToRegister } = selectFoldsWithIdGate({
       existing: foldReadTurns, // reads the one-render-LAGGED snapshot (the bug's cause)
+      foldedFingerprints: foldedFingerprintsRef.current,
       foldedIds: foldedIdsRef.current,
       messages,
       ownerIds: ["owner"],
       roles,
-      roomId: "main",
+      roomId,
     });
     if (folds.length === 0) {
       return;
     }
     for (const id of idsToRegister) {
       foldedIdsRef.current.add(id);
+    }
+    for (const fingerprint of fingerprintsToRegister) {
+      foldedFingerprintsRef.current.add(fingerprint);
     }
     setTurns((current) =>
       insertFoldsByTimestamp({
@@ -220,6 +258,10 @@ export function makeHarness(args: {
     // just-hydrated bubble), so a late-hydrated transcript's bound ids enter the gate
     // BEFORE the posted-fold pass — even while that pass still reads its lagged snapshot.
     mergeBoundIdsFromTurns(foldedIdsRef.current, committedTurns);
+    // The authoritative content-fingerprint self-heal (round-6): the instant a hydrated
+    // bubble lands in committed `turns`, its fingerprint enters the gate BEFORE the
+    // posted-fold pass — vetoing a re-fold even when the bubble settled id-LESS.
+    mergeFingerprintsFromTurns(foldedFingerprintsRef.current, committedTurns);
     reconcileEffect();
     if (args.streamed !== undefined && !activeRunTurnSettled) {
       activeRunTurnSettled = true;
@@ -237,6 +279,10 @@ export function makeHarness(args: {
 
   return {
     render,
+    /** Resolve the selected room (the freshly-created NL world's async room landing). */
+    deliverRoom() {
+      roomId = "main";
+    },
     /** Reveal `args.messages` to the effects — the late reload hydration landing. */
     deliverMessages() {
       messages = args.messages;
@@ -271,6 +317,7 @@ export function makeHarness(args: {
  */
 export function makeWorldScopedHarness(initial: { messages: Message[]; worldId: string }) {
   const foldedIdsRef = { current: new Set<string>() };
+  const foldedFingerprintsRef = { current: new Set<string>() };
   // The destination scope reloads to an EMPTY transcript (persistence owns the reload;
   // the sync hook never re-authors `turns`). The harness starts already-populated to
   // model a world whose exchange was folded, then swaps to a fresh empty scope.
@@ -298,8 +345,9 @@ export function makeWorldScopedHarness(initial: { messages: Message[]; worldId: 
   }
 
   function foldEffect() {
-    const { folds, idsToRegister } = selectFoldsWithIdGate({
+    const { folds, idsToRegister, fingerprintsToRegister } = selectFoldsWithIdGate({
       existing: committedTurns,
+      foldedFingerprints: foldedFingerprintsRef.current,
       foldedIds: foldedIdsRef.current,
       messages: scopedMessages(),
       ownerIds: ["owner"],
@@ -311,6 +359,9 @@ export function makeWorldScopedHarness(initial: { messages: Message[]; worldId: 
     }
     for (const id of idsToRegister) {
       foldedIdsRef.current.add(id);
+    }
+    for (const fingerprint of fingerprintsToRegister) {
+      foldedFingerprintsRef.current.add(fingerprint);
     }
     setTurns((current) => [
       ...current,
@@ -355,6 +406,7 @@ export function makeWorldScopedHarness(initial: { messages: Message[]; worldId: 
     if (scopeChanged) {
       prevWorldScopeRef.current = worldId;
       foldedIdsRef.current = new Set<string>();
+      foldedFingerprintsRef.current = new Set<string>();
       activeRunTurn = undefined;
     }
     if (!scopeChanged) {
