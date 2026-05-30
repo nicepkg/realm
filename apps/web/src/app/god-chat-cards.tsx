@@ -13,7 +13,7 @@ import {
 import { type FormEvent, useCallback, useState } from "react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { cn } from "@/lib/utils";
+import { cn } from "@/lib/utils.ts";
 import type { ChatCard, ChatCardKind } from "@/state/god-chat-model.ts";
 
 /**

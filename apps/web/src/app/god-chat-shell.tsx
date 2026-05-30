@@ -13,7 +13,7 @@ import {
 // re-export ConversationAutoScroll, and this component owns only this file +
 // its test — re-surfacing the already-unit-tested auto-stick affordance here is
 // the minimal fix for the "stuck mid-history after send" bug.
-import { ConversationAutoScroll } from "@/components/ai-elements/conversation";
+import { ConversationAutoScroll } from "@/components/ai-elements/conversation.tsx";
 import { WorldPulseGutter } from "@/components/messenger/world-pulse-gutter.tsx";
 import { useI18n } from "@/i18n/index.tsx";
 import type { GodChatContext } from "@/state/god-chat-model.ts";

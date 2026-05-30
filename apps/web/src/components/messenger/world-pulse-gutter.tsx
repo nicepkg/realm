@@ -1,7 +1,7 @@
 "use client";
 
 import { useMemo } from "react";
-import { cn } from "@/lib/utils";
+import { cn } from "@/lib/utils.ts";
 import type { GodChatContext } from "@/state/god-chat-model.ts";
 import { type WorldPulseFact, worldPulseFacts } from "@/view-models/labels.ts";
 

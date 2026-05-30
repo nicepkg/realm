@@ -1,7 +1,7 @@
 "use client";
 
 import { type ComponentProps, useCallback, useEffect, useRef, useState } from "react";
-import { cn } from "@/lib/utils";
+import { cn } from "@/lib/utils.ts";
 
 /**
  * A starter prompt shown as a tappable pill in the empty state. `label` is what

@@ -1,7 +1,7 @@
 import { Smile } from "lucide-react";
 import { type RefObject, useState } from "react";
 import { Button } from "@/components/ui/button";
-import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
+import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover.tsx";
 import { useI18n } from "@/i18n/index.tsx";
 
 /**

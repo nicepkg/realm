@@ -18,7 +18,7 @@ import {
   SheetTitle,
 } from "@/components/ui/sheet";
 import { useI18n } from "@/i18n/index.tsx";
-import { cn } from "@/lib/utils";
+import { cn } from "@/lib/utils.ts";
 import type { GodChatContext } from "@/state/god-chat-model.ts";
 // Reuse the rail's flattening so the sheet shows the EXACT same world snapshot.
 // Importing the helper (god-chat-context-rail.tsx is read-only and not edited)

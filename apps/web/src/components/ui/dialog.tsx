@@ -3,7 +3,7 @@ import { Dialog as DialogPrimitive } from "radix-ui";
 import type * as React from "react";
 import { Button } from "@/components/ui/button";
 import { useI18n } from "@/i18n/index.tsx";
-import { cn } from "@/lib/utils";
+import { cn } from "@/lib/utils.ts";
 
 function Dialog({ ...props }: React.ComponentProps<typeof DialogPrimitive.Root>) {
   return <DialogPrimitive.Root data-slot="dialog" {...props} />;

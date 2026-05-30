@@ -3,7 +3,7 @@ import { useState } from "react";
 import { LocaleToggle } from "@/components/layout/locale-toggle.tsx";
 import { IdentityAvatar } from "@/components/messenger/messenger-primitives.tsx";
 import { TakeoverConfirmDialog } from "@/components/messenger/takeover-confirm-dialog.tsx";
-import { Popover, PopoverAnchor, PopoverContent } from "@/components/ui/popover";
+import { Popover, PopoverAnchor, PopoverContent } from "@/components/ui/popover.tsx";
 import { useI18n } from "@/i18n/index.tsx";
 import { cn } from "@/lib/utils.ts";
 import type { RealmAppController } from "../../app/types.ts";

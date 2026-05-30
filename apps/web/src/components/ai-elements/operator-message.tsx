@@ -1,7 +1,7 @@
 "use client";
 
 import type { ComponentProps, ReactNode } from "react";
-import { cn } from "@/lib/utils";
+import { cn } from "@/lib/utils.ts";
 
 /**
  * Which side of the conversation a turn belongs to.

@@ -1,6 +1,6 @@
 import { Languages } from "lucide-react";
 import { type Locale, locales, useI18n } from "@/i18n/index.tsx";
-import { cn } from "@/lib/utils";
+import { cn } from "@/lib/utils.ts";
 
 /**
  * Short, self-explanatory glyph for each locale. Kept here (not in the

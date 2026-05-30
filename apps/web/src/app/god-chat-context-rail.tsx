@@ -3,7 +3,7 @@
 import { ChevronRightIcon, GlobeIcon, UsersIcon } from "lucide-react";
 import { useMemo } from "react";
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
-import { cn } from "@/lib/utils";
+import { cn } from "@/lib/utils.ts";
 import type { GodChatContext } from "@/state/god-chat-model.ts";
 
 /**

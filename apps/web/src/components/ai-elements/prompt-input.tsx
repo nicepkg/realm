@@ -5,7 +5,7 @@ import type { ComponentProps, FormEvent, KeyboardEvent } from "react";
 import { useCallback } from "react";
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
-import { cn } from "@/lib/utils";
+import { cn } from "@/lib/utils.ts";
 
 /**
  * PromptInput — the Apple-flat composer for the operator's natural-language
