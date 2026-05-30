@@ -56,7 +56,7 @@ export class FileConfigPatchStore {
     this.layout = projectLayout(root);
   }
 
-  async proposeRole(input: CreateRolePatchInput): Promise<ConfigPatchProposal> {
+  async proposeRole(input: CreateRolePatchInput, worldId?: string): Promise<ConfigPatchProposal> {
     const parsed = createRolePatchInputSchema.parse(input);
     const roleConfig: RoleConfig = {
       version: 1,
@@ -66,15 +66,62 @@ export class FileConfigPatchStore {
       profile: { summary: parsed.summary },
     };
     const relativePath = `.agents/roles/${parsed.id}/role.yaml`;
+    const files: Array<{
+      path: string;
+      action: "create" | "update" | "delete";
+      content: string | null;
+    }> = [{ path: relativePath, action: "create", content: `${YAML.stringify(roleConfig)}\n` }];
+
+    // When an active world is supplied AND its world.yaml exists, ATTACH the new
+    // role as a member of that world (on-disk world membership is the source of
+    // truth for the rail's 成员 list). Idempotent: re-adding an existing member
+    // emits no world.yaml op. Absent world / missing manifest → standalone role
+    // creation only, exactly as before (no regression).
+    const worldAttachment = worldId ? await this.buildWorldAttachment(worldId, parsed.id) : null;
+    if (worldAttachment) {
+      files.push(worldAttachment);
+    }
+
     const proposal = await this.createProposal({
+      // Title stays English; the display layer (localizeProposalTitle) renders
+      // it as 创建角色「displayName」(symmetric with world). The summary is
+      // emitted in zh directly so the display layer passes it through verbatim
+      // (no English残段) inside the zh-CN config patch card.
       title: `Create role ${parsed.displayName}`,
-      summary: `Create a project role config for ${parsed.displayName}.`,
+      summary: `为「${parsed.displayName}」创建一个项目角色配置。`,
       riskLevel: "low",
+      // Only role.create is needed: attaching a member to an existing world is a
+      // role operation, not world creation. Do NOT require world.create.
       requiredCapabilities: ["role.create"],
-      files: [{ path: relativePath, action: "create", content: `${YAML.stringify(roleConfig)}\n` }],
+      files,
     });
     await this.saveProposal(proposal);
     return proposal;
+  }
+
+  /**
+   * Read the active world's `world.yaml`, append the role to its `roles` list if
+   * absent, and return a second `update` file op carrying the merged manifest.
+   * Returns null when the world.yaml does not exist or the role is already a
+   * member (idempotent re-add). The new entry mirrors proposeWorld's shape:
+   * `{ id, model: "default" }`.
+   */
+  private async buildWorldAttachment(
+    worldId: string,
+    roleId: string,
+  ): Promise<{ path: string; action: "update"; content: string } | null> {
+    const relativePath = `.agents/worlds/${worldId}/world.yaml`;
+    const existing = await readTextIfExists(this.resolveAgentsPath(relativePath));
+    if (existing === null) {
+      return null;
+    }
+    const parsed = YAML.parse(existing) as { roles?: Array<{ id: string; model: string }> };
+    const roles = Array.isArray(parsed.roles) ? parsed.roles : [];
+    if (roles.some((role) => role.id === roleId)) {
+      return null;
+    }
+    parsed.roles = [...roles, { id: roleId, model: "default" }];
+    return { path: relativePath, action: "update", content: `${YAML.stringify(parsed)}\n` };
   }
 
   async proposeWorld(input: CreateWorldPatchInput): Promise<ConfigPatchProposal> {
@@ -102,8 +149,11 @@ export class FileConfigPatchStore {
       metaState: { roles: {} },
     };
     const proposal = await this.createProposal({
+      // Title stays English; the display layer (localizeProposalTitle) renders
+      // it as 创建世界「name」. The summary is emitted in zh directly so the
+      // display layer passes it through verbatim (no English残段).
       title: `Create world ${parsed.name}`,
-      summary: `Create a ${parsed.mode} world with a default all-member room.`,
+      summary: `创建一个${worldModeLabel(parsed.mode)}世界，并附带一个全员房间。`,
       riskLevel: "low",
       requiredCapabilities: ["world.create"],
       files: [
@@ -327,6 +377,20 @@ export class FileConfigPatchStore {
     }
     return absolutePath;
   }
+}
+
+// zh-CN label for a world mode, used in the proposal summary so the display
+// layer renders it verbatim instead of leaving an English残段.
+const WORLD_MODE_LABELS: Record<CreateWorldPatchInput["mode"], string> = {
+  debate: "辩论",
+  workflow: "流程",
+  game: "对局",
+  simulation: "模拟",
+  sandbox: "沙盒",
+};
+
+function worldModeLabel(mode: CreateWorldPatchInput["mode"]): string {
+  return WORLD_MODE_LABELS[mode] ?? "沙盒";
 }
 
 function classifyConfigPatchRisk(

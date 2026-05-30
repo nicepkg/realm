@@ -351,6 +351,11 @@ export const createWorldRequestSchema = z.object({
 
 export const assistantConfigRequestSchema = z.object({
   goal: z.string().min(1),
+  // Active world id, threaded so an add-role config is ATTACHED to the world the
+  // operator is currently in (its world.yaml gains the new member) instead of
+  // only creating a standalone project role. Optional: absent → standalone role
+  // creation, exactly as before (no world membership change).
+  worldId: z.string().min(1).optional(),
 });
 
 export const configPatchProposalResponseSchema = z.object({

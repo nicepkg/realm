@@ -186,6 +186,96 @@ describe("config project layout", () => {
     await expect(store.rollback("..\\escape")).rejects.toThrow();
   });
 
+  test("proposes a role with a zh-CN summary so the patch card has no English残段", async () => {
+    const root = await mkdtemp(path.join(os.tmpdir(), "realm-role-summary-"));
+    await initProject(root, "demo");
+    const store = new FileConfigPatchStore(root);
+
+    const proposal = await store.proposeRole({
+      id: "leijun",
+      displayName: "雷军",
+      model: "default",
+      summary: "小米创始人",
+    });
+
+    expect(proposal.summary).toBe("为「雷军」创建一个项目角色配置。");
+    // Title stays English; localizeProposalTitle renders it in the display layer.
+    expect(proposal.title).toBe("Create role 雷军");
+  });
+
+  test("attaches an added role to the active world.yaml and is idempotent on re-add", async () => {
+    const root = await mkdtemp(path.join(os.tmpdir(), "realm-role-attach-"));
+    const layout = await initProject(root, "demo");
+    const store = new FileConfigPatchStore(root);
+
+    // Seed an existing world manifest so the attach has something to merge into.
+    const worldDir = path.join(layout.worldsDir, "cultivation");
+    await mkdir(worldDir, { recursive: true });
+    await writeFile(
+      path.join(worldDir, "world.yaml"),
+      [
+        "version: 1",
+        "id: cultivation",
+        "name: 云岭修仙界",
+        "mode:",
+        "  type: sandbox",
+        "  time:",
+        "    kind: manual",
+        "rooms:",
+        "  main:",
+        "    type: world-main",
+        "    name: main",
+        "roles: []",
+        "",
+      ].join("\n"),
+    );
+
+    const proposal = await store.proposeRole(
+      { id: "yunyao", displayName: "云遥", model: "default", summary: "新弟子" },
+      "cultivation",
+    );
+
+    // The role-create op is still present...
+    const roleOp = proposal.operations.find((op) => op.path === ".agents/roles/yunyao/role.yaml");
+    expect(roleOp?.action).toBe("create");
+    // ...AND a SECOND update op attaches the member to the world manifest.
+    const worldOp = proposal.operations.find(
+      (op) => op.path === ".agents/worlds/cultivation/world.yaml",
+    );
+    expect(worldOp?.action).toBe("update");
+    expect(worldOp?.nextContent).toContain("yunyao");
+
+    // Attaching a member edits an existing world manifest, which the risk
+    // classifier rates high → a typed confirmation is required to apply.
+    expect(proposal.typedConfirmation).toBe(`APPLY ${proposal.id}`);
+    // Apply it, then re-propose the SAME role: the world is now a member, so the
+    // re-add must NOT emit a world.yaml op (idempotent membership).
+    await store.apply(proposal.id, { confirmation: proposal.typedConfirmation ?? undefined });
+    const reAdd = await store.proposeRole(
+      { id: "yunyao", displayName: "云遥", model: "default", summary: "新弟子" },
+      "cultivation",
+    );
+    expect(reAdd.operations.some((op) => op.path === ".agents/worlds/cultivation/world.yaml")).toBe(
+      false,
+    );
+  });
+
+  test("adding a role without a world id stays a standalone role create (no world op)", async () => {
+    const root = await mkdtemp(path.join(os.tmpdir(), "realm-role-standalone-"));
+    await initProject(root, "demo");
+    const store = new FileConfigPatchStore(root);
+
+    const proposal = await store.proposeRole({
+      id: "yunyao",
+      displayName: "云遥",
+      model: "default",
+      summary: "新弟子",
+    });
+
+    expect(proposal.operations).toHaveLength(1);
+    expect(proposal.operations[0]?.path).toBe(".agents/roles/yunyao/role.yaml");
+  });
+
   test("resolves project root from nested directory", async () => {
     const root = await mkdtemp(path.join(os.tmpdir(), "realm-root-"));
     await initProject(root, "demo");

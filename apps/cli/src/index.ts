@@ -144,12 +144,16 @@ async function open(argv: string[]): Promise<void> {
   const url = `http://${host}:${port}`;
   const eventStore = new SQLiteEventStore(path.join(layout.stateDir, "events.sqlite"));
   const webDistDir = await resolveWebDistDir();
-  const effectiveTrustTier = runtimeMode === "fake" ? "run-roles" : trustTier;
+  // The fake runtime only swaps WHICH adapter answers role turns; it must NOT
+  // silently grant trust. A project with `security.requireTrust` still boots
+  // read-only so trust elevation stays an explicit, gated user action (the
+  // security model is identical under both runtimes). The previous fake-runtime
+  // override bypassed the read-only banner entirely.
   const service = new RealmApplicationService({
     root,
     eventStore,
     extensionBaseUrl: url,
-    trustTier: effectiveTrustTier,
+    trustTier,
     fakeVerticalSlice: runtimeMode === "fake",
   });
   const app = createRealmServer({ root, eventStore, webDistDir, extensionBaseUrl: url, service });
@@ -178,10 +182,8 @@ async function open(argv: string[]): Promise<void> {
 
   console.log(`Realm project: ${config.project.name}`);
   console.log(`Runtime mode: ${runtimeMode}`);
-  console.log(
-    `Project trust: ${runtimeMode === "fake" ? "run-roles (fake runtime)" : (trust?.tier ?? "untrusted/read-only")}`,
-  );
-  if (runtimeMode !== "fake" && config.security.requireTrust && !trust) {
+  console.log(`Project trust: ${trustTier}`);
+  if (config.security.requireTrust && !trust) {
     console.log("Run `realm trust --tier run-roles` to enable role turns and state actions.");
   }
   console.log(`Realm server: ${runtimeUrl}`);

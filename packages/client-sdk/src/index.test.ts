@@ -117,6 +117,48 @@ describe("RealmHttpClient", () => {
     expect(response.historyId).toBe("history-1");
   });
 
+  test("forwards the active worldId on an assistant config proposal", async () => {
+    let requestPath = "";
+    let requestBody: Record<string, unknown> = {};
+    const client = new RealmHttpClient({
+      fetchImpl: (async (input, init) => {
+        requestPath = new URL(String(input), "http://realm.test").pathname;
+        requestBody = JSON.parse(String(init?.body)) as Record<string, unknown>;
+        return Response.json({
+          patch: {
+            id: "patch-1",
+            title: "Create role 云遥",
+            summary: "为「云遥」创建一个项目角色配置。",
+            riskLevel: "low",
+            riskReasons: ["Creates new config files only."],
+            typedConfirmation: null,
+            requiredCapabilities: ["role.create"],
+            operations: [
+              {
+                action: "create",
+                path: ".agents/roles/yunyao/role.yaml",
+                previousHash: null,
+                nextHash: "abc",
+                nextContent: "version: 1\n",
+              },
+            ],
+            createdAt: "2026-05-30T00:00:00.000Z",
+          },
+        });
+      }) as typeof fetch,
+    });
+
+    const response = await client.proposeAssistantConfig({
+      goal: "加一个叫云遥的角色",
+      worldId: "cultivation",
+    });
+
+    expect(requestPath).toBe("/api/assistant/config");
+    // The active world id rides along so the backend can attach the role.
+    expect(requestBody).toEqual({ goal: "加一个叫云遥的角色", worldId: "cultivation" });
+    expect(response.patch.title).toBe("Create role 云遥");
+  });
+
   test("starts and cancels role turns", async () => {
     const requestPaths: string[] = [];
     const client = new RealmHttpClient({

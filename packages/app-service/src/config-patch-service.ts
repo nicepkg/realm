@@ -28,9 +28,9 @@ export class ConfigPatchService {
     this.planner = options.planner ?? new DeterministicConfigAssistantPlanner();
   }
 
-  async proposeRole(input: CreateRolePatchInput): Promise<ConfigPatchProposal> {
+  async proposeRole(input: CreateRolePatchInput, worldId?: string): Promise<ConfigPatchProposal> {
     this.options.assertAllowed("role.create");
-    const proposal = await this.options.patchStore.proposeRole(input);
+    const proposal = await this.options.patchStore.proposeRole(input, worldId);
     this.appendConfigPatchProposed(proposal);
     return proposal;
   }
@@ -42,12 +42,18 @@ export class ConfigPatchService {
     return proposal;
   }
 
-  async proposeAssistantConfig(input: { goal: string }): Promise<ConfigPatchProposal> {
+  async proposeAssistantConfig(input: {
+    goal: string;
+    worldId?: string;
+  }): Promise<ConfigPatchProposal> {
     const plan = await this.planner.plan(input.goal);
     if (plan.kind === "world") {
       return this.proposeWorld(plan.world);
     }
-    return this.proposeRole(plan.role);
+    // Thread the active world id so an add-role plan ATTACHES the new role to the
+    // world.yaml of the world the operator is currently in (a second update op),
+    // not just a standalone project role.
+    return this.proposeRole(plan.role, input.worldId);
   }
 
   async applyConfigPatch(

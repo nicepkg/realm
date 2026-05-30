@@ -95,6 +95,14 @@ function applyOperation(target: WorldState, operation: StatePatchOperation): voi
     }
     case "append": {
       const current = getAtPointer(target, operation.path);
+      if (current === undefined) {
+        // Appending to a not-yet-existing list creates it: this gives natural
+        // "append always grows a list" semantics so NL writes like adding a
+        // condition to a role that has no `conditions` array yet succeed instead
+        // of being rejected. setAtPointer creates any intermediate objects.
+        setAtPointer(target, operation.path, [operation.value]);
+        return;
+      }
       if (!Array.isArray(current)) {
         throw new Error(`Cannot append to non-array at ${operation.path}`);
       }

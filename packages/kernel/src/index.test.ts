@@ -91,6 +91,85 @@ describe("StateReducer", () => {
     ).toBe("full");
   });
 
+  test("append to a missing array path auto-vivifies the list and commits", () => {
+    const state = createInitialState({ privateState: { roles: { leijun: {} } } });
+    const result = new StateReducer().apply(state, {
+      id: "patch:1",
+      worldId: "cultivation",
+      actorId: "god",
+      proposedBy: "owner",
+      baseVersion: 0,
+      expectedVersion: 0,
+      operations: [
+        { op: "append", path: "/privateState/roles/leijun/conditions", value: "断了一根肋骨" },
+      ],
+      reason: "Injury",
+      createdAt: "2026-05-26T00:00:00.000Z",
+    });
+
+    expect(result.status).toBe("committed");
+    expect(state.version).toBe(1);
+    expect(
+      (
+        state.state as {
+          privateState: { roles: { leijun: { conditions: string[] } } };
+        }
+      ).privateState.roles.leijun.conditions,
+    ).toEqual(["断了一根肋骨"]);
+  });
+
+  test("append creates intermediate objects when the whole branch is missing", () => {
+    const state = createInitialState({ privateState: {} });
+    const result = new StateReducer().apply(state, {
+      id: "patch:1",
+      worldId: "cultivation",
+      actorId: "god",
+      proposedBy: "owner",
+      baseVersion: 0,
+      expectedVersion: 0,
+      operations: [{ op: "append", path: "/privateState/roles/yunyao/conditions", value: "中毒" }],
+      reason: "Poisoned",
+      createdAt: "2026-05-26T00:00:00.000Z",
+    });
+
+    expect(result.status).toBe("committed");
+    expect(
+      (
+        state.state as {
+          privateState: { roles: { yunyao: { conditions: string[] } } };
+        }
+      ).privateState.roles.yunyao.conditions,
+    ).toEqual(["中毒"]);
+  });
+
+  test("append still rejects when the existing value is a non-array scalar", () => {
+    const state = createInitialState({
+      privateState: { roles: { leijun: { conditions: "healthy" } } },
+    });
+    const result = new StateReducer().apply(state, {
+      id: "patch:1",
+      worldId: "cultivation",
+      actorId: "god",
+      proposedBy: "owner",
+      baseVersion: 0,
+      expectedVersion: 0,
+      operations: [
+        { op: "append", path: "/privateState/roles/leijun/conditions", value: "断了一根肋骨" },
+      ],
+      reason: "Injury",
+      createdAt: "2026-05-26T00:00:00.000Z",
+    });
+
+    expect(result).toMatchObject({ status: "rejected", currentVersion: 0 });
+    expect(
+      (
+        state.state as {
+          privateState: { roles: { leijun: { conditions: string } } };
+        }
+      ).privateState.roles.leijun.conditions,
+    ).toBe("healthy");
+  });
+
   test("rejects traversal into an existing scalar without mutating state", () => {
     const state = createInitialState({ publicState: { roles: { leijun: { hp: 100 } } } });
     const result = new StateReducer().apply(state, {

@@ -398,7 +398,10 @@ export class RealmApplicationService {
     return this.configPatchService.proposeWorld(input);
   }
 
-  async proposeAssistantConfig(input: { goal: string }): Promise<ConfigPatchProposal> {
+  async proposeAssistantConfig(input: {
+    goal: string;
+    worldId?: string;
+  }): Promise<ConfigPatchProposal> {
     return this.configPatchService.proposeAssistantConfig(input);
   }
 
