@@ -8,7 +8,11 @@ import {
   humanizePatchPath,
   type StagedConfig,
 } from "@/state/god-chat-model.ts";
-import { answerWorldState, localizeProposalSummary } from "@/state/god-chat-runtime.ts";
+import {
+  answerWorldState,
+  classifyBackendError,
+  localizeProposalSummary,
+} from "@/state/god-chat-runtime.ts";
 
 /**
  * The authoritative full humanized tree, wherever it lives. For a DENSE world (F3)
@@ -214,6 +218,107 @@ describe("localizeProposalSummary — faithful create-world preview (F2)", () =>
     const out = localizeProposalSummary("为「云遥」创建一个项目角色配置。", "加一个宗门弟子云遥");
     expect(out).toBe("为「云遥」创建一个项目角色配置。");
     expect(out).not.toContain("本次不创建");
+  });
+});
+
+describe("classifyBackendError — provider key/quota vs session 401", () => {
+  const RELOGIN_COPY = "鉴权失败，请重新登录后重试。";
+  const PROVIDER_KEY_COPY =
+    "模型服务密钥无效或无权限（不是你的登录问题）。请检查所选模型的 API Key 配置后重试。";
+  const PROVIDER_QUOTA_COPY = "模型服务额度不足或调用过于频繁，请稍后再试或更换模型。";
+
+  test("real OpenAI permissioned-key 401 → provider-key copy, not re-login", () => {
+    const { text, trustRelated } = classifyBackendError(
+      "Pi openai/gpt-5-mini failed: OpenAI API error (401): Your organization does not allow user keys, please try again with a permissioned key.",
+    );
+    expect(text).toBe(PROVIDER_KEY_COPY);
+    expect(text).not.toBe(RELOGIN_COPY);
+    // This is a provider problem, not a Realm trust gate.
+    expect(trustRelated).toBe(false);
+    // The bare English provider sentence must never leak into the UI.
+    expect(text).not.toContain("permissioned key");
+  });
+
+  test("provider rate-limit failure → quota/rate-limit copy", () => {
+    const { text, trustRelated } = classifyBackendError(
+      "Pi google/gemini-2.5-flash failed: Google API error (429): rate limit exceeded, please retry later.",
+    );
+    expect(text).toBe(PROVIDER_QUOTA_COPY);
+    expect(trustRelated).toBe(false);
+  });
+
+  test("bare 401 with NO provider markers → still the existing re-login copy", () => {
+    const { text, trustRelated } = classifyBackendError("401 Unauthorized");
+    expect(text).toBe(RELOGIN_COPY);
+    expect(trustRelated).toBe(false);
+  });
+
+  test("provider message containing forbidden/policy still wins the provider branch", () => {
+    const { text, trustRelated } = classifyBackendError(
+      "Pi openai/gpt-5-mini failed: OpenAI API error (403): incorrect API key — request forbidden by policy.",
+    );
+    // Provider branch must beat the policy/forbidden branch.
+    expect(text).toBe(PROVIDER_KEY_COPY);
+    expect(text).not.toBe("这一步被安全策略拦下了，当前权限不允许该操作。");
+    expect(trustRelated).toBe(false);
+  });
+
+  test("OpenAI project-key 401 (invalid api key) → provider-key copy, not re-login", () => {
+    const { text, trustRelated } = classifyBackendError(
+      "Pi openai/gpt-5-mini failed: OpenAI API error (401): Incorrect API key provided: sk-proj-***. You can find your API key at https://platform.openai.com/account/api-keys.",
+    );
+    expect(text).toBe(PROVIDER_KEY_COPY);
+    expect(text).not.toBe(RELOGIN_COPY);
+    expect(trustRelated).toBe(false);
+    // The raw English provider sentence (and the leaked key fragment) must not reach the UI.
+    expect(text).not.toContain("Incorrect API key");
+    expect(text).not.toContain("sk-proj");
+  });
+
+  test("OpenAI insufficient_quota → quota copy, not key copy or re-login", () => {
+    const { text, trustRelated } = classifyBackendError(
+      "Pi openai/gpt-5-mini failed: OpenAI API error (429): You exceeded your current quota (insufficient_quota), please check your plan and billing details.",
+    );
+    expect(text).toBe(PROVIDER_QUOTA_COPY);
+    expect(text).not.toBe(PROVIDER_KEY_COPY);
+    expect(text).not.toBe(RELOGIN_COPY);
+    expect(trustRelated).toBe(false);
+    expect(text).not.toContain("insufficient_quota");
+  });
+
+  test("Gemini invalid api key → provider-key copy, not re-login", () => {
+    const { text, trustRelated } = classifyBackendError(
+      "Pi google/gemini-2.5-pro failed: Gemini API error (400): API key not valid. Please pass a valid API key.",
+    );
+    expect(text).toBe(PROVIDER_KEY_COPY);
+    expect(text).not.toBe(RELOGIN_COPY);
+    expect(trustRelated).toBe(false);
+    expect(text).not.toContain("API key not valid");
+  });
+
+  test("wrapped provider failure with NO finer phrase still resolves to provider, not re-login", () => {
+    // A bare `Pi <provider>/<model> failed: …` wrapper with no key/quota phrase is
+    // still a provider problem — the raw English sentence must stay out of the UI.
+    const { text, trustRelated } = classifyBackendError(
+      "Pi openai/gpt-5-mini failed: OpenAI API error (500): the server had an error processing your request.",
+    );
+    expect(text).toBe(PROVIDER_KEY_COPY);
+    expect(text).not.toBe(RELOGIN_COPY);
+    expect(trustRelated).toBe(false);
+    expect(text).not.toContain("server had an error");
+  });
+
+  test("plain Realm session 401 (no provider markers) stays the re-login copy", () => {
+    // The canonical regression: a real Realm-session 401 must NOT be hijacked by
+    // the provider branch — it still routes to 重新登录 (trustRelated stays false).
+    for (const raw of [
+      "Request failed with status 401 Unauthorized",
+      "unauthorized: session token expired",
+    ]) {
+      const { text, trustRelated } = classifyBackendError(raw);
+      expect(text).toBe(RELOGIN_COPY);
+      expect(trustRelated).toBe(false);
+    }
   });
 });
 

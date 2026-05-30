@@ -42,6 +42,16 @@ export function classifyBackendError(raw: string | undefined): BackendErrorInfo 
   if (detail.length === 0) {
     return { text: "操作失败，原因未知，请稍后重试。", trustRelated: false };
   }
+  // Upstream MODEL-PROVIDER failure — MUST win over the generic 401/unauthorized
+  // and the policy/forbidden branches below. A provider key/quota error (the role
+  // turn wrapper surfaces it as `Pi <provider>/<model> failed: <provider sentence>`)
+  // is NOT a Realm-session auth failure and re-login cannot fix it, so the calm copy
+  // must point at the model provider — never at the operator's login. trustRelated
+  // is always false (this is not a Realm trust gate).
+  const providerCopy = classifyProviderError(normalized);
+  if (providerCopy) {
+    return { text: providerCopy, trustRelated: false };
+  }
   // Trust / read-only gate — the most common write rejection on a fresh project.
   if (
     normalized.includes("read-only") ||
@@ -91,6 +101,69 @@ export function classifyBackendError(raw: string | undefined): BackendErrorInfo 
   }
   // Unknown code: keep the raw detail but wrap it so it reads as Chinese.
   return { text: `操作失败：${detail}`, trustRelated: false };
+}
+
+/**
+ * Phrases that mark an upstream model-provider KEY / permission failure — the
+ * provider rejected the configured API key (wrong, missing, or not permissioned),
+ * which a Realm re-login can never fix.
+ */
+const PROVIDER_KEY_MARKERS = [
+  "does not allow user keys",
+  "permissioned key",
+  "incorrect api key",
+  "invalid api key",
+  "api key",
+] as const;
+
+/** Phrases that mark a provider QUOTA / rate-limit failure (transient, retryable). */
+const PROVIDER_QUOTA_MARKERS = ["insufficient_quota", "quota", "rate limit", "rate_limit"] as const;
+
+/**
+ * Generic markers that prove the failure originated in an upstream model-provider
+ * call (the `Pi <provider>/<model> failed` wrapper prefix, or a provider error
+ * banner) rather than in the Realm session. Used to keep the raw provider sentence
+ * out of the UI even when it carries no key/quota phrase we recognize.
+ */
+const PROVIDER_CALL_MARKERS = ["openai api error", "google api", "gemini"] as const;
+
+/**
+ * Classify a normalized error message as an upstream model-provider failure and
+ * return calm zh-CN copy that points at the MODEL PROVIDER (never the operator's
+ * login), or `undefined` when the message carries no provider markers. Pure helper
+ * so the ordering guarantee in `classifyBackendError` stays trivially testable:
+ *
+ *  - key / permission phrases → "模型服务密钥无效或无权限（不是你的登录问题）…"
+ *  - quota / rate-limit phrases → "模型服务额度不足或调用过于频繁…"
+ *  - a bare `Pi <provider>/<model> failed` wrapper (or provider error banner) with
+ *    no finer phrase → the key/permission copy (the dominant real-world cause),
+ *    so a raw English provider sentence never leaks into the UI.
+ *
+ * A plain user-session 401 with NONE of these markers returns `undefined`, so the
+ * caller falls through to the existing 重新登录 copy.
+ */
+function classifyProviderError(normalized: string): string | undefined {
+  const PROVIDER_KEY_COPY =
+    "模型服务密钥无效或无权限（不是你的登录问题）。请检查所选模型的 API Key 配置后重试。";
+  const PROVIDER_QUOTA_COPY = "模型服务额度不足或调用过于频繁，请稍后再试或更换模型。";
+
+  // The role-turn wrapper prefix `Pi <provider>/<model> failed: …` is the canonical
+  // signal that the failure came from a provider call, not the Realm session.
+  const isWrappedProviderFailure = normalized.includes("pi ") && normalized.includes("failed");
+  const hasProviderCallMarker = PROVIDER_CALL_MARKERS.some((m) => normalized.includes(m));
+
+  if (PROVIDER_QUOTA_MARKERS.some((m) => normalized.includes(m))) {
+    return PROVIDER_QUOTA_COPY;
+  }
+  if (PROVIDER_KEY_MARKERS.some((m) => normalized.includes(m))) {
+    return PROVIDER_KEY_COPY;
+  }
+  // Wrapped provider failure / provider error banner with no finer phrase: still a
+  // provider problem (most often a key/permission one) — keep the raw English out.
+  if (isWrappedProviderFailure || hasProviderCallMarker) {
+    return PROVIDER_KEY_COPY;
+  }
+  return undefined;
 }
 
 // --- Config-proposal display localization (F4) -------------------------------
