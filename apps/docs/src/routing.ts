@@ -8,17 +8,31 @@ export type DocsRoute = {
 };
 
 export function resolveInitialRoute(): DocsRoute {
-  const route = resolveRoute(window.location.pathname);
-  if (route) {
-    return route;
+  // Explicit deep links (`/en`, `/zh-CN`, and their topics) are honored as-is so
+  // shareable URLs stay stable. The bare canonical root (`/`) intentionally does
+  // NOT inherit resolveRoute's hardcoded English default: Realm is a Chinese-first
+  // product, so a bare-root visitor must fall through to their stored preference
+  // and then navigator.language before defaulting to English.
+  const pathname = window.location.pathname;
+  if (!isBareRoot(pathname)) {
+    const route = resolveRoute(pathname);
+    if (route) {
+      return route;
+    }
   }
+  return { locale: preferredLocale() };
+}
+
+function isBareRoot(pathname: string): boolean {
+  return pathname.split("/").filter(Boolean).length === 0;
+}
+
+function preferredLocale(): Locale {
   const stored = window.localStorage.getItem(LOCALE_STORAGE_KEY);
   if (isLocale(stored)) {
-    return { locale: stored };
+    return stored;
   }
-  return {
-    locale: window.navigator.language.toLowerCase().startsWith("zh") ? "zh-CN" : "en",
-  };
+  return window.navigator.language.toLowerCase().startsWith("zh") ? "zh-CN" : "en";
 }
 
 export function resolveRoute(pathname: string): DocsRoute | undefined {

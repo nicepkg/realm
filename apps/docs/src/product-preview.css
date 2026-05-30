@@ -1,142 +1,60 @@
+/* NL-first hero mockup: one flat, Apple-style chat window. The operator talks
+   to 天道 in plain language; the assistant replies with an inline confirm card.
+   No messenger collage, no nine-grid avatar, no rails. */
 .product-preview {
   align-self: stretch;
-  display: grid;
-  gap: 16px;
-  grid-template-columns: minmax(260px, 0.74fr) minmax(520px, 1.26fr);
+  display: flex;
+  justify-content: center;
   min-width: 0;
   position: relative;
   width: 100%;
 }
 
-.manager-preview,
-.chat-preview,
-.god-chip {
+.chat-window {
   background: #fff;
   border: 1px solid var(--line);
-  border-radius: 8px;
+  border-radius: 14px;
+  box-shadow: 0 24px 60px rgba(0, 0, 0, 0.08);
+  display: flex;
+  flex-direction: column;
+  max-width: 560px;
+  min-height: 460px;
   overflow: hidden;
+  width: 100%;
 }
 
-.manager-preview header,
-.chat-preview header {
+.chat-window-bar {
   align-items: center;
   border-bottom: 1px solid var(--line);
   display: flex;
-  height: 46px;
-  justify-content: space-between;
-  padding: 0 14px;
+  gap: 10px;
+  padding: 12px 16px;
 }
 
-.manager-body {
-  padding: 28px 18px 18px;
-}
-
-.manager-body p {
-  font-size: 24px;
-  font-weight: 650;
-  margin-bottom: 14px;
-}
-
-.manager-body button {
-  background: var(--realm-primary);
-  border: 0;
-  border-radius: 8px;
-  color: #fff;
-  padding: 9px 14px;
-}
-
-.manager-preview header button {
-  background: transparent;
-  border: 0;
-  color: var(--text-muted);
-}
-
-.world-row {
-  align-items: center;
-  border-top: 1px solid var(--line);
-  display: grid;
-  gap: 12px;
-  grid-template-columns: 46px minmax(0, 1fr);
-  min-height: 76px;
-  padding: 12px 14px;
-}
-
-.world-row strong,
-.world-row small {
-  display: block;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-}
-
-.world-row small {
-  color: var(--text-muted);
-  margin-top: 4px;
-}
-
-.group-avatar {
-  background: #d9dcdf;
-  border-radius: 4px;
-  display: grid;
-  gap: 1.5px;
-  grid-template-columns: repeat(3, 1fr);
-  grid-template-rows: repeat(3, 1fr);
-  height: 44px;
-  overflow: hidden;
-  padding: 1.5px;
-  width: 44px;
-}
-
-.group-avatar i {
-  align-items: center;
-  background: #fff;
-  color: var(--text-muted);
-  display: inline-flex;
-  font-size: 9px;
-  font-style: normal;
+.chat-window-bar strong {
+  font-size: 15px;
   font-weight: 600;
-  justify-content: center;
 }
 
-.chat-preview {
-  background: #ededee;
-  min-height: 430px;
-  position: relative;
-}
-
-.chat-preview header {
-  background: #f7f7f8;
-}
-
-/* Compact representation of the in-app "..." menu. Right-aligned, muted, and
-   non-overlapping so the preview still reads as a calm idle chat. */
-.topbar-menu {
+.chat-window-body {
   display: flex;
-  flex-wrap: wrap;
-  gap: 4px 10px;
-  justify-content: flex-end;
-  max-width: 60%;
+  flex: 1;
+  flex-direction: column;
+  gap: 16px;
+  padding: 20px 16px;
 }
 
-.topbar-menu span {
+.chat-empty-hint {
   color: var(--text-faint);
-  font-size: 10px;
-  line-height: 1.2;
-  white-space: nowrap;
-}
-
-.message-time {
-  color: var(--text-faint);
-  font-size: 12px;
-  padding: 14px 0 8px;
+  font-size: 14px;
+  margin: 0;
   text-align: center;
 }
 
 .message-row {
-  align-items: flex-start;
+  align-items: flex-end;
   display: flex;
   gap: 10px;
-  margin: 14px 18px;
 }
 
 .message-row.outgoing {
@@ -149,113 +67,132 @@
 
 .avatar {
   align-items: center;
-  background: #ff7a45;
-  border-radius: 8px;
+  background: var(--realm-primary);
+  border-radius: 10px;
+  color: #1d1d1f;
   display: inline-flex;
   flex: 0 0 auto;
-  height: 40px;
+  font-size: 15px;
+  font-weight: 600;
+  height: 34px;
   justify-content: center;
-  width: 40px;
+  width: 34px;
 }
 
-.message-row.incoming .avatar {
+.chat-bubble {
+  border-radius: 14px;
+  line-height: 1.5;
+  max-width: 320px;
+  padding: 10px 14px;
+}
+
+.message-row.outgoing .chat-bubble {
   background: var(--realm-primary);
-}
-
-.message-row small {
-  color: var(--text-muted);
-  display: block;
-  margin: 0 0 6px;
-}
-
-.message-bubble {
-  background: #fff;
-  border-radius: 6px;
-  line-height: 1.45;
-  max-width: 280px;
-  padding: 10px 12px;
-  position: relative;
-}
-
-.message-bubble::before {
-  background: inherit;
-  content: "";
-  height: 9px;
-  position: absolute;
-  top: 13px;
-  transform: rotate(45deg);
-  width: 9px;
-}
-
-.incoming .message-bubble::before {
-  left: -4px;
-}
-
-.outgoing .message-bubble {
-  background: var(--bubble);
-}
-
-.outgoing .message-bubble::before {
-  right: -4px;
-}
-
-.chat-preview footer {
-  align-items: center;
-  background: #f7f7f8;
-  border-top: 1px solid var(--line);
-  bottom: 0;
-  display: grid;
-  gap: 10px;
-  grid-template-columns: auto minmax(0, 1fr) auto auto;
-  left: 0;
-  padding: 10px 12px;
-  position: absolute;
-  right: 0;
-}
-
-.voice-mark {
+  border-bottom-right-radius: 4px;
   color: #1d1d1f;
 }
 
-.composer {
+.chat-bubble.assistant {
+  background: var(--surface-muted);
+  border-bottom-left-radius: 4px;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+/* Inline preview/confirm card for a risky write — lightweight, lives inside
+   the assistant bubble, not a giant sheet. */
+.confirm-card {
   background: #fff;
-  border-radius: 6px;
-  color: var(--text-faint);
-  min-height: 36px;
-  padding: 8px 12px;
+  border: 1px solid var(--line);
+  border-radius: 10px;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  padding: 12px;
 }
 
-.god-chip {
-  bottom: 72px;
-  color: #7a4a00;
+.confirm-card strong {
+  font-size: 14px;
+  font-weight: 600;
+}
+
+.confirm-card small {
+  color: var(--text-muted);
+  font-size: 12px;
+}
+
+.confirm-card button {
+  align-self: flex-start;
+  background: var(--realm-primary);
+  border: 0;
+  border-radius: 8px;
+  color: #1d1d1f;
+  cursor: pointer;
   font-size: 13px;
-  padding: 9px 12px;
-  position: absolute;
-  right: 20px;
+  font-weight: 600;
+  margin-top: 4px;
+  padding: 7px 16px;
 }
 
-@media (max-width: 1080px) {
-  .product-preview {
-    grid-template-columns: minmax(220px, 0.82fr) minmax(360px, 1.18fr);
-  }
+.suggestion-row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin-top: auto;
+}
+
+.suggestion-chip {
+  background: var(--surface-muted);
+  border: 1px solid var(--line);
+  border-radius: 999px;
+  color: var(--text-muted);
+  cursor: pointer;
+  font-size: 13px;
+  padding: 7px 14px;
+}
+
+.chat-composer {
+  align-items: center;
+  border-top: 1px solid var(--line);
+  display: grid;
+  gap: 10px;
+  grid-template-columns: minmax(0, 1fr) auto;
+  padding: 12px 16px;
+}
+
+.composer {
+  background: var(--surface-muted);
+  border-radius: 10px;
+  color: var(--text-faint);
+  min-height: 38px;
+  padding: 9px 14px;
+}
+
+.composer-send {
+  align-items: center;
+  background: var(--realm-primary);
+  border: 0;
+  border-radius: 10px;
+  color: #1d1d1f;
+  cursor: pointer;
+  display: inline-flex;
+  font-size: 16px;
+  height: 38px;
+  justify-content: center;
+  width: 38px;
 }
 
 @media (max-width: 760px) {
   .product-preview {
-    grid-template-columns: 1fr;
     margin-top: 34px;
   }
 
-  .manager-preview,
-  .god-chip {
-    display: none;
+  .chat-window {
+    min-height: 420px;
   }
 
-  .chat-preview {
-    min-height: 480px;
-  }
-
-  .message-bubble {
-    max-width: 230px;
+  .chat-bubble {
+    max-width: 240px;
   }
 }

@@ -49,59 +49,52 @@ function Hero({ page }: { page: DocsPage }) {
   );
 }
 
+// NL-first hero mockup: a single chat window. The operator talks to 天道 in
+// plain language; the assistant replies and surfaces a lightweight inline
+// preview/confirm card for the risky write — no messenger collage, no rails.
 function ProductPreview({ page }: { page: DocsPage }) {
   const preview = page.preview;
   return (
-    <section className="product-preview" aria-label="Realm product preview">
-      <section className="manager-preview">
-        <header>
-          <span>{page.hero.title}</span>
-          <button type="button">{preview.settings}</button>
-        </header>
-        <div className="manager-body">
-          <p>{preview.managerTitle}</p>
-          <button type="button">{preview.managerAction}</button>
-        </div>
-        <div className="world-row">
-          <GroupAvatar />
-          <span>
-            <strong>{preview.worldName}</strong>
-            <small>{preview.worldMeta}</small>
-          </span>
-        </div>
-      </section>
-      <section className="chat-preview">
-        <header>
-          <span>‹</span>
+    <section
+      className="product-preview"
+      aria-label="Realm product preview"
+      data-testid="docs-chat-preview"
+    >
+      <section className="chat-window">
+        <header className="chat-window-bar">
+          <Avatar seed={preview.chatTitle.charAt(0)} />
           <strong>{preview.chatTitle}</strong>
-          <nav className="topbar-menu" aria-label={preview.chatTitle}>
-            <span>{preview.command}</span>
-            <span>{preview.inspector}</span>
-            <span>{preview.god}</span>
-            <span>{preview.settings}</span>
-          </nav>
         </header>
-        <div className="message-time">{preview.time}</div>
-        <div className="message-row outgoing">
-          <div className="message-bubble">{preview.outgoing}</div>
-          <Avatar seed="B" />
+        <div className="chat-window-body">
+          <p className="chat-empty-hint">{preview.emptyPrompt}</p>
+          <div className="message-row outgoing">
+            <div className="chat-bubble">{preview.userMessage}</div>
+          </div>
+          <div className="message-row incoming">
+            <Avatar seed={preview.chatTitle.charAt(0)} />
+            <div className="chat-bubble assistant">
+              <span>{preview.assistantReply}</span>
+              <div className="confirm-card" data-testid="docs-confirm-card">
+                <strong>{preview.confirmTitle}</strong>
+                <small>{preview.confirmSummary}</small>
+                <button type="button">{preview.confirmAction}</button>
+              </div>
+            </div>
+          </div>
+          <div className="suggestion-row" data-testid="docs-suggestion-chips">
+            {preview.suggestions.map((chip) => (
+              <button className="suggestion-chip" type="button" key={chip}>
+                {chip}
+              </button>
+            ))}
+          </div>
         </div>
-        <div className="message-row incoming">
-          <Avatar seed={preview.incomingAuthor.charAt(0)} />
-          <span>
-            <small>{preview.incomingAuthor}</small>
-            <div className="message-bubble">{preview.incoming}</div>
-          </span>
-        </div>
-        <footer>
-          <span className="voice-mark">▥</span>
+        <footer className="chat-composer">
           <span className="composer">{preview.composer}</span>
-          <span>☺</span>
-          <span>＋</span>
+          <button type="button" aria-label={preview.composer} className="composer-send">
+            ↑
+          </button>
         </footer>
-      </section>
-      <section className="god-chip" aria-label={preview.god}>
-        {preview.god}
       </section>
     </section>
   );
@@ -283,25 +276,6 @@ function FinalCta({ page }: { page: DocsPage }) {
         </a>
       </div>
     </section>
-  );
-}
-
-// WeChat-style member collage: a tight nine-grid of monogram tiles on white,
-// each member rendered as an initial — no green fill, no emoji confetti.
-const GROUP_AVATAR_MEMBERS = ["B", "L", "Q", "M", "K", "S", "A", "T", "D"];
-
-function GroupAvatar() {
-  return (
-    <span
-      className="group-avatar"
-      data-wechat-grid="member-collage"
-      data-wechat-grid-shape="nine-grid"
-      aria-hidden="true"
-    >
-      {GROUP_AVATAR_MEMBERS.map((member) => (
-        <i key={member}>{member}</i>
-      ))}
-    </span>
   );
 }
 

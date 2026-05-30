@@ -31,20 +31,24 @@ export type DocsPage = {
   };
   valueProps: TextPair[];
   preview: {
-    managerTitle: string;
-    managerAction: string;
-    worldName: string;
-    worldMeta: string;
+    /** Chat window title (the NL-first surface talks to 天道/God). */
     chatTitle: string;
-    time: string;
-    incomingAuthor: string;
-    incoming: string;
-    outgoing: string;
+    /** Empty-state prompt shown before the first message. */
+    emptyPrompt: string;
+    /** Suggestion chips that demonstrate plain-language commands. */
+    suggestions: string[];
+    /** The operator's most recent plain-language message. */
+    userMessage: string;
+    /** The assistant's natural-language reply describing what it will do. */
+    assistantReply: string;
+    /** Inline preview/confirm card title for a risky write. */
+    confirmTitle: string;
+    /** One-line summary of the proposed change inside the confirm card. */
+    confirmSummary: string;
+    /** Label on the confirm button of the inline card. */
+    confirmAction: string;
+    /** Composer placeholder for the bottom input. */
     composer: string;
-    settings: string;
-    god: string;
-    command: string;
-    inspector: string;
   };
   quickStart: {
     title: string;
