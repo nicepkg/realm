@@ -23,10 +23,22 @@ import { isInterrogative } from "./is-interrogative.ts";
  * back to the deterministic classifier on any failure.
  */
 
-export { classifyIntent, DeterministicIntentRouter } from "./intent-classifier.ts";
+export {
+  classifyIntent,
+  DeterministicIntentRouter,
+  // Pure, network-free world-rule helpers — exposed so the web model-backed router
+  // can recover a mis-classified explicit rule's DESTINATION + BODY by reusing the
+  // classifier's own detection instead of re-deriving rule text in another layer.
+  declaresWorldRule,
+  extractWorldRuleBody,
+} from "./intent-classifier.ts";
 // Re-export the contract + deterministic classifier so consumers can keep
 // importing everything from "./intent-router.ts" (and via `export *`).
 export * from "./intent-types.ts";
+// The world-rule body extractor (strips a leading "设定规则：" marker). Re-exported
+// so web-layer set-rule path-correction stores the SAME rule BODY the classifier's
+// own /metaState/rules branch stores — one source of truth, never a prefix mismatch.
+export { stripRuleMarkerPrefix } from "./rule-marker.ts";
 
 // --- Model-backed router -----------------------------------------------------
 

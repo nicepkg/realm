@@ -60,33 +60,88 @@ export const ENUM_VALUE_LABELS: Record<string, string> = {
 export const STATE_FIELD_LABELS: Record<string, string> = {
   alive: "存活",
   ambientQi: "环境灵气",
+  // boardroom-saga: a 续约 account's annual recurring revenue.
+  arr: "年度经常性收入",
+  // boardroom-saga: financials container — quarterly cash consumed.
+  burnRate: "季度消耗",
+  // boardroom-saga: equity / ownership breakdown container (the cap table).
+  capTable: "股权结构",
+  // boardroom-saga: financials — liquid cash currently held.
+  cashOnHand: "现金储备",
+  // boardroom-saga: top-level company-profile container.
+  company: "公司概况",
+  // boardroom-saga: derivedState — risk of losing board control.
+  controlRisk: "控制权风险",
   dangerLevel: "危险等级",
   day: "天",
   doubts: "疑虑",
+  // boardroom-saga: hiddenState — due-diligence dirt the board doesn't see yet.
+  dueDiligenceDirt: "尽调隐患",
+  // boardroom-saga: capTable — equity reserved for the employee option pool.
+  employeePool: "员工期权池",
   fate: "天命",
+  // boardroom-saga: company — the reporting fiscal quarter (e.g. 2026Q1).
+  fiscalQuarter: "财季",
+  // boardroom-saga: top-level financials container.
+  financials: "财务状况",
   herbs: "草药",
   hiddenGoal: "隐藏目标",
   id: "标识",
   injuries: "伤势",
+  // boardroom-saga: company — list of strategically important client accounts.
+  keyAccounts: "核心客户",
+  // boardroom-saga: privateState — the CFO's confidential ledger notes.
+  ledgerNotes: "账目备注",
+  // boardroom-saga: privateState — the investor's private leverage / 把柄.
+  leverageNotes: "筹码备注",
   location: "地点",
   muted: "禁言",
   name: "姓名",
   nextDisaster: "下一场灾劫",
   nextRecommendedAction: "建议行动",
+  // boardroom-saga: hiddenState — the next looming external shock.
+  nextShock: "下一场冲击",
+  // boardroom-saga: capTable — combined holding of remaining minor shareholders.
+  others: "其他股东",
+  // metaState.simulation.paused — the engine's run-loop pause flag.
+  paused: "已暂停",
   qi: "灵气",
   realm: "境界",
+  // metaState.simulation.reason — engine copy explaining why the run-loop paused.
+  reason: "原因",
   reputation: "声望",
+  // boardroom-saga: financials — total revenue for the period.
+  revenue: "营收",
+  // boardroom-saga: financials — period-over-period revenue growth.
+  revenueGrowth: "营收增速",
   role: "身份",
   roles: "角色",
+  // metaState.rules — the world-rule list the set-rule flow appends at runtime
+  // (`/metaState/rules`). NOT a seed-yaml field, so it was missing from this map
+  // and leaked as the bare English token `rules：N 项` in the inspect tail. Aligned
+  // with the rail's existing 「规则」 label so both surfaces read identically.
+  rules: "规则",
+  // boardroom-saga: financials — quarters of cash runway remaining.
+  runwayQuarters: "现金跑道(季)",
   season: "季节",
   sect: "宗门",
+  // boardroom-saga: company — the market / morale sentiment reading.
+  sentiment: "情绪面",
   severity: "严重程度",
+  // metaState.simulation — the engine's run-loop scheduler container.
+  simulation: "推演调度",
   spiritStones: "灵石",
+  // boardroom-saga: roles — a person's current 处境 / power position.
+  standing: "处境",
+  // boardroom-saga: company — the company's lifecycle stage (e.g. IPO 前冲刺).
+  stage: "阶段",
   status: "状态",
   supplyNotes: "补给记录",
   threats: "威胁",
   tick: "节拍",
   time: "时间",
+  // boardroom-saga: roles — a person's formal title / job (董事长 / CFO).
+  title: "职务",
   traitorHint: "内奸线索",
   turn: "回合",
   weather: "天气",

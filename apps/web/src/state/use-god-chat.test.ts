@@ -21,6 +21,7 @@ import {
   selectRoleMessagesToFold,
   settleRunTurn,
 } from "@/state/god-chat-model.ts";
+import { resolveSubmitSource } from "@/state/use-god-chat.ts";
 import { context, msg, roles } from "@/state/use-god-chat-test-fixtures.ts";
 
 /**
@@ -114,6 +115,40 @@ describe("routeIntent — NL → intent family", () => {
   test("a run-turn with no room degrades to a calm no-op, not a write", () => {
     const route = routeIntent("让顾辰风说话", context({ roomId: undefined, rooms: [] }));
     expect(route.mode).toBe("noop");
+  });
+});
+
+describe("submitText direct-send — explicit text bypasses the draft (read chip one-tap)", () => {
+  // A read-class suggestion chip ("现在世界什么状态？") must SEND on a single tap.
+  // setDraft(text) + submit() can't do that: React batches the state update, so
+  // submit's closure reads the stale (empty) draft. The hook therefore routes the
+  // chip's EXPLICIT prompt via `submitText`, sourced through `resolveSubmitSource`
+  // with `from: "text"` — never `draft`. We assert that production seam directly.
+  test("the explicit-text source ignores the draft entirely (and trims)", () => {
+    // Even with a totally different draft sitting in the composer, the direct-send
+    // routes the SUPPLIED text, not the draft — proving no draft dependency.
+    expect(resolveSubmitSource({ from: "text", text: "  现在世界什么状态？  " })).toBe(
+      "现在世界什么状态？",
+    );
+  });
+
+  test("the draft source routes the trimmed draft (the composer Enter / send path)", () => {
+    expect(resolveSubmitSource({ draft: "  让顾辰风说话  ", from: "draft" })).toBe("让顾辰风说话");
+  });
+
+  test("the text routed by a read chip classifies as a read-only inspect (no write)", () => {
+    // The exact prompt a read chip carries, run through the SAME deterministic
+    // router the hook's pipeline falls back to: it must be inspect, never a stage.
+    const text = resolveSubmitSource({ from: "text", text: "现在世界什么状态？" });
+    expect(routeIntent(text, context()).mode).toBe("inspect");
+  });
+
+  test("a WRITE typed via the explicit-text path still STAGES (never auto-commits)", () => {
+    // submitText reuses the full routing pipeline, so a write reaching it is still
+    // staged as a preview — the read/write chip split is a UI affordance, not a
+    // bypass of the review-before-send gate.
+    const text = resolveSubmitSource({ from: "text", text: "把顾辰风禁言" });
+    expect(routeIntent(text, context()).mode).toBe("stage");
   });
 });
 

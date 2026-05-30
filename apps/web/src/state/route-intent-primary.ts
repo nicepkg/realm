@@ -1,5 +1,5 @@
 import type { AssistantIntentResponse } from "@realm/api-contract";
-import type { RealmIntent } from "@realm/assistant";
+import { declaresWorldRule, extractWorldRuleBody, type RealmIntent } from "@realm/assistant";
 import type { RealmHttpClient } from "@realm/client-sdk";
 import {
   type GodChatContext,
@@ -30,6 +30,33 @@ import {
  * routing it to inspect or a calm noop), the deterministic result wins. A question
  * can therefore never stage a write end to end — without duplicating the
  * interrogative heuristics, which live behind `routeIntent`.
+ *
+ * SET-RULE-OVER-MODEL invariant (write A vs write B): a real provider (verified on
+ * gemini-2.5-flash driving boardroom-saga) mis-classifies a WORLD-RULE declaration
+ * ("设定规则：每推进一个季度，现金跑道减少一个季度" / "给世界加一条规则…") as `add-role`
+ * (rule text stuffed into a role name → a `config` plan), `create-world` (also a
+ * `config` route), or a `god` action — confidently writing the WRONG thing. The
+ * guardrails catch it (typed-confirm / preview), but the classification is wrong.
+ *
+ * The earlier fix only path-corrected when the DETERMINISTIC router itself had
+ * already staged a `/metaState/rules` state-patch — but for these phrasings the
+ * deterministic router can land elsewhere ("设定规则：…减少…" is stolen into a generic
+ * `减少` state-patch under `/privateState/roles/world/conditions`; "规则：…陈牧…" names
+ * a role so the `!role`-gated world-rule branch defers to `config`). When the
+ * override depended on a deterministic `/metaState/rules` stage, it never fired and
+ * the model's wrong write won.
+ *
+ * The fix no longer depends on deterministic routing first reaching a state-patch.
+ * When {@link declaresWorldRule} (the classifier's pure, marker-only, non-question
+ * predicate) reads `text` as an EXPLICIT world-rule, we SYNTHESIZE a `/metaState/rules`
+ * append route — extracting the rule BODY via the classifier's own
+ * {@link extractWorldRuleBody} so the recovered rule stores the identical body the
+ * classifier's direct rule branch stores (one source of truth, never a regex in the
+ * web layer). An already-`/metaState/rules` deterministic patch is honoured as-is
+ * (idempotent). This is strictly narrower than NO-QUESTION-WRITE: `declaresWorldRule`
+ * is false for questions ("现在世界设定了哪些规则？") and for any sentence without an
+ * explicit rule marker (ordinary attribute patches / create-world never trip it), so
+ * we never turn a write A into a spurious write B.
  */
 
 /** Default per-request timeout for the intent endpoint (deterministic fallback after). */
@@ -47,6 +74,69 @@ const WRITE_INTENT_KINDS: ReadonlySet<AssistantIntentResponse["kind"]> = new Set
 /** RouteResult modes that COMMIT or stage a write (vs. a read/answer/noop). */
 const WRITE_ROUTE_MODES: ReadonlySet<RouteResult["mode"]> = new Set(["stage", "world-switch"]);
 
+/** The world-level meta container the set-rule branch appends rule text into. */
+const WORLD_RULES_POINTER = "/metaState/rules";
+
+/**
+ * Recover a WORLD-RULE set-rule route when the model mis-classified an explicit
+ * rule declaration. Returns the route to honour, or undefined when `text` is not an
+ * explicitly-marked world rule (so a plain attribute change / question / config is
+ * left untouched).
+ *
+ * Two cases:
+ *  1. The deterministic router already staged a `/metaState/rules` patch — honour it
+ *     as-is (idempotent: the classifier reached the rule branch on its own and has
+ *     already stripped the marker, so the stored value is the BODY).
+ *  2. Otherwise, if {@link declaresWorldRule} reads `text` as an EXPLICIT world rule,
+ *     SYNTHESIZE a `/metaState/rules` append — independent of where deterministic
+ *     routing landed (config / a stray `减少` per-role-condition patch / a role-named
+ *     rule that the `!role`-gated branch deferred to config). The rule BODY comes from
+ *     the classifier's {@link extractWorldRuleBody}, so the synthesized rule stores the
+ *     identical body the classifier's direct rule branch stores — never a regex in the
+ *     web layer, never a "设定规则：…"-prefixed copy on one path and the bare body on
+ *     another.
+ *
+ * `declaresWorldRule` is marker-only and question-safe (false for interrogatives and
+ * for any sentence without an explicit rule marker), so this never converts an
+ * ordinary write A into a spurious world-rule write B.
+ */
+function worldRuleOverride(
+  text: string,
+  ctx: GodChatContext,
+  deterministic: RouteResult,
+): RouteResult | undefined {
+  // Case 1 — deterministic already reached /metaState/rules: trust it verbatim.
+  if (
+    deterministic.mode === "stage" &&
+    deterministic.proposal.kind === "state-patch" &&
+    deterministic.proposal.operations.some((op) => op.path === WORLD_RULES_POINTER)
+  ) {
+    return deterministic;
+  }
+  // Case 2 — an explicit, non-question world-rule the model got wrong: synthesize
+  // the /metaState/rules append regardless of where deterministic routing landed.
+  if (!declaresWorldRule(text)) {
+    return undefined;
+  }
+  const worldId = ctx.worldId;
+  if (!worldId) {
+    // No active world to write the rule into — fall back to the model/deterministic
+    // shaping (which surfaces the calm "先选择一个世界" noop) rather than synthesizing
+    // a patch with no target.
+    return undefined;
+  }
+  const ruleBody = extractWorldRuleBody(text);
+  return {
+    mode: "stage",
+    proposal: {
+      kind: "state-patch",
+      worldId,
+      operations: [{ op: "append", path: WORLD_RULES_POINTER, value: ruleBody }],
+      reason: ruleBody,
+    },
+  };
+}
+
 /**
  * Route `text` for the God-chat `submit`. Returns the SAME {@link RouteResult}
  * shape the synchronous deterministic router produces, so the hook's submit can
@@ -63,15 +153,32 @@ export async function routeIntentPrimary(
       client.routeAssistantIntent(buildIntentRequest(goal, ctx)),
       INTENT_TIMEOUT_MS,
     );
-    // Defense-in-depth NO-QUESTION-WRITE: a question must never become a write,
-    // even when the (possibly misbehaving) server says so. When the model returns
-    // a write, cross-check the deterministic router; if IT does not also stage a
-    // write for the same text (a question routes to inspect / a calm noop), the
-    // deterministic result wins. This reuses `routeIntent`'s interrogative
-    // heuristics rather than re-implementing them.
-    if (WRITE_INTENT_KINDS.has(intent.kind)) {
+    // Cross-checks against the deterministic router. We compute it ONCE and reuse
+    // it for both guards below — it is the same pure call `routeIntent` either way.
+    // (Skipped when the model already returned a `state-patch`: that path is shaped
+    // directly below and the set-rule cross-check would be idempotent.)
+    if (intent.kind !== "state-patch") {
       const deterministic = routeIntent(text, ctx);
-      if (!WRITE_ROUTE_MODES.has(deterministic.mode)) {
+
+      // SET-RULE-OVER-MODEL (write A vs write B): the model returned a non-state-
+      // patch intent (config / add-role→config / create-world→config / god / …) but
+      // `text` is an EXPLICIT world-rule declaration. Recover the world-rule write so
+      // "设定规则：…" / "给世界加一条规则…" is never mis-written as a role/world/god
+      // action — synthesizing the /metaState/rules append even when the deterministic
+      // router itself did not stage a rule patch (it may have been stolen into config
+      // or a generic per-role-condition state-patch).
+      const setRule = worldRuleOverride(text, ctx, deterministic);
+      if (setRule) {
+        return setRule;
+      }
+
+      // Defense-in-depth NO-QUESTION-WRITE: a question must never become a write,
+      // even when the (possibly misbehaving) server says so. When the model returns
+      // a write, cross-check the deterministic router; if IT does not also stage a
+      // write for the same text (a question routes to inspect / a calm noop), the
+      // deterministic result wins. This reuses `routeIntent`'s interrogative
+      // heuristics rather than re-implementing them.
+      if (WRITE_INTENT_KINDS.has(intent.kind) && !WRITE_ROUTE_MODES.has(deterministic.mode)) {
         return deterministic;
       }
     }

@@ -39,16 +39,35 @@ const ONLY_META_DETAIL = "这个世界还很新，目前只有运行元数据。
 const ALL_EMPTY_DETAIL = "该世界尚无更多状态。";
 
 /**
+ * Soften a LEAF value for the indented inspect tree so a list summary reads as a
+ * calm Chinese phrase rather than a machine dump. The shared `humanizeScalar`
+ * renders an array as the terse `N 项`; in the tree's tail (e.g. the world-rule
+ * list `规则：1 项`) that reads more like a count column than the flowing zh-CN
+ * sentences in the card's upper half. So at the TREE layer only we render an array
+ * as the more conversational `共 N 条`, keeping the breadcrumb-table contract
+ * (`humanizeScalar` → `N 项`, asserted by state-humanize.test) untouched. Every
+ * other leaf (enums, role-id refs, booleans, null, scalars) flows through the
+ * shared primitive verbatim so the two surfaces still agree on those.
+ */
+function humanizeTreeLeaf(value: unknown): string {
+  if (Array.isArray(value)) {
+    return `共 ${value.length} 条`;
+  }
+  return humanizeScalar(value);
+}
+
+/**
  * Render an arbitrary state subtree as indented zh-CN `· 键：值` lines. Author/
  * engine key names are author-chosen and human-meaningful — shown VERBATIM; only
  * a leaf VALUE that matches a known enum is humanized (e.g. `severity: medium` →
  * `severity：中`). Plain objects recurse so nested leaf enums still get humanized;
- * arrays/empty objects collapse to a single honest line. `depth` drives indent.
+ * arrays read as the conversational `共 N 条` and empty objects collapse to a
+ * single honest line. `depth` drives indent.
  */
 function renderSubtree(value: unknown, depth: number, roleNames: Map<string, string>): string[] {
   const indent = "  ".repeat(depth + 1);
   if (!isPlainObject(value)) {
-    return [`${indent}· ${humanizeScalar(value)}`];
+    return [`${indent}· ${humanizeTreeLeaf(value)}`];
   }
   const entries = Object.entries(value);
   if (entries.length === 0) {
@@ -73,7 +92,7 @@ function renderSubtree(value: unknown, depth: number, roleNames: Map<string, str
       // gets collapsed away at the top level (see `answerWorldState`).
       lines.push(`${indent}· ${label}：（暂无字段）`);
     } else {
-      lines.push(`${indent}· ${label}：${humanizeScalar(childValue)}`);
+      lines.push(`${indent}· ${label}：${humanizeTreeLeaf(childValue)}`);
     }
   }
   return lines;

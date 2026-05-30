@@ -106,6 +106,45 @@ describe("answerWorldState — expanded schema-key labels", () => {
     }
   });
 
+  test("metaState.rules reads 规则：共 N 条, never the bare English 'rules：N 项' (F1)", () => {
+    const { card } = answerWorldState(
+      cultivationContext({
+        // Only metaState carries content (the typical post-set-rule fresh world):
+        // a single world rule appended at runtime to /metaState/rules.
+        worldState: {
+          state: {
+            metaState: { rules: ["每推进一个季度，现金跑道减少一个季度"], turn: 1 },
+          },
+          version: 5,
+        },
+      }),
+    );
+    // The runtime-produced `rules` key now reads as its zh-CN label, matching the
+    // rail's 「规则」 — the English `rules：` token must NOT leak anywhere.
+    expect(treeOf(card)).toContain("规则：");
+    expect(treeOf(card)).not.toContain("rules：");
+    // The array summary reads as the conversational 共 N 条 (tree tone unification),
+    // not the terse machine `N 项` dump.
+    expect(treeOf(card)).toContain("规则：共 1 条");
+    expect(treeOf(card)).not.toContain("规则：1 项");
+  });
+
+  test("a leaf array reads as the conversational 共 N 条 in the tree (tone unification)", () => {
+    const { card } = answerWorldState(
+      cultivationContext({
+        worldState: {
+          state: {
+            publicState: { sect: { threats: ["狼妖", "灵雨", "市集暗探"] } },
+          },
+          version: 6,
+        },
+      }),
+    );
+    expect(treeOf(card)).toContain("威胁：共 3 条");
+    // The terse machine form is gone from the tree tail.
+    expect(treeOf(card)).not.toContain("威胁：3 项");
+  });
+
   test("array-of-object schema keys (severity/status) are localized when expanded as plain fields", () => {
     const { card } = answerWorldState(
       cultivationContext({

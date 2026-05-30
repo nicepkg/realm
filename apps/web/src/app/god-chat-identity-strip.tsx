@@ -2,7 +2,7 @@
 
 import { SlidersHorizontalIcon } from "lucide-react";
 import { Button } from "@/components/ui/button";
-import type { GodChatShellStrings } from "./god-chat-shell.tsx";
+import type { GodChatShellStrings } from "./god-chat-shell-strings.ts";
 
 type OperatorContext = {
   provider?: string;

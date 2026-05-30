@@ -229,3 +229,27 @@ export function buildWorldSwitchCarryOver(
 export function messageOf(error: unknown): string {
   return error instanceof Error ? error.message : String(error);
 }
+
+/**
+ * Resolve the text a submit path feeds into the shared routing pipeline.
+ *
+ * The two entry points differ ONLY in where the line comes from, and getting that
+ * difference right is the whole point of `submitText`:
+ *  - `{ from: "draft", draft }` — the composer Enter / send button. Routes the
+ *    TRIMMED current draft (the operator's typed line).
+ *  - `{ from: "text", text }`   — a read-class suggestion direct-send. Routes the
+ *    EXPLICIT prompt, trimmed, WITHOUT reading `draft`. This is mandatory: a
+ *    `setDraft(text)` + `submit()` pair in the same tick would have `submit` read
+ *    the stale (still-empty) draft because React batches the state update, so the
+ *    chip's prompt would never reach the router. Passing the text directly
+ *    sidesteps that batching trap entirely.
+ *
+ * Pure so the "draft path vs explicit-text path" contract is unit-testable without
+ * a hook renderer (the repo has no renderHook infra) — proving a direct-send never
+ * depends on the draft state.
+ */
+export function resolveSubmitSource(
+  source: { from: "draft"; draft: string } | { from: "text"; text: string },
+): string {
+  return source.from === "draft" ? source.draft.trim() : source.text.trim();
+}

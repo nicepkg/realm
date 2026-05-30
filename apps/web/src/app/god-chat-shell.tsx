@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import {
   Conversation,
   ConversationContent,
@@ -16,6 +16,7 @@ import {
 import { ConversationAutoScroll } from "@/components/ai-elements/conversation.tsx";
 import { WorldPulseGutter } from "@/components/messenger/world-pulse-gutter.tsx";
 import { useI18n } from "@/i18n/index.tsx";
+import { cn } from "@/lib/utils.ts";
 import type { GodChatContext } from "@/state/god-chat-model.ts";
 import type { UseGodChat } from "@/state/use-god-chat.ts";
 // READ-ONLY import (owned by W2): the same world-scoping the hook applies, reused
@@ -24,27 +25,20 @@ import type { UseGodChat } from "@/state/use-god-chat.ts";
 // an NL world-switch into a roleless world (F1).
 import { worldScopedRoles } from "@/state/use-god-chat-helpers.ts";
 import { worldModeLabel } from "@/view-models/labels.ts";
-import {
-  defaultGodChatCardStrings,
-  GodChatCard,
-  type GodChatCardStrings,
-} from "./god-chat-cards.tsx";
-import {
-  defaultGodChatContextRailStrings,
-  GodChatContextRail,
-  type GodChatContextRailStrings,
-} from "./god-chat-context-rail.tsx";
+import { GodChatCard } from "./god-chat-cards.tsx";
+import { GodChatContextRail } from "./god-chat-context-rail.tsx";
 import { GodChatContextSheet } from "./god-chat-context-sheet.tsx";
 import { WorldIdentityStrip } from "./god-chat-identity-strip.tsx";
-// Pure helpers extracted to keep this shell under the 500-line guard. Imported
-// for the in-component `useMemo`s; re-exported below so existing test imports
-// (`./god-chat-shell.tsx`) keep their single source.
+// Pure helpers + shell-chrome copy live in sibling modules to keep this file
+// under the 500-line guard; both are re-exported below so existing test/sibling
+// imports (`./god-chat-shell.tsx`) keep their single source.
 import {
   buildSuggestions,
   deferAfterSheetClose,
   resolveLivePreviewTurnId,
   streamingDetailLength,
 } from "./god-chat-shell-helpers.ts";
+import { defaultGodChatShellStrings, type GodChatShellStrings } from "./god-chat-shell-strings.ts";
 import type { RealmAppController } from "./types.ts";
 
 /**
@@ -76,71 +70,14 @@ import type { RealmAppController } from "./types.ts";
  * legacy workspace/manager pages are no longer one tap away.
  */
 
-/** Localized copy for the shell chrome. zh-CN defaults keep it usable before item 6's keys land. */
-export type GodChatShellStrings = {
-  advanced: string;
-  placeholder: string;
-  sendLabel: string;
-  emptyTitle: string;
-  emptyDescription: string;
-  /** Shown in the identity strip when no world is selected. */
-  noWorld: string;
-  /** Shown in the identity strip when running on the mock/fake runtime. */
-  mockRuntime: string;
-  /**
-   * The GENERIC empty-state starter chips — always valid regardless of world
-   * scope (create-world, create-role, inspect). The role-CONTROL chip is NOT in
-   * here: it is derived at render time from the active world's real members
-   * (see {@link buildSuggestions}) so it never references a non-existent role
-   * (F2). When the world has ≥1 member, the create-role chip is swapped for a
-   * control chip naming the first real member.
-   */
-  suggestions: { label: string; prompt: string }[];
-  /**
-   * Template for the role-control chip shown ONLY when the active world has
-   * members. `{name}` is replaced with a real member's display name, so the chip
-   * never references a ghost role (F2). zh-CN default mirrors the vision's
-   * "让<角色>心生退意" example.
-   */
-  roleControlChip: { label: string; prompt: string };
-  cards: GodChatCardStrings;
-  rail: GodChatContextRailStrings;
-};
-
-export const defaultGodChatShellStrings: GodChatShellStrings = {
-  advanced: "高级",
-  cards: defaultGodChatCardStrings,
-  emptyDescription: "用一句话创造世界、设定规则、操控角色，或问它现在发生了什么。",
-  emptyTitle: "对「天道」说点什么",
-  mockRuntime: "模拟运行时",
-  noWorld: "尚未进入世界",
-  placeholder: "对天道说……",
-  rail: defaultGodChatContextRailStrings,
-  // Template for the role-control chip — only rendered once the world has a real
-  // member to name (F2). `{name}` is the first scoped member's display name.
-  roleControlChip: {
-    label: "让{name}心生退意",
-    prompt: "让{name}此刻心生退意",
-  },
-  sendLabel: "发送",
-  // GENERIC always-valid chips. The create-role chip teaches the add-role flow
-  // and stays valid in an empty world; the literal "顾辰风" role-control chip was
-  // removed — it is now derived from real members at render time (F2).
-  suggestions: [
-    {
-      label: "创建一个修真世界",
-      prompt: "创建一个有宗门、对手和师父的修真世界",
-    },
-    {
-      label: "加一个角色",
-      prompt: "加一个谨慎、爱钱的炼丹师，叫云遥",
-    },
-    {
-      label: "现在世界什么状态？",
-      prompt: "现在世界什么状态？",
-    },
-  ],
-};
+/**
+ * How long the composer/send pulse runs after a WRITE chip prefill. One calm
+ * breath (~matched to the chip's 已填入 tint) — long enough to draw the eye to the
+ * send affordance, short enough to settle before the operator reacts. Under
+ * prefers-reduced-motion the global CSS gate collapses the animation to ~0ms, so
+ * the pulse becomes a no-op while the focus + caret + 已填入 hint still land.
+ */
+const COMPOSER_PULSE_MS = 1200;
 
 type OperatorContext = {
   provider?: string;
@@ -175,6 +112,45 @@ export function GodChatShell({
   // + precise tweaks), NOT the legacy messenger/manager. Owned here so the sheet
   // lives with the chat home; the AppShell only supplies the two tweak edges.
   const [contextSheetOpen, setContextSheetOpen] = useState(false);
+  // Transient flag: a WRITE chip was just prefilled, so pulse the composer/send
+  // affordance once to make "still press 发送" obvious (paired with the chip's own
+  // 已填入 hint). Cleared after one breath; the global reduced-motion gate freezes
+  // the scale animation while leaving the focus + hint intact.
+  const [composerPulse, setComposerPulse] = useState(false);
+  const pulseTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  useEffect(
+    () => () => {
+      if (pulseTimerRef.current) {
+        clearTimeout(pulseTimerRef.current);
+      }
+    },
+    [],
+  );
+
+  // WRITE-chip prefill feedback: focus the composer, drop the caret at the END of
+  // the just-filled text (so the operator can keep typing), and pulse the send
+  // button. Queries the composer by its stable test id — PromptInput is a
+  // presentation component owned elsewhere and exposes no ref, so this is the
+  // minimal seam without reaching into it. No-op under SSR / when the node is
+  // absent. The prefill itself ran via `chat.setDraft` in `onPick`.
+  const handleWriteChipPicked = useCallback(() => {
+    if (typeof document !== "undefined") {
+      const field = document.querySelector<HTMLTextAreaElement>('[data-testid="god-chat-input"]');
+      if (field) {
+        field.focus();
+        const end = field.value.length;
+        field.setSelectionRange(end, end);
+      }
+    }
+    setComposerPulse(true);
+    if (pulseTimerRef.current) {
+      clearTimeout(pulseTimerRef.current);
+    }
+    pulseTimerRef.current = setTimeout(() => {
+      setComposerPulse(false);
+      pulseTimerRef.current = null;
+    }, COMPOSER_PULSE_MS);
+  }, []);
 
   // Mobile «高级» sheet → 设置 handoff coordinator (NOT the raw upstream
   // onOpenSettings). The context sheet and the settings sheet are both Radix
@@ -385,7 +361,14 @@ export function GodChatShell({
                 <Suggestions
                   className="max-w-xl justify-center"
                   items={suggestions}
+                  // WRITE chip → prefill the composer (never auto-send), then make
+                  // the still-needed send press explicit via the 已填入 hint +
+                  // composer focus/pulse. READ chip → send immediately through the
+                  // hook's draft-bypassing path (NL-first one-tap answer).
                   onPick={chat.setDraft}
+                  onPicked={handleWriteChipPicked}
+                  onPickRead={(prompt) => void chat.submitText(prompt)}
+                  prefillHint={strings.suggestionPrefillHint}
                 />
               </div>
             </div>
@@ -454,8 +437,17 @@ export function GodChatShell({
 
         <div className="border-[color:var(--realm-line)] border-t bg-[var(--realm-bg)] px-4 pt-3 pb-[calc(0.75rem+env(safe-area-inset-bottom))]">
           {/* Shares the conversation's max-w-4xl reading measure so the input
-              aligns dead-under the content column (same centered gutter). */}
-          <div className="mx-auto w-full max-w-4xl">
+              aligns dead-under the content column (same centered gutter). The
+              one-shot breathe pulse fires after a WRITE chip prefill to draw the
+              eye to the still-needed 发送 press; it animates transform only (no
+              layout) and the global prefers-reduced-motion gate collapses it. */}
+          <div
+            className={cn(
+              "mx-auto w-full max-w-4xl",
+              composerPulse && "animate-[realm-breathe_var(--realm-motion-slow)_ease-in-out]",
+            )}
+            data-pulsing={composerPulse || undefined}
+          >
             <PromptInput
               busy={chat.busy}
               onSubmit={() => void chat.submit()}
@@ -494,6 +486,13 @@ export function GodChatShell({
   );
 }
 
-// Re-export the co-located pure helpers so existing test imports
-// (`./god-chat-shell.tsx`) keep their single source.
-export { buildSuggestions, deferAfterSheetClose, resolveLivePreviewTurnId, streamingDetailLength };
+// Re-export the co-located pure helpers + shell-chrome strings so existing
+// test/sibling imports (`./god-chat-shell.tsx`) keep their single source.
+export {
+  buildSuggestions,
+  defaultGodChatShellStrings,
+  deferAfterSheetClose,
+  type GodChatShellStrings,
+  resolveLivePreviewTurnId,
+  streamingDetailLength,
+};

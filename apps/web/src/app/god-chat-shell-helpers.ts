@@ -1,6 +1,6 @@
 import type { RoleSummary } from "@realm/api-contract";
 import type { Suggestion } from "@/components/ai-elements";
-import type { GodChatShellStrings } from "./god-chat-shell.tsx";
+import type { GodChatShellStrings } from "./god-chat-shell-strings.ts";
 
 /**
  * Pure, React-free helpers for {@link GodChatShell}.
@@ -37,15 +37,20 @@ export function buildSuggestions(
   const [createWorld, createRole, inspect] = strings.suggestions;
   const firstMember = roles[0];
   // Empty world: generic create-role chip (valid + teaches the add-role flow).
-  // Populated world: template a REAL member into the role-control chip.
+  // Populated world: template a REAL member into the role-control chip. Both are
+  // WRITE chips — picking them prefills the composer (a mutation is never
+  // auto-sent), inheriting `kind: "write"` from `strings.suggestions`/the template.
   const middle: Suggestion | undefined = firstMember
     ? {
+        kind: "write",
         label: strings.roleControlChip.label.replaceAll("{name}", firstMember.displayName),
         prompt: strings.roleControlChip.prompt.replaceAll("{name}", firstMember.displayName),
       }
     : createRole;
   // `filter(isDefined)` narrows away the possibly-undefined destructured chips
   // (a malformed override could drop one) so the return type stays non-nullable.
+  // The create-world (write) and inspect (read) chips keep the `kind` declared in
+  // the i18n dict, so the read/write split flows straight from the strings.
   return [createWorld, middle, inspect].filter(isDefined);
 }
 

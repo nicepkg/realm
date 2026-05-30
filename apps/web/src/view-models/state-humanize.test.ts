@@ -33,6 +33,23 @@ describe("stateKeyLabel / fieldKeyLabel", () => {
     // An unknown role id falls back to the id itself (never throws).
     expect(fieldKeyLabel("ghost", true, ROLE_NAMES)).toBe("ghost");
   });
+
+  /**
+   * Runtime-produced metaState keys (NOT seed-yaml fields) were missing from the
+   * label map and leaked raw English in the inspect tail. The set-rule flow appends
+   * `/metaState/rules` and the run-loop writes `/metaState/simulation/{paused,reason}`;
+   * each must now read as a zh-CN label, and `rules` must match the rail's 「规则」
+   * so both surfaces agree. Author-custom keys still pass through verbatim.
+   */
+  test("runtime metaState keys (rules/simulation/paused/reason) localize to zh-CN", () => {
+    expect(fieldKeyLabel("rules", false, ROLE_NAMES)).toBe("规则");
+    expect(fieldKeyLabel("simulation", false, ROLE_NAMES)).toBe("推演调度");
+    expect(fieldKeyLabel("paused", false, ROLE_NAMES)).toBe("已暂停");
+    expect(fieldKeyLabel("reason", false, ROLE_NAMES)).toBe("原因");
+    // An author-custom key adjacent to these still passes through verbatim — we
+    // never invent a translation for a world's own field.
+    expect(fieldKeyLabel("housekeeping", false, ROLE_NAMES)).toBe("housekeeping");
+  });
 });
 
 describe("humanizeScalar", () => {
@@ -115,5 +132,89 @@ describe("humanizeFlatRows", () => {
     const rows = humanizeFlatRows({ publicState: { owner: "leijun" } }, ROLE_NAMES);
     const row = rows.find((r) => r.key.endsWith("owner"));
     expect(row?.value).toBe("雷军");
+  });
+});
+
+/**
+ * boardroom-saga (the SECOND example world) leaks a large set of finance / equity /
+ * governance keys raw English when only cultivation-sim keys are labeled — exactly
+ * the "换世界露 façade" risk the NL-first vision warns about. These lock each known
+ * boardroom field to its business-semantic zh-CN label, while proving cultivation
+ * keys do NOT regress and a custom (unknown) key still passes through verbatim.
+ */
+describe("boardroom-saga field labels", () => {
+  // Every newly-added boardroom key → its expected business-semantic zh-CN label.
+  const BOARDROOM_LABELS: Record<string, string> = {
+    arr: "年度经常性收入",
+    burnRate: "季度消耗",
+    capTable: "股权结构",
+    cashOnHand: "现金储备",
+    company: "公司概况",
+    controlRisk: "控制权风险",
+    dueDiligenceDirt: "尽调隐患",
+    employeePool: "员工期权池",
+    financials: "财务状况",
+    fiscalQuarter: "财季",
+    keyAccounts: "核心客户",
+    ledgerNotes: "账目备注",
+    leverageNotes: "筹码备注",
+    nextShock: "下一场冲击",
+    others: "其他股东",
+    revenue: "营收",
+    revenueGrowth: "营收增速",
+    runwayQuarters: "现金跑道(季)",
+    sentiment: "情绪面",
+    stage: "阶段",
+    standing: "处境",
+    title: "职务",
+  };
+
+  test("every boardroom key renders its business-semantic zh-CN label", () => {
+    for (const [key, label] of Object.entries(BOARDROOM_LABELS)) {
+      expect(fieldKeyLabel(key, false, ROLE_NAMES)).toBe(label);
+    }
+  });
+
+  test("cultivation-sim keys do NOT regress", () => {
+    expect(fieldKeyLabel("season", false, ROLE_NAMES)).toBe("季节");
+    expect(fieldKeyLabel("realm", false, ROLE_NAMES)).toBe("境界");
+    expect(fieldKeyLabel("spiritStones", false, ROLE_NAMES)).toBe("灵石");
+    expect(fieldKeyLabel("threats", false, ROLE_NAMES)).toBe("威胁");
+  });
+
+  test("a custom (unknown) boardroom-adjacent key still passes through verbatim", () => {
+    expect(fieldKeyLabel("synergyScore", false, ROLE_NAMES)).toBe("synergyScore");
+  });
+
+  test("a full boardroom snapshot humanizes with no raw English key leaking", () => {
+    const rows = humanizeFlatRows(
+      {
+        publicState: {
+          company: { fiscalQuarter: "2026Q1", stage: "IPO 前冲刺", sentiment: "谨慎乐观" },
+          financials: { revenue: "4.2亿", runwayQuarters: 3, burnRate: "每季 6000万" },
+          capTable: { employeePool: "12%", others: "35%" },
+        },
+        derivedState: { controlRisk: "高" },
+        hiddenState: { fate: { nextShock: "审计风暴" } },
+      },
+      ROLE_NAMES,
+    );
+    const leakySegments = [
+      "company",
+      "financials",
+      "capTable",
+      "fiscalQuarter",
+      "runwayQuarters",
+      "burnRate",
+      "employeePool",
+      "controlRisk",
+      "nextShock",
+    ];
+    for (const seg of leakySegments) {
+      expect(rows.every((row) => !row.key.includes(seg))).toBe(true);
+    }
+    // And the humanized labels ARE present in the breadcrumb paths.
+    expect(rows.some((row) => row.key.includes("现金跑道(季)"))).toBe(true);
+    expect(rows.some((row) => row.key.includes("控制权风险"))).toBe(true);
   });
 });

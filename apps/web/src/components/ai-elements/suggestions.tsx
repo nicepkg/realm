@@ -4,14 +4,29 @@ import { type ComponentProps, useCallback, useEffect, useRef, useState } from "r
 import { cn } from "@/lib/utils.ts";
 
 /**
+ * Whether a starter prompt READS or WRITES the world.
+ *  - `read`  — a side-effect-free inspect ("现在世界什么状态？"). Picking it sends
+ *    immediately (NL-first: one sentence, one result; nothing to confirm).
+ *  - `write` — a mutation (create world / add role / control a role). Picking it
+ *    only PREFILLS the composer so the operator can edit before sending — a risky
+ *    write is NEVER auto-sent (it still passes the review-before-send preview).
+ *
+ * Defaults to `write` when omitted so an un-annotated chip can never auto-send.
+ */
+export type SuggestionKind = "read" | "write";
+
+/**
  * A starter prompt shown as a tappable pill in the empty state. `label` is what
  * the operator reads; `prompt` is the natural-language text dropped into the
- * composer when picked. Both come from the caller (localized, zero hardcoded
+ * composer (write) or sent directly (read) when picked. `kind` decides which —
+ * see {@link SuggestionKind}. All come from the caller (localized, zero hardcoded
  * copy).
  */
 export type Suggestion = {
   label: string;
   prompt: string;
+  /** Read (direct-send) vs write (prefill-then-send). Defaults to `write`. */
+  kind?: SuggestionKind;
 };
 
 /**
@@ -28,13 +43,19 @@ export const PREFILL_HINT_MS = 1600;
  * God-chat state. Pure presentation: it renders what it is given and reports
  * the chosen prompt back. No SDK/controller imports, no business logic.
  *
- * Picking a pill PREFILLS the composer (it never auto-sends) — that "edit then
- * send" semantic is intentional. To stop a first-time operator thinking "I
- * clicked and nothing happened", an OPTIONAL feedback layer can be switched on:
- * pass `prefillHint` to briefly flag the picked pill as 已填入 and announce the
- * hint via an aria-live region, and/or pass `onPicked` so the caller can focus
- * the composer and place the cursor at the end. Both default off — omit them and
- * behaviour is byte-for-byte identical to the bare prefill row.
+ * Picking a `write` pill PREFILLS the composer (it never auto-sends) — that "edit
+ * then send" semantic is intentional for risky mutations. Picking a `read` pill
+ * (a side-effect-free inspect) instead SENDS immediately via `onPickRead` — the
+ * NL-first "one sentence, one result" mental model, with no write risk. A chip
+ * with no `kind` is treated as `write` (never auto-sends).
+ *
+ * To stop a first-time operator thinking "I clicked and nothing happened" after a
+ * WRITE prefill, an OPTIONAL feedback layer can be switched on: pass `prefillHint`
+ * to briefly flag the picked pill as 已填入 and announce the hint via an aria-live
+ * region, and/or pass `onPicked` so the caller can focus the composer and place
+ * the cursor at the end. Both default off — omit them and the write-pill behaviour
+ * is byte-for-byte identical to the bare prefill row. Read pills bypass this layer
+ * entirely (they send, so there is nothing to confirm).
  *
  * Horizontally scrollable so a long list never wraps into a noisy grid; pills
  * keep a stable height (no layout shift on hover/active, per taste rules).
@@ -42,12 +63,24 @@ export const PREFILL_HINT_MS = 1600;
  */
 export type SuggestionsProps = Omit<ComponentProps<"div">, "onSelect"> & {
   items: Suggestion[];
-  /** Called with the full prompt text of the picked suggestion. */
+  /**
+   * Called with the full prompt text of a picked WRITE suggestion — the caller
+   * prefills the composer with it (it is never auto-sent). Also used as the
+   * fallback for a `read` pill when `onPickRead` is not supplied, so a read chip
+   * still at least prefills rather than doing nothing.
+   */
   onPick: (prompt: string) => void;
   /**
-   * Optional. Fired AFTER `onPick`, with no arguments — the caller (the chat
-   * shell) uses it to focus the composer and move the caret to the end. When
-   * omitted, picking only prefills, exactly as before.
+   * Optional. Called with the full prompt of a picked READ suggestion to SEND it
+   * immediately (NL-first direct-send). When omitted, a read pill degrades to a
+   * plain `onPick` prefill — never a dead click.
+   */
+  onPickRead?: (prompt: string) => void;
+  /**
+   * Optional. Fired AFTER `onPick` for a WRITE pill only, with no arguments — the
+   * caller (the chat shell) uses it to focus the composer and move the caret to
+   * the end. When omitted, picking only prefills, exactly as before. Never fires
+   * for a read pill (which sends instead of prefilling).
    */
   onPicked?: () => void;
   /**
@@ -60,23 +93,50 @@ export type SuggestionsProps = Omit<ComponentProps<"div">, "onSelect"> & {
 
 /**
  * Pure decision for what a pill click should do, kept out of the component so it
- * is trivially unit-testable without a DOM. Given the picked suggestion and the
- * optional handlers, it returns the ordered side effects to run.
+ * is trivially unit-testable without a DOM. Splits on the suggestion `kind`:
+ *
+ *  - `read`  → SEND immediately via `onPickRead` (NL-first direct-send). The
+ *    write-only prefill feedback (`onPicked` / hint tint) is skipped — there is
+ *    nothing to confirm. If `onPickRead` is absent it degrades to `onPick` so the
+ *    click is never dead. A read pick reports `sent: true`.
+ *  - `write` (default for an un-annotated chip) → PREFILL via `onPick`, then fire
+ *    the optional `onPicked` focus/pulse hook. A write pick is NEVER sent.
+ *
+ * Returns the resolved prompt plus flags describing which effects ran, so the
+ * read/write split is assertable without a DOM and the component can decide
+ * whether to show the 已填入 hint tint (write-only).
  */
 export const resolvePickActions = (
-  prompt: string,
-  handlers: { onPick: (prompt: string) => void; onPicked?: () => void },
-): { prompt: string; runOnPicked: boolean } => {
+  item: Pick<Suggestion, "prompt" | "kind">,
+  handlers: {
+    onPick: (prompt: string) => void;
+    onPickRead?: (prompt: string) => void;
+    onPicked?: () => void;
+  },
+): { prompt: string; sent: boolean; prefilled: boolean; runOnPicked: boolean } => {
+  const { prompt, kind } = item;
+  if (kind === "read") {
+    // Direct-send (NL-first). Fall back to a plain prefill when no send handler is
+    // wired so a read chip still does SOMETHING rather than nothing.
+    if (handlers.onPickRead) {
+      handlers.onPickRead(prompt);
+      return { prefilled: false, prompt, runOnPicked: false, sent: true };
+    }
+    handlers.onPick(prompt);
+    return { prefilled: true, prompt, runOnPicked: false, sent: false };
+  }
+  // Write (or unspecified): prefill + optional focus/pulse. Never auto-sent.
   handlers.onPick(prompt);
   if (handlers.onPicked) {
     handlers.onPicked();
   }
-  return { prompt, runOnPicked: Boolean(handlers.onPicked) };
+  return { prefilled: true, prompt, runOnPicked: Boolean(handlers.onPicked), sent: false };
 };
 
 export const Suggestions = ({
   items,
   onPick,
+  onPickRead,
   onPicked,
   prefillHint,
   className,
@@ -98,8 +158,11 @@ export const Suggestions = ({
 
   const handlePick = useCallback(
     (item: Suggestion) => {
-      resolvePickActions(item.prompt, { onPick, onPicked });
-      if (!prefillHint) {
+      const { prefilled } = resolvePickActions(item, { onPick, onPickRead, onPicked });
+      // The 已填入 confirmation tint is a WRITE-prefill affordance only: a read
+      // pill SENDS (prefilled === false), so it leaves the empty state for the
+      // live timeline immediately and never needs a "still press send" hint.
+      if (!prefillHint || !prefilled) {
         return;
       }
       setActiveLabel(item.label);
@@ -111,7 +174,7 @@ export const Suggestions = ({
         timerRef.current = null;
       }, PREFILL_HINT_MS);
     },
-    [onPick, onPicked, prefillHint],
+    [onPick, onPickRead, onPicked, prefillHint],
   );
 
   if (items.length === 0) {
@@ -127,10 +190,14 @@ export const Suggestions = ({
       {...props}
     >
       {items.map((item) => {
-        const isActive = prefillHint != null && activeLabel === item.label;
+        // A read pill is a one-shot send action, NOT a toggle — only write pills
+        // (the prefill-then-send affordance) carry the 已填入 pressed state.
+        const isWritePill = item.kind !== "read";
+        const togglesHint = prefillHint != null && isWritePill;
+        const isActive = togglesHint && activeLabel === item.label;
         return (
           <button
-            aria-pressed={prefillHint != null ? isActive : undefined}
+            aria-pressed={togglesHint ? isActive : undefined}
             className={cn(
               // Stable height + shrink-0 keep the row from jittering; the tint
               // is colour-only so the active state never changes layout.

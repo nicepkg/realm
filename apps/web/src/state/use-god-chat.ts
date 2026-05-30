@@ -4,7 +4,11 @@ import type { ChatTurn, GodChatContext, PendingProposal } from "@/state/god-chat
 import { loadTranscript } from "@/state/god-chat-transcript-store.ts";
 import { routeIntentPrimary } from "@/state/route-intent-primary.ts";
 import { useGodChatActions } from "@/state/use-god-chat-actions.ts";
-import { type WorldSwitchCarryOver, worldScopedRoles } from "@/state/use-god-chat-helpers.ts";
+import {
+  resolveSubmitSource,
+  type WorldSwitchCarryOver,
+  worldScopedRoles,
+} from "@/state/use-god-chat-helpers.ts";
 import { useGodChatTranscriptPersistence } from "@/state/use-god-chat-transcript-persistence.ts";
 import {
   type ActiveRunTurn,
@@ -31,6 +35,18 @@ export type UseGodChat = {
   draft: string;
   setDraft: (value: string) => void;
   submit: () => Promise<void>;
+  /**
+   * Route + run an EXPLICIT text immediately, bypassing the `draft` state. This
+   * exists because `setDraft(text)` + `submit()` in the same tick cannot work:
+   * React batches the state update, so `submit`'s closure still reads the OLD
+   * (empty) draft. A read-class suggestion chip ("现在世界什么状态？") therefore must
+   * send its prompt directly via `submitText`, not through the composer — landing
+   * the NL-first "one tap, one answer" without a second send press. It reuses the
+   * EXACT same routing/dispatch pipeline as `submit` (`routeIntentPrimary` →
+   * inspect/stage/config/…), so a write typed here still stages a preview and is
+   * never auto-committed.
+   */
+  submitText: (text: string) => Promise<void>;
   pendingProposal: PendingProposal | undefined;
   confirmProposal: (typedConfirmation?: string) => Promise<void>;
   cancelProposal: () => void;
@@ -157,59 +173,81 @@ export function useGodChat(app: RealmAppController): UseGodChat {
       setPendingProposal,
     });
 
-  // Declared AFTER its routing callbacks (runInspect / stageConfig / stageWrite)
-  // so they can be listed as real dependencies — every collaborator is a stable
-  // useCallback, so this neither over-fires the hook nor needs a lint escape.
-  const submit = useCallback(async () => {
-    const text = draft.trim();
-    if (text.length === 0 || inFlightRef.current) {
-      return;
-    }
-    setError(undefined);
-    pushTurn({ role: "operator", text });
+  // The SHARED route + dispatch core. Both `submit` (draft-backed) and
+  // `submitText` (explicit-text, draft-bypassing) funnel an already-trimmed line
+  // through here, so there is exactly ONE routing/dispatch pipeline. Every branch
+  // is byte-identical to the old inline `submit` body — it is purely a parameter
+  // extraction so a direct-send chip can supply its prompt without the
+  // setDraft+submit same-tick batching trap. Declared AFTER its routing callbacks
+  // (runInspect / stageConfig / stageWrite) so they are real, stable deps.
+  const runRouted = useCallback(
+    async (text: string) => {
+      if (text.length === 0 || inFlightRef.current) {
+        return;
+      }
+      setError(undefined);
+      pushTurn({ role: "operator", text });
 
-    // PRIMARY model-backed routing (server `/api/assistant/intent`), with the
-    // synchronous deterministic router as a guaranteed fallback inside
-    // `routeIntentPrimary` on any network/parse/timeout failure. The returned
-    // RouteResult is the SAME shape the deterministic router produced, so every
-    // downstream branch below is unchanged.
-    const route = await routeIntentPrimary(text, context, app.client);
+      // PRIMARY model-backed routing (server `/api/assistant/intent`), with the
+      // synchronous deterministic router as a guaranteed fallback inside
+      // `routeIntentPrimary` on any network/parse/timeout failure. The returned
+      // RouteResult is the SAME shape the deterministic router produced, so every
+      // downstream branch below is unchanged.
+      const route = await routeIntentPrimary(text, context, app.client);
 
-    // Read-only + no-op paths resolve immediately; the draft is consumed because
-    // there is nothing to retry.
-    if (route.mode === "noop") {
-      setDraft("");
-      pushTurn({ role: "system", text: route.text });
-      return;
-    }
-    if (route.mode === "inspect") {
-      setDraft("");
-      await runInspect(route.intent);
-      return;
-    }
-    if (route.mode === "world-switch") {
-      setDraft("");
-      // Stash the LIVE operator line + destination name so the persistence
-      // scope-switch effect carries them into the destination scope instead of
-      // dropping them when it restores that world's saved transcript (F2). The
-      // operator bubble pushed above lives in the SOURCE scope and is discarded by
-      // the scope swap; the carry-over re-materializes it (with the live text) on
-      // top of the destination's history, so the switch is one continuous turn.
-      pendingSwitchCarryOverRef.current = { liveText: text, worldName: route.worldName };
-      await switchWorld(route.worldId, route.worldName);
-      return;
-    }
+      // Read-only + no-op paths resolve immediately; the draft is cleared because
+      // there is nothing to retry. (For a `submitText` direct-send the draft was
+      // already empty, so this is a harmless no-op there.)
+      if (route.mode === "noop") {
+        setDraft("");
+        pushTurn({ role: "system", text: route.text });
+        return;
+      }
+      if (route.mode === "inspect") {
+        setDraft("");
+        await runInspect(route.intent);
+        return;
+      }
+      if (route.mode === "world-switch") {
+        setDraft("");
+        // Stash the LIVE operator line + destination name so the persistence
+        // scope-switch effect carries them into the destination scope instead of
+        // dropping them when it restores that world's saved transcript (F2). The
+        // operator bubble pushed above lives in the SOURCE scope and is discarded by
+        // the scope swap; the carry-over re-materializes it (with the live text) on
+        // top of the destination's history, so the switch is one continuous turn.
+        pendingSwitchCarryOverRef.current = { liveText: text, worldName: route.worldName };
+        await switchWorld(route.worldId, route.worldName);
+        return;
+      }
 
-    // Write paths: clear the composer optimistically, then either fetch the
-    // config proposal (network — restore the draft on failure so it is
-    // retryable) or stage the locally-shaped write for confirm.
-    setDraft("");
-    if (route.mode === "config") {
-      await stageConfig(route.goal, text);
-      return;
-    }
-    stageWrite(route.proposal);
-  }, [draft, context, app.client, pushTurn, runInspect, stageConfig, stageWrite, switchWorld]);
+      // Write paths: clear the composer optimistically, then either fetch the
+      // config proposal (network — restore the draft on failure so it is
+      // retryable) or stage the locally-shaped write for confirm. A write reaching
+      // here via `submitText` is STILL staged as a preview, never auto-committed.
+      setDraft("");
+      if (route.mode === "config") {
+        await stageConfig(route.goal, text);
+        return;
+      }
+      stageWrite(route.proposal);
+    },
+    [context, app.client, pushTurn, runInspect, stageConfig, stageWrite, switchWorld],
+  );
+
+  // Draft-backed submit (composer Enter / send button): route the trimmed draft.
+  const submit = useCallback(
+    () => runRouted(resolveSubmitSource({ draft, from: "draft" })),
+    [runRouted, draft],
+  );
+
+  // Explicit-text submit (read-class suggestion direct-send): route the supplied
+  // text WITHOUT touching `draft`, sidestepping the same-tick setDraft batching
+  // that would make a setDraft+submit pair read the stale empty draft.
+  const submitText = useCallback(
+    (text: string) => runRouted(resolveSubmitSource({ from: "text", text })),
+    [runRouted],
+  );
 
   // F6 — durable transcript persistence (scope-load on switch + debounced
   // write-back). Co-located hook so this file stays under the 500-line guard; it
@@ -255,6 +293,7 @@ export function useGodChat(app: RealmAppController): UseGodChat {
     pendingProposal,
     setDraft,
     submit,
+    submitText,
     turns,
   };
 }
@@ -264,6 +303,7 @@ export function useGodChat(app: RealmAppController): UseGodChat {
 export {
   composeStructureFollowUp,
   resolveCreatedWorldId,
+  resolveSubmitSource,
   shouldRestoreDraftOnProposalError,
   worldScopedRoles,
 } from "@/state/use-god-chat-helpers.ts";

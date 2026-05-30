@@ -1,4 +1,18 @@
 import { inferConfigPlanFromGoal } from "./index.ts";
+import {
+  CONDITION_PHRASE_KEYWORDS,
+  CONFIG_KEYWORDS,
+  GOD_KEYWORDS,
+  INSPECT_KEYWORDS,
+  ROLE_MEMORY_KEYWORDS,
+  RUN_TURN_DIRECTIVE_VERBS,
+  RUN_TURN_KEYWORDS,
+  STATE_PATCH_KEYWORDS,
+  TRUST_ELEVATION_KEYWORDS,
+  WORLD_RULE_MARKERS,
+  WORLD_RULE_PATTERN_KEYWORDS,
+  WORLD_SWITCH_KEYWORDS,
+} from "./intent-keywords.ts";
 import type {
   GodAction,
   IntentRouter,
@@ -9,254 +23,57 @@ import type {
   RealmIntent,
 } from "./intent-types.ts";
 import { isInterrogative } from "./is-interrogative.ts";
+import { stripRuleMarkerPrefix } from "./rule-marker.ts";
+
+export { stripRuleMarkerPrefix }; // re-exported for R1's read-only reuse (impl in helper)
+
+/**
+ * EXPLICIT world-rule declaration test (markers only). True when `text` literally
+ * names a world rule via one of {@link WORLD_RULE_MARKERS} ("设定规则 / 规则： /
+ * 世界规则 / world rule") and is NOT a question.
+ *
+ * This is the high-confidence "set a WORLD-LEVEL rule" signal — exposed as a pure,
+ * network-free predicate so callers (notably the web model-backed router) can
+ * recover the world-rule DESTINATION when a real provider mis-classifies a marked
+ * rule as add-role / create-world / a god action, WITHOUT re-deriving rule
+ * detection in another layer. Deliberately NARROWER than the classifier's internal
+ * {@link isWorldRuleDeclaration}: it uses ONLY the explicit markers, never the
+ * recurrence/economy patterns ("每天… / 会减少…"), so an ordinary attribute patch
+ * ("现金跑道减少一个季度") or a plain mechanic sentence is NEVER mistaken for an
+ * explicit rule declaration. The `!isInterrogative` gate preserves NO-QUESTION-WRITE:
+ * "现在世界设定了哪些规则？" carries 规则 but is a question, so it returns false.
+ *
+ * Note: unlike the in-classifier branch this does NOT gate on `!role`. A marked
+ * rule that happens to name a role ("规则：IPO 前不得稀释陈牧的股份") is still an
+ * explicit WORLD rule; the explicit marker is the discriminator, not the absence of
+ * a role. Callers that want on-role state-patches to win should check those first.
+ */
+export function declaresWorldRule(text: string): boolean {
+  const trimmed = text.trim();
+  if (trimmed.length === 0 || isInterrogative(trimmed)) {
+    return false;
+  }
+  return matchesEither(trimmed, normalize(trimmed), WORLD_RULE_MARKERS);
+}
+
+/**
+ * Extract the rule BODY from an explicit world-rule declaration — the SAME body the
+ * classifier's own `/metaState/rules` branch stores. Pure wrapper over
+ * {@link stripRuleMarkerPrefix} (re-exported for symmetry) so callers recovering a
+ * mis-classified rule store the marker-stripped body, never a "设定规则：…"-prefixed
+ * copy on one path and the bare body on the other. One source of truth for the rule
+ * text; the destination pointer is the caller's concern.
+ */
+export function extractWorldRuleBody(text: string): string {
+  return stripRuleMarkerPrefix(text.trim());
+}
 
 /**
  * Deterministic NL → intent classifier. Pure logic, no network: powers the fake
  * runtime (coherent demo with no API key) and the model-backed router's fallback.
+ * Keyword tables live in `./intent-keywords.ts`; routing rationale stays inline
+ * with each `classifyIntent` branch.
  */
-
-// --- Keyword tables (zh-CN first, English aliases) ---------------------------
-
-const GOD_KEYWORDS: { action: GodAction; needles: string[] }[] = [
-  { action: "mute", needles: ["禁言", "封口", "闭嘴", "mute", "silence"] },
-  {
-    action: "revive",
-    needles: ["解禁", "复活", "恢复", "解除", "unmute", "revive", "unban"],
-  },
-  { action: "kill", needles: ["处死", "杀掉", "击杀", "灭", "kill", "remove"] },
-];
-
-/**
- * Genuine speech / action verbs that justify advancing a turn. Note "让" is NOT
- * here: alone it is too generic ("让顾辰风心生退意" is a state change, not a
- * turn). Bare "让" is only a run-turn signal when combined with one of these
- * verbs ("让顾辰风说话"), which `classifyIntent` enforces.
- */
-const RUN_TURN_KEYWORDS = [
-  "说话",
-  "发言",
-  "回应",
-  "回复",
-  "出场",
-  "轮到",
-  "出手",
-  "开口",
-  // Common "say something / chat / a few words" speak verbs. An operator routinely
-  // asks a role to "说点什么 / 聊聊 / 说几句" — these advance the role's turn, not a
-  // state change. (Live-model defect: '让顾辰风在全员议事说点什么' misrouted to inspect.)
-  "说点什么",
-  "说些什么",
-  "说几句",
-  "说两句",
-  "说说",
-  "聊聊",
-  "聊几句",
-  "讲两句",
-  "开口说",
-  "speak",
-  "respond",
-  "reply",
-  "act",
-  "say something",
-  "take a turn",
-  "run turn",
-];
-
-/**
- * Action verbs ambiguous on their own ("行动" can read as a state change) that
- * only mean run-turn when the operator framed it as a directive with "让".
- * Splitting these out keeps a bare "顾辰风受伤行动不便" from triggering a turn.
- */
-const RUN_TURN_DIRECTIVE_VERBS = ["行动", "动起来"];
-
-const INSPECT_KEYWORDS = [
-  "什么状态",
-  "现在状态",
-  "状态如何",
-  "查看",
-  "知道",
-  "了解",
-  "记得",
-  "有哪些",
-  "看看",
-  "查询",
-  "是什么",
-  "怎么样",
-  "?",
-  "？",
-  "status",
-  "inspect",
-  "what",
-  "which",
-  "show",
-  "list",
-  "know",
-  "remember",
-];
-
-const ROLE_MEMORY_KEYWORDS = ["知道", "记得", "了解", "memory", "knows", "remember"];
-
-const CONFIG_KEYWORDS = [
-  "创建",
-  "新建",
-  "建一个",
-  "添加",
-  "加一个",
-  "新增",
-  "设定规则",
-  "设置规则",
-  "规则",
-  "世界",
-  "角色",
-  "create",
-  "add",
-  "new world",
-  "new role",
-  "rule",
-];
-
-// State-patch is detected by attribute-assignment phrasing ("给X加上Y", "把X的Y设为Z").
-const STATE_PATCH_KEYWORDS = [
-  "加上",
-  "添加属性",
-  "属性",
-  "状态设为",
-  "设为",
-  "设置成",
-  "改成",
-  "增加",
-  "减少",
-  "扣",
-  "受伤",
-  "中毒",
-  "断了",
-  "失去",
-  "获得",
-  "condition",
-  "attribute",
-  "set state",
-];
-
-/**
- * Emotional / physical / mental condition phrasing. A sentence carrying any of
- * these describes a CHANGE to a role's inner or bodily state — it is a
- * state-patch, NOT a turn, even when phrased as "让X<condition>". Splitting
- * these from STATE_PATCH_KEYWORDS keeps the "让X<emotion>" pattern (which also
- * needs "让" / a role) readable while the plain list above stays a pure
- * keyword check. (F8: "让顾辰风此刻心生退意" used to leak into run-turn.)
- */
-const CONDITION_PHRASE_KEYWORDS = [
-  "心生",
-  "产生",
-  "变得",
-  "此刻",
-  "陷入",
-  "感到",
-  "感受到",
-  "退意",
-  "动摇",
-  "恐惧",
-  "害怕",
-  "愤怒",
-  "绝望",
-  "退缩",
-  "心灰意冷",
-  "心软",
-  "犹豫",
-  "悲伤",
-  "崩溃",
-  "情绪",
-];
-
-/**
- * World-rule phrasing — declares a WORLD-LEVEL rule, not an attribute change on a
- * specific role. Two flavours:
- *  (a) explicit rule markers at/near the head of the sentence ("设定规则 / 规则是 /
- *      世界规则"); and
- *  (b) rule-shaped statements describing a recurring/economic mechanic ("每天… /
- *      每回合… / …可以买… / …会掉/会增加/会减少…").
- * A sentence that matches but ALSO names a concrete role is handled as an on-role
- * state-patch upstream — this branch only fires for role-less, world-level rules,
- * so it never swallows "给顾辰风加上…".
- */
-const WORLD_RULE_MARKERS = [
-  "设定规则",
-  "设置规则",
-  "规则是",
-  "规则：",
-  "规则:",
-  "世界规则",
-  "游戏规则",
-  "world rule",
-  "game rule",
-];
-
-/**
- * Rule-shaped statement patterns (no explicit "规则" word). These describe a
- * standing mechanic rather than a one-off state change, so they belong in
- * /metaState/rules. Kept conservative: each needs a recurrence/economy cue.
- */
-const WORLD_RULE_PATTERN_KEYWORDS = [
-  "每天",
-  "每回合",
-  "每个回合",
-  "每轮",
-  "可以买",
-  "可以购买",
-  "会掉",
-  "会增加",
-  "会减少",
-  "会下降",
-  "会上升",
-];
-
-/**
- * World-switch phrasing — "切换到X / 打开X / 进入X / 去X世界 / switch to X". These
- * are DIRECTIVE markers that, combined with a world the operator named (resolved
- * against context.worlds), mean "make X the active world", NOT a question about
- * the current world's state. We require BOTH a marker AND a name match so an
- * inspect like "进入世界后会怎样？" never mis-fires as a switch.
- */
-const WORLD_SWITCH_KEYWORDS = [
-  "切换到",
-  "切换至",
-  "切到",
-  "打开",
-  "进入",
-  "去",
-  "前往",
-  "回到",
-  "切换世界",
-  "切换地图",
-  "switch to",
-  "switch world",
-  "go to",
-  "open world",
-  "enter world",
-];
-
-// Trust-elevation phrasing — "提升信任 / 允许运行角色 / 解除只读 / run roles".
-const TRUST_ELEVATION_KEYWORDS = [
-  "提升信任",
-  "提高信任",
-  "抬升信任",
-  "信任等级",
-  "信任级别",
-  "允许运行角色",
-  "允许运行",
-  "允许写入状态",
-  "允许写入",
-  "允许执行",
-  "解除只读",
-  "退出只读",
-  "关闭只读",
-  "解锁写入",
-  "trust",
-  "elevate",
-  "run roles",
-  "allow write",
-  "exit read-only",
-];
 
 function includesAny(haystack: string, needles: string[]): boolean {
   return needles.some((needle) => haystack.includes(needle));
@@ -427,19 +244,19 @@ export function classifyIntent(goal: string, context: IntentRouterContext): Real
     };
   }
 
-  // 2b. World rule — a WORLD-LEVEL rule declaration ("设定规则：每天掉一点灵气").
-  // Must run BEFORE config (whose CONFIG_KEYWORDS also list 规则, but route to the
-  // role/world-only planner that mints a placeholder "新角色"). Guarded on `!role`
-  // so it only fires for role-less rule sentences; "给顾辰风加上…" already returned
-  // as an on-role state-patch above. The rule is world-level, so it writes to
-  // /metaState/rules (the per-world meta container readers/the rail already track),
-  // NOT the per-role /privateState path buildStateOperation produces.
+  // 2b. World rule — a role-less WORLD-LEVEL rule declaration ("设定规则：每天掉一点
+  // 灵气"). Runs BEFORE config (CONFIG_KEYWORDS also list 规则 but mint a placeholder
+  // "新角色"). Guarded on `!role` so "给顾辰风加上…" already returned as an on-role
+  // state-patch above. World-level → writes /metaState/rules (the per-world meta
+  // container readers/the rail track), not the per-role /privateState path. The
+  // leading "设定规则：" marker is stripped so the stored rule reads the BODY only.
   if (!role && !interrogative && isWorldRuleDeclaration(trimmed, normalized)) {
+    const ruleBody = stripRuleMarkerPrefix(trimmed);
     return {
       kind: "state-patch",
       worldId,
-      operations: [{ op: "append", path: "/metaState/rules", value: trimmed }],
-      reason: trimmed,
+      operations: [{ op: "append", path: "/metaState/rules", value: ruleBody }],
+      reason: ruleBody,
     };
   }
 
