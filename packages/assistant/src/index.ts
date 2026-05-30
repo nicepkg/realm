@@ -1,14 +1,22 @@
-import {
-  type CreateRolePatchInput,
-  type CreateWorldPatchInput,
-  createRolePatchInputSchema,
-  createWorldPatchInputSchema,
-} from "@realm/config";
+import { createRolePatchInputSchema, createWorldPatchInputSchema } from "@realm/config";
 import { z } from "zod";
+import { type AssistantConfigPlan, inferConfigPlanFromGoal } from "./config-plan-inference.ts";
 
-export type AssistantConfigPlan =
-  | { kind: "role"; role: CreateRolePatchInput }
-  | { kind: "world"; world: CreateWorldPatchInput };
+// NL goal → config-plan inference (role/world name extraction + theming) lives in
+// its own module so this file stays under the 500-line guard; re-export the full
+// surface so consumers and tests keep importing it from "@realm/assistant".
+export {
+  type AssistantConfigPlan,
+  extractProposedName,
+  extractRoleName,
+  extractWorldName,
+  inferConfigPlanFromGoal,
+  inferRoleFromGoal,
+  inferWorldFromGoal,
+  inferWorldThemeFromGoal,
+} from "./config-plan-inference.ts";
+export * from "./intent-router.ts";
+export { detectWorldStructureClues } from "./world-structure-clues.ts";
 
 export type ConfigPlannerModel = {
   complete: (input: { system: string; prompt: string }) => Promise<string>;
@@ -39,51 +47,6 @@ export class ModelBackedConfigAssistantPlanner implements ConfigAssistantPlanner
     });
     return parseAssistantConfigPlan(response);
   }
-}
-
-export function inferConfigPlanFromGoal(goal: string): AssistantConfigPlan {
-  const normalized = goal.toLowerCase();
-  if (normalized.includes("world") || goal.includes("世界")) {
-    return {
-      kind: "world",
-      world: {
-        id: "assistant-world",
-        name: goal.includes("修真") ? "Cultivation World" : "Assistant World",
-        mode: goal.includes("修真") ? "game" : "sandbox",
-        // Stable id token; the i18n layer localizes the world-main room label.
-        roomName: "main",
-        roleIds: [],
-      },
-    };
-  }
-
-  return { kind: "role", role: inferRoleFromGoal(goal) };
-}
-
-export function inferRoleFromGoal(goal: string): CreateRolePatchInput {
-  const normalized = goal.toLowerCase();
-  if (normalized.includes("buffett") || goal.includes("巴菲特")) {
-    return {
-      id: "buffett",
-      displayName: "Warren Buffett",
-      model: "default",
-      summary: "Long-term value investor.",
-    };
-  }
-  if (normalized.includes("qa") || goal.includes("测试")) {
-    return {
-      id: "qa",
-      displayName: "QA",
-      model: "default",
-      summary: "Quality and regression reviewer.",
-    };
-  }
-  return {
-    id: "custom-role",
-    displayName: "Custom Role",
-    model: "default",
-    summary: goal.slice(0, 160),
-  };
 }
 
 export function buildConfigPlannerPrompt(goal: string): string {
