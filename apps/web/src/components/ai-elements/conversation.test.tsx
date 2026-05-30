@@ -6,9 +6,19 @@ import { renderToStaticMarkup } from "react-dom/server";
  * available inside a `<StickToBottom>` provider. We mock the library so the
  * component renders in isolation (it must be a transparent drop-in that adds no
  * visible chrome).
+ *
+ * IMPORTANT: bun's `mock.module` is global and leaks across test files for the
+ * whole run, in a load-order that differs by OS. So this mock MUST be a complete
+ * drop-in for every member the real module exposes that any component renders —
+ * notably `StickToBottom.Content` (used by `<ConversationContent>`). Omitting it
+ * left `StickToBottom.Content === undefined`, which crashed unrelated suites
+ * (e.g. message-timeline) on Linux/Windows where this file loaded first
+ * ("Element type is invalid ... got: undefined"). Keep this mock passthrough-complete.
  */
+const StickToBottomMock = ({ children }: { children?: React.ReactNode }) => children ?? null;
+StickToBottomMock.Content = ({ children }: { children?: React.ReactNode }) => children ?? null;
 mock.module("use-stick-to-bottom", () => ({
-  StickToBottom: ({ children }: { children?: React.ReactNode }) => children ?? null,
+  StickToBottom: StickToBottomMock,
   useStickToBottomContext: () => ({ scrollToBottom: () => true, isAtBottom: true }),
 }));
 
