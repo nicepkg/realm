@@ -10,7 +10,14 @@ type PackResult = {
   unpackedSize: number;
 };
 
-const maxEntries = 20;
+// The shipped tarball is the CLI entry + sourcemap + the Pi extension + the
+// code-split Web UI bundle (`dist/web/assets/*`). Vite/Rolldown emits one chunk
+// per lazily-loaded surface, so the asset count scales with the app and is
+// expected to be in the dozens. The real guards against accidental bloat are
+// the forbidden-path patterns (no src/node_modules/tests/workspaces) and the
+// unpacked-size cap; the entry ceiling only catches a gross regression (e.g. an
+// unignored directory), so it carries deliberate headroom above today's count.
+const maxEntries = 80;
 const maxUnpackedSize = 25 * 1024 * 1024;
 const forbiddenPathPatterns = [
   /(^|\/)node_modules\//,
