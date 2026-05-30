@@ -35,7 +35,7 @@ describe("resolveCapturePlan", () => {
     const { preset, prefix } = resolveCapturePlan(REPO);
     expect(preset.id).toBe("cultivation");
     expect(preset.worldId).toBe("cultivation");
-    expect(preset.exampleDir).toBe(path.join(REPO, "examples", "cultivation-sim"));
+    expect(preset.exampleDir).toBe(path.resolve(REPO, "examples", "cultivation-sim"));
     // The docs default must keep bare "<shot>-<viewport>.png" so FlowShowcase finds them.
     expect(prefix).toBe("");
     expect(preset.flows.map((flow) => flow.shot)).toEqual([
@@ -53,7 +53,7 @@ describe("resolveCapturePlan", () => {
     const { preset, prefix } = resolveCapturePlan(REPO);
     expect(preset.id).toBe("boardroom");
     expect(preset.worldId).toBe("boardroom");
-    expect(preset.exampleDir).toBe(path.join(REPO, "examples", "boardroom-saga"));
+    expect(preset.exampleDir).toBe(path.resolve(REPO, "examples", "boardroom-saga"));
     // A non-default preset never overwrites the canonical docs shots.
     expect(prefix).toBe("boardroom-");
   });
@@ -94,7 +94,7 @@ describe("resolveCapturePlan", () => {
     process.env.REALM_CAPTURE_EXAMPLE = "examples/custom";
     process.env.REALM_CAPTURE_WORLD = "custom-world";
     const { preset, prefix } = resolveCapturePlan(REPO);
-    expect(preset.exampleDir).toBe(path.join(REPO, "examples", "custom"));
+    expect(preset.exampleDir).toBe(path.resolve(REPO, "examples", "custom"));
     expect(preset.worldId).toBe("custom-world");
     // An overridden example is not the docs default, so it gets a collision-proof prefix.
     expect(prefix).toBe("cultivation-");
