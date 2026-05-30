@@ -33,6 +33,15 @@ export const STATE_CONTAINER_LABELS: Record<string, string> = {
   metaState: "运行元数据",
   privateState: "角色私密",
   publicState: "世界全景",
+  // A world may surface a FIELD-NAMED key as its own top-level container: boardroom-
+  // saga groups people under a top-level `roles` container, so the inspect card
+  // summary (`记录了 N 类状态：…`) and the `【…】` section heading run that key through
+  // `stateKeyLabel`. Before this entry `roles` lived only in `STATE_FIELD_LABELS`,
+  // so the container path leaked the bare English token `roles` (the residual the
+  // boardroom-saga real-model run surfaced). cultivation-sim has no top-level
+  // `roles`, which is why the gap only appeared on a SECOND world. Aligned 1:1 with
+  // the `roles` field label so the same container reads identically wherever it sits.
+  roles: "角色",
 };
 
 /**
@@ -148,7 +157,19 @@ export const STATE_FIELD_LABELS: Record<string, string> = {
   world: "世界",
 };
 
-/** Map a top-level container key to its zh-CN label, or pass it through verbatim. */
+/**
+ * Map a TOP-LEVEL container key to its zh-CN label, or pass it through VERBATIM.
+ *
+ * `STATE_CONTAINER_LABELS` now carries BOTH the well-known engine containers
+ * (publicState / privateState / …) AND any field-named key a world surfaces as a
+ * top-level container (boardroom-saga's `roles`). Resolution is deliberately a
+ * single explicit lookup rather than a blanket fallback to `STATE_FIELD_LABELS`:
+ * cultivation-sim authors `qi` as a top-level field it WANTS read verbatim (灵气 is
+ * the field-leaf reading, not the container heading), so aliasing every field label
+ * into the container path would wrongly rename a custom world's own top-level field.
+ * An author-chosen top-level key that is neither a known container nor `roles` is
+ * already human-meaningful and is passed through unchanged — we never invent copy.
+ */
 export function stateKeyLabel(key: string): string {
   return STATE_CONTAINER_LABELS[key] ?? key;
 }

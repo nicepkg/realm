@@ -75,6 +75,64 @@ describe("deriveStableRoleId (via inferRoleFromGoal)", () => {
 });
 
 /**
+ * "叫X的Y" name/profession split. The displayName must stay the bare name (X)
+ * while a recognized profession noun (Y) is peeled into the summary — never
+ * absorbed into the displayName. Covers modern profession nouns AND names that
+ * carry digits/letters (零号 / K先生 / 007), while keeping the legacy 修真/武侠
+ * archetypes (叫沈墨的剑修) from regressing.
+ */
+describe("inferRoleFromGoal name/profession split", () => {
+  test("叫零号的黑客 -> name=零号, profession in summary (regression target)", () => {
+    const role = inferRoleFromGoal("加一个叫零号的黑客，谨慎、爱钱");
+    expect(role.displayName).toBe("零号");
+    expect(role.displayName).not.toContain("黑客");
+    // Profession seeds the summary; traits still survive.
+    expect(role.summary).toContain("黑客");
+    expect(role.summary).toContain("谨慎");
+    expect(role.summary).toContain("爱钱");
+  });
+
+  test("modern profession nouns are peeled off the displayName", () => {
+    const cases: ReadonlyArray<readonly [string, string, string]> = [
+      ["加一个叫阿强的程序员", "阿强", "程序员"],
+      ["加一个叫林夏的侦探", "林夏", "侦探"],
+      ["加一个叫陈默的律师", "陈默", "律师"],
+      ["加一个叫苏婉的医生", "苏婉", "医生"],
+      ["加一个叫江临的记者", "江临", "记者"],
+      ["加一个叫影的特工", "影", "特工"],
+      ["加一个叫老猫的雇佣兵", "老猫", "雇佣兵"],
+      ["加一个叫赤瞳的赏金猎人", "赤瞳", "赏金猎人"],
+    ];
+    for (const [goal, name, profession] of cases) {
+      const role = inferRoleFromGoal(goal);
+      expect(role.displayName).toBe(name);
+      expect(role.displayName).not.toContain(profession);
+      expect(role.summary).toContain(profession);
+    }
+  });
+
+  test("names with digits/letters keep the profession split (零号 / K先生 / 007)", () => {
+    expect(inferRoleFromGoal("加一个叫007的特工").displayName).toBe("007");
+    expect(inferRoleFromGoal("加一个叫K先生的杀手").displayName).toBe("K先生");
+    const x9 = inferRoleFromGoal("加一个叫X9的黑客");
+    expect(x9.displayName).toBe("X9");
+    expect(x9.summary).toContain("黑客");
+  });
+
+  test("legacy 修真/武侠 archetypes do not regress", () => {
+    const jianxiu = inferRoleFromGoal("加一个叫沈墨的剑修，孤傲、护短");
+    expect(jianxiu.displayName).toBe("沈墨");
+    expect(jianxiu.summary).toContain("剑修");
+    expect(jianxiu.summary).toContain("孤傲");
+    expect(jianxiu.summary).toContain("护短");
+
+    const baiyi = inferRoleFromGoal("加一个叫白衣的剑客");
+    expect(baiyi.displayName).toBe("白衣");
+    expect(baiyi.summary).toContain("剑客");
+  });
+});
+
+/**
  * Default world-main room display NAME. patch-store hardcodes the room *id* to
  * "main" and persists the NAME (= roomName) verbatim into world.yaml with no
  * write-time localization, so roomName must already be the zh-CN label — never

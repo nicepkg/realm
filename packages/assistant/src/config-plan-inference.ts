@@ -1,4 +1,9 @@
 import type { CreateRolePatchInput, CreateWorldPatchInput } from "@realm/config";
+import { deriveStableRoleId, deriveStableWorldId } from "./role-world-id.ts";
+
+// Re-export so existing importers of the id derivers via this module (and the
+// `config-plan-inference.test.ts` role-id contract) keep their import path.
+export { deriveStableRoleId, deriveStableWorldId } from "./role-world-id.ts";
 
 export type AssistantConfigPlan =
   | { kind: "role"; role: CreateRolePatchInput }
@@ -290,8 +295,11 @@ export function extractRoleName(goal: string): {
 }
 
 // Profession / role nouns that commonly trail a name. The job title belongs in
-// the summary, never the displayName.
+// the summary, never the displayName. Covers both 修真/武侠 archetypes and common
+// modern professions so "叫零号的黑客" splits into name=零号 / profession=黑客
+// instead of swallowing the job title into the displayName.
 const PROFESSION_NOUNS: readonly string[] = [
+  // 修真 / 武侠 archetypes.
   "剑修",
   "剑客",
   "侠客",
@@ -303,6 +311,39 @@ const PROFESSION_NOUNS: readonly string[] = [
   "弟子",
   "长老",
   "掌门",
+  // Modern professions / identities.
+  "黑客",
+  "程序员",
+  "工程师",
+  "侦探",
+  "律师",
+  "医生",
+  "护士",
+  "记者",
+  "特工",
+  "间谍",
+  "雇佣兵",
+  "赏金猎人",
+  "猎人",
+  "杀手",
+  "刺客",
+  "商人",
+  "学者",
+  "教授",
+  "老师",
+  "画家",
+  "歌手",
+  "演员",
+  "作家",
+  "诗人",
+  "厨师",
+  "司机",
+  "警察",
+  "军人",
+  "士兵",
+  "将军",
+  "队长",
+  "船长",
   "助手",
   "助理",
 ];
@@ -397,76 +438,4 @@ function distillRoleSummary(goal: string, name: string, profession?: string): st
 
 function containsCjk(value: string): boolean {
   return /[一-鿿]/u.test(value);
-}
-
-/**
- * Derive a STABLE, idSchema-safe id for a role from its resolved name.
- *
- * Deterministic for the same input (same as {@link deriveStableWorldId}) — no
- * process-counter, no module-level mutable state, no side effects. A reload or a
- * second process must re-mint the SAME id for the same name so the role's
- * `.agents/roles/<id>/` path is reproducible:
- *   - ASCII names keep a readable kebab slug ("Stock Analyst" -> stock-analyst).
- *   - Chinese / non-ASCII names have no safe kebab slug, so we fall back to a
- *     deterministic hash token (云遥 -> role-1a2b3c4d), mirroring world ids.
- *     Identical names hash identically; distinct names hash to distinct tokens
- *     (collision-resistant), so two CJK names never collapse onto one path.
- * The `role-` prefix guarantees an ascii-leading, space-free segment, so the
- * result always matches idSchema (`^[a-zA-Z0-9][a-zA-Z0-9._:-]*$`).
- */
-export function deriveStableRoleId(name: string): string {
-  const slug = kebabSlug(name);
-  return slug.length > 0 ? slug : `role-${fnv1aHex(name)}`;
-}
-
-/**
- * Derive a STABLE, UNIQUE, idSchema-safe id for a world from its resolved name.
- *
- * Unlike {@link deriveStableRoleId}, this must be DETERMINISTIC for the same
- * input: `resolveCreatedWorldId` re-derives the id from the goal as a fallback
- * and compares it against the `.agents/worlds/<id>/world.yaml` path the patch
- * wrote, so a process-counter token (non-deterministic across reloads) would
- * break that match. We instead hash the name:
- *   - ASCII names keep a readable kebab slug plus a short hash suffix so two
- *     names that slug-collide still get distinct ids ("Stock Council" ->
- *     world-stock-council-3a9f1c2e).
- *   - Chinese / non-ASCII names have no safe kebab slug, so we fall back to a
- *     pure hash token (赛博修真世界 -> world-7b41e90a). Distinct names hash to
- *     distinct tokens (collision-resistant); identical names hash identically.
- * The result always matches idSchema (`^[a-zA-Z0-9][a-zA-Z0-9._:-]*$`): the
- * `world-` prefix guarantees an ascii-leading, space-free, path-safe segment.
- */
-function deriveStableWorldId(name: string): string {
-  const hash = fnv1aHex(name);
-  const slug = kebabSlug(name);
-  return slug.length > 0 ? `world-${slug}-${hash}` : `world-${hash}`;
-}
-
-/**
- * Lowercase a name into an ascii kebab slug, dropping every non-`[a-z0-9]` run to
- * a single hyphen and trimming edge hyphens. Returns an empty string when the
- * name has no ascii alphanumerics (e.g. a pure-CJK name), signalling the caller
- * to fall back to a hash token. Shared by the role and world id derivers so both
- * slug the same way.
- */
-function kebabSlug(name: string): string {
-  return name
-    .toLowerCase()
-    .replace(/[^a-z0-9]+/g, "-")
-    .replace(/^-+|-+$/g, "");
-}
-
-/**
- * Deterministic FNV-1a 32-bit hash, rendered as a fixed 8-char lowercase hex
- * token. Stable across processes and platforms (depends only on the input
- * bytes), zero-dependency, and ascii — exactly what an id segment needs.
- */
-function fnv1aHex(value: string): string {
-  let hash = 0x811c9dc5;
-  for (let i = 0; i < value.length; i += 1) {
-    hash ^= value.charCodeAt(i);
-    // 32-bit FNV prime multiply, kept in uint32 via Math.imul + >>> 0.
-    hash = Math.imul(hash, 0x01000193) >>> 0;
-  }
-  return hash.toString(16).padStart(8, "0");
 }

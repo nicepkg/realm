@@ -28,6 +28,30 @@ describe("stateKeyLabel / fieldKeyLabel", () => {
     expect(fieldKeyLabel("moon-grass", false, ROLE_NAMES)).toBe("moon-grass");
   });
 
+  /**
+   * Residual from the boardroom-saga real-model run: boardroom groups people under a
+   * TOP-LEVEL `roles` container, so the inspect card summary (`记录了 N 类状态：…`) and
+   * the `【…】` section heading run that key through `stateKeyLabel`. Before the fix
+   * `roles` lived only in `STATE_FIELD_LABELS`, so the container path leaked the bare
+   * English token `roles`. `roles` is now an explicit `STATE_CONTAINER_LABELS` entry,
+   * so the heading reads 角色. cultivation-sim has no top-level `roles`, which is why
+   * the gap only surfaced on a SECOND world; this locks it against the same leak.
+   */
+  test("a top-level `roles` container localizes in the container path (角色)", () => {
+    // boardroom-saga's top-level `roles` container — no longer raw English.
+    expect(stateKeyLabel("roles")).toBe("角色");
+    // Engine containers still localize as before.
+    expect(stateKeyLabel("metaState")).toBe("运行元数据");
+    // A field that is NOT also a registered top-level container is still passed
+    // through verbatim by the container path — `qi` is cultivation-sim's own
+    // top-level field and must read verbatim here (灵气 is its field-leaf reading,
+    // not the container heading), so we deliberately do NOT alias every field label
+    // into the container lookup.
+    expect(stateKeyLabel("qi")).toBe("qi");
+    expect(stateKeyLabel("financials")).toBe("financials");
+    expect(stateKeyLabel("synergyScore")).toBe("synergyScore");
+  });
+
   test("a role-id key resolves to the author display name", () => {
     expect(fieldKeyLabel("guchenfeng", true, ROLE_NAMES)).toBe("顾辰风");
     // An unknown role id falls back to the id itself (never throws).
