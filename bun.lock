@@ -77,6 +77,7 @@
       "dependencies": {
         "@earendil-works/pi-tui": "0.75.5",
         "@realm/api-contract": "workspace:*",
+        "@realm/assistant": "workspace:*",
         "@realm/client-sdk": "workspace:*",
       },
     },
@@ -87,6 +88,7 @@
         "@radix-ui/react-slot": "1.2.4",
         "@radix-ui/react-use-controllable-state": "1.2.2",
         "@realm/api-contract": "workspace:*",
+        "@realm/assistant": "workspace:*",
         "@realm/client-sdk": "workspace:*",
         "@realm/config": "workspace:*",
         "@rive-app/react-webgl2": "4.28.6",

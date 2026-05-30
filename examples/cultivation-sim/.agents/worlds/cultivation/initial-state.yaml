@@ -8,8 +8,8 @@ publicState:
     reputation: 低微
     spiritStones: 120
     herbs:
-      moon-grass: 8
-      fire-root: 3
+      灵雾草: 8
+      火灵根: 3
     threats:
       - id: wolf-demon
         severity: medium
