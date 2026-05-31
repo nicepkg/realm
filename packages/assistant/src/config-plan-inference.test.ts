@@ -183,6 +183,19 @@ describe("inferRoleFromGoal name/profession split", () => {
     expect(onebefore.summary).not.toContain("，角色");
   });
 
+  test("的-split structural tail (白衣的角色) -> name=白衣 with NO profession", () => {
+    // The 的 delimiter normally hands the WHOLE tail to the profession (that's
+    // what splits 独立董事), but a structural common noun (角色) is scaffolding,
+    // not a job title. It must drop entirely: the displayName is the bare name
+    // and no profession clause leaks into the summary.
+    const role = inferRoleFromGoal("加一个叫白衣的角色");
+    expect(role.displayName).toBe("白衣");
+    expect(role.summary).not.toContain("角色，");
+    expect(role.summary).not.toContain("，角色");
+    // The generic, profession-less fallback sentence is what should surface.
+    expect(role.summary).toContain("自定义角色");
+  });
+
   test("bare suffixes (no 的) stay dictionary-gated — plain names not mis-cut", () => {
     // Without an explicit 的 boundary, "叫X" is ambiguous, so we must NOT split a
     // bare three-char name like 沈墨然 (only a dictionary profession suffix peels).
