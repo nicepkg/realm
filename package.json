@@ -1,6 +1,6 @@
 {
   "name": "@nicepkg/realm",
-  "version": "0.1.0",
+  "version": "0.2.0",
   "description": "Project-scoped AI role runtime with worlds, roles, state, and a local Web UI.",
   "type": "module",
   "license": "MIT",
