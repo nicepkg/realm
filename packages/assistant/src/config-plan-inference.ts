@@ -254,8 +254,8 @@ export function extractProposedName(goal: string): string | undefined {
 /**
  * Split a proposed name from a trailing profession noun. Covers three zh
  * phrasings that pack a job title next to the name:
- *   - 叫X的Y / 名为X的Y / 名叫X的Y  (X=name, Y=profession)
- *   - 一个Y叫X / 一名Y叫X            (Y=profession, X=name)
+ *   - 叫X的Y / 名为X的Y / 名叫X的Y  (X=name, Y=profession — any noun via 的-split)
+ *   - 一个Y叫X / 一名Y叫X            (Y=profession, X=name — any noun)
  *   - 叫X的Y where Y is a recognized profession noun (handled via 的-split)
  * Returns the bare name plus the profession when one is detected so the
  * displayName stays a clean name and the profession seeds the summary.
@@ -265,19 +265,21 @@ export function extractRoleName(goal: string): {
   name: string | undefined;
   profession?: string;
 } {
-  // "一个Y叫X" / "一名Y叫X": the profession precedes the verb cue. Capture it so
-  // a later 叫-pattern match doesn't strand the profession in the displayName.
+  // "一个Y叫X" / "一名Y叫X": the profession precedes the verb cue. Y is grammar,
+  // not a dictionary lookup — a multi-char/novel title (独立董事/首席财务官) is the
+  // profession verbatim. Capture it so a later 叫-pattern match doesn't strand
+  // the profession in the displayName.
   const professionBeforeName = goal.match(
     /(?:一个|一名|一位)\s*([^，,、。.！!？?；;：:\s]+?)(?:叫做|叫作|名叫|名为|叫)\s*([^，,、。.！!？?；;：:\s的]+)/u,
   );
   if (professionBeforeName) {
-    const profession = professionBeforeName[1]?.trim();
+    const profession = sanitizeStructuralTail(professionBeforeName[1]?.trim());
     const candidate = professionBeforeName[2]?.trim();
     if (candidate) {
       const split = splitNameAndProfession(candidate);
       return {
         name: split.name,
-        profession: split.profession ?? sanitizeProfession(profession),
+        profession: split.profession ?? profession,
       };
     }
   }
@@ -354,35 +356,65 @@ const STRUCTURAL_COMMON_NOUNS: readonly string[] = ["角色", "世界", "门派"
 // Union used by the summary distiller to recognize non-trait structural tails.
 const TRAILING_COMMON_NOUNS: readonly string[] = [...PROFESSION_NOUNS, ...STRUCTURAL_COMMON_NOUNS];
 
-/** Keep a profession candidate only when it is a recognized job-title noun. */
-function sanitizeProfession(value: string | undefined): string | undefined {
+/**
+ * Normalize a grammatically-located identity tail by stripping structural common
+ * nouns (角色/世界/门派), which are scaffolding rather than a job title:
+ *   - a tail that IS a structural noun ("角色") -> undefined ("一个角色叫…" records
+ *     no profession);
+ *   - a real title with a trailing structural noun ("剑客角色") -> the title only
+ *     ("剑客");
+ *   - any other tail (including novel multi-char titles like 独立董事) -> verbatim,
+ *     since the 的-delimited / professionBeforeName grammar already located it.
+ */
+function sanitizeStructuralTail(value: string | undefined): string | undefined {
   if (!value) {
     return undefined;
   }
-  return PROFESSION_NOUNS.some((noun) => value.includes(noun)) ? value : undefined;
+  for (const noun of STRUCTURAL_COMMON_NOUNS) {
+    if (value === noun || value.startsWith(noun)) {
+      return undefined;
+    }
+    if (value.length > noun.length && value.endsWith(noun)) {
+      return value.slice(0, -noun.length);
+    }
+  }
+  return value;
 }
 
 /**
  * Separate a name candidate from a trailing profession noun.
- *   - "沈墨的剑修" -> { name: 沈墨, profession: 剑修 } (的 + profession noun)
- *   - "白衣的剑客角色" -> { name: 白衣, profession: 剑客 } (structural tail dropped)
- *   - "沈墨剑修" -> { name: 沈墨, profession: 剑修 } (bare profession suffix)
- *   - "孤傲的人" / "冷峻寡言" -> name kept intact (no profession noun present)
+ *   - "周明的独立董事" -> { name: 周明, profession: 独立董事 } (的 -> whole tail is identity)
+ *   - "沈墨的剑修" -> { name: 沈墨, profession: 剑修 } (的-split)
+ *   - "白衣的角色" -> { name: 白衣 } (structural tail dropped, no profession)
+ *   - "沈墨剑修" -> { name: 沈墨, profession: 剑修 } (bare suffix — DICTIONARY only)
+ *   - "沈墨然" / "孤傲的人" / "冷峻寡言" -> name kept intact
+ *
+ * Two grammars, two policies:
+ *   - explicit 的 delimiter ("X的Y"): Y is grammatically the identity, so the
+ *     WHOLE tail becomes the profession (no whitelist) — except a structural
+ *     common noun (角色/世界/门派), which is dropped as scaffolding. This is what
+ *     lets novel/compound titles (独立董事/首席执行官/风险投资人) split correctly
+ *     without endlessly growing PROFESSION_NOUNS.
+ *   - bare suffix ("沈墨剑修"): inherently ambiguous (where does the name end?),
+ *     so it stays dictionary-gated to avoid mis-cutting a bare name like 沈墨然.
  */
 function splitNameAndProfession(candidate: string): {
   name: string;
   profession?: string;
 } {
-  // "{name}的{tail}" — split when the tail leads with a recognized common noun.
+  // "{name}的{tail}" — the 的 is an explicit boundary, so the entire tail is the
+  // identity. Structural common nouns are scaffolding, not a profession.
   const deIndex = candidate.indexOf("的");
   if (deIndex > 0) {
     const tail = candidate.slice(deIndex + 1);
-    const noun = TRAILING_COMMON_NOUNS.find((entry) => tail.startsWith(entry));
-    if (noun) {
-      return { name: candidate.slice(0, deIndex), profession: sanitizeProfession(noun) };
+    if (tail.length > 0) {
+      return {
+        name: candidate.slice(0, deIndex),
+        profession: sanitizeStructuralTail(tail),
+      };
     }
   }
-  // Bare profession suffix: "沈墨剑修" -> 沈墨 + 剑修.
+  // Bare profession suffix: "沈墨剑修" -> 沈墨 + 剑修. DICTIONARY-gated on purpose.
   for (const noun of PROFESSION_NOUNS) {
     if (candidate.length > noun.length && candidate.endsWith(noun)) {
       return { name: candidate.slice(0, -noun.length), profession: noun };

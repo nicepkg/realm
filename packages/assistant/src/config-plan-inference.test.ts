@@ -130,6 +130,69 @@ describe("inferRoleFromGoal name/profession split", () => {
     expect(baiyi.displayName).toBe("白衣");
     expect(baiyi.summary).toContain("剑客");
   });
+
+  test("叫周明的独立董事 -> name=周明, compound title in summary (F2 fix)", () => {
+    // Root cause was a dictionary gate: 独立董事 is not in PROFESSION_NOUNS, so
+    // the whole "周明的独立董事" was swallowed into the displayName. With the
+    // 的-delimited path treating the tail as grammar (not a lookup), the title
+    // splits cleanly and the displayName never contains the job title.
+    const role = inferRoleFromGoal("加一个叫周明的独立董事，谨慎");
+    expect(role.displayName).toBe("周明");
+    expect(role.displayName).not.toContain("独立董事");
+    expect(role.summary).toContain("独立董事");
+    expect(role.summary).toContain("谨慎");
+  });
+
+  test("compound/novel modern titles split via the 的 delimiter (no dictionary)", () => {
+    const cases: ReadonlyArray<readonly [string, string, string]> = [
+      ["加一个叫陈睿的首席执行官", "陈睿", "首席执行官"],
+      ["加一个叫赵柯的风险投资人", "赵柯", "风险投资人"],
+      ["加一个叫许岚的人力资源总监", "许岚", "人力资源总监"],
+      ["加一个叫沈青的首席财务官", "沈青", "首席财务官"],
+    ];
+    for (const [goal, name, profession] of cases) {
+      const role = inferRoleFromGoal(goal);
+      expect(role.displayName).toBe(name);
+      expect(role.displayName).not.toContain(profession);
+      expect(role.summary).toContain(profession);
+    }
+  });
+
+  test("一名{多字职衔}叫X captures the compound title before the name", () => {
+    const dongshi = inferRoleFromGoal("一名独立董事叫周明");
+    expect(dongshi.displayName).toBe("周明");
+    expect(dongshi.summary).toContain("独立董事");
+
+    const cfo = inferRoleFromGoal("一个首席财务官叫沈青");
+    expect(cfo.displayName).toBe("沈青");
+    expect(cfo.summary).toContain("首席财务官");
+  });
+
+  test("structural common nouns are still dropped, not recorded as a title", () => {
+    // 角色/世界/门派 are scaffolding even after the 的-path stopped requiring a
+    // whitelist hit — they must not leak into the displayName or the summary.
+    const role = inferRoleFromGoal("加一个叫云遥的角色");
+    expect(role.displayName).toBe("云遥");
+    // 角色 not recorded as a job title; the generic fallback sentence is fine.
+    expect(role.summary).not.toContain("，角色");
+
+    const onebefore = inferRoleFromGoal("加一个角色叫顾辰风");
+    expect(onebefore.displayName).toBe("顾辰风");
+    // 角色 must not be recorded as a job title ("顾辰风，角色。"); the generic
+    // fallback sentence ("…自定义角色。") is fine and expected here.
+    expect(onebefore.summary).not.toContain("，角色");
+  });
+
+  test("bare suffixes (no 的) stay dictionary-gated — plain names not mis-cut", () => {
+    // Without an explicit 的 boundary, "叫X" is ambiguous, so we must NOT split a
+    // bare three-char name like 沈墨然 (only a dictionary profession suffix peels).
+    expect(inferRoleFromGoal("加一个叫沈墨然的角色").displayName).toBe("沈墨然");
+    expect(inferRoleFromGoal("加一个叫沈墨然").displayName).toBe("沈墨然");
+    // A bare dictionary suffix still peels: 沈墨剑修 -> 沈墨 + 剑修.
+    const jianxiu = inferRoleFromGoal("加一个叫沈墨剑修");
+    expect(jianxiu.displayName).toBe("沈墨");
+    expect(jianxiu.summary).toContain("剑修");
+  });
 });
 
 /**

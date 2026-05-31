@@ -127,6 +127,69 @@ describe("flattenStateHighlights", () => {
       { label: "世界", path: "publicState.world", value: "1 项" },
     ]);
   });
+
+  test("boardroom-saga publicState children read as zh-CN labels, never raw English tokens", () => {
+    // The exact regression that let an English-key leak ship across several prior
+    // rounds: boardroom-saga's publicState groups its world under finance/equity/
+    // governance containers (company / financials / capTable / threats / keyAccounts)
+    // whose keys cultivation-sim never exercises — so the missing field labels only
+    // surfaced on the SECOND world. With state-humanize.ts as the single source of
+    // truth, every publicState child must resolve to its zh-CN reading and NONE of the
+    // raw English tokens may survive as an operator-facing label.
+    const highlights = flattenStateHighlights({
+      publicState: {
+        company: { stage: "IPO 前冲刺", fiscalQuarter: "2026Q1", sentiment: "high" },
+        financials: {
+          revenue: 4200,
+          burnRate: 900,
+          runwayQuarters: 5,
+          cashOnHand: 4500,
+        },
+        capTable: { others: "12%", employeePool: "10%" },
+        threats: ["对赌回购", "核心高管出走"],
+        keyAccounts: { acme: { arr: 1200 }, globex: { arr: 800 } },
+      },
+    });
+    const labels = highlights.map((h) => h.label);
+    // Each well-known boardroom container resolves through STATE_FIELD_LABELS.
+    expect(labels).toEqual(["公司概况", "财务状况", "股权结构", "威胁", "核心客户"]);
+    // Hard guarantee: not a single raw English schema token leaks as a label.
+    for (const token of ["company", "financials", "capTable", "threats", "keyAccounts"]) {
+      expect(labels).not.toContain(token);
+    }
+    // Paths still carry the technical dotted key (stable React key / faint hint) —
+    // the leak we guard against is the LABEL, never the path.
+    expect(highlights.map((h) => h.path)).toEqual([
+      "publicState.company",
+      "publicState.financials",
+      "publicState.capTable",
+      "publicState.threats",
+      "publicState.keyAccounts",
+    ]);
+    // The array container (威胁) summarizes by count; object containers by 项 count.
+    const byPath = new Map(highlights.map((h) => [h.path, h.value]));
+    expect(byPath.get("publicState.threats")).toBe("2 项");
+    expect(byPath.get("publicState.financials")).toBe("4 项");
+  });
+
+  test("a custom top-level field (cultivation's qi) still passes through verbatim", () => {
+    // Container-vs-field boundary must be preserved: `qi` here is a TOP-LEVEL,
+    // author-chosen field — it must read its verbatim author key `qi`, NOT regress to
+    // the field-leaf label 灵气 (which is only correct one level DOWN, inside a
+    // container). containerLabel() (not fieldLabel()) governs top-level keys, so the
+    // single-source-of-truth refactor must not bleed STATE_FIELD_LABELS up to the root.
+    const highlights = flattenStateHighlights({
+      qi: 80,
+      publicState: { runwayQuarters: 5 },
+    });
+    const byPath = new Map(highlights.map((h) => [h.path, h]));
+    // Top-level `qi` stays verbatim — boundary held.
+    expect(byPath.get("qi")?.label).toBe("qi");
+    expect(highlights.map((h) => h.label)).not.toContain("灵气");
+    // …while the SAME refactor still humanizes a field one level deep inside a
+    // container, proving the boundary is a boundary (field labels apply below root).
+    expect(byPath.get("publicState.runwayQuarters")?.label).toBe("现金跑道(季)");
+  });
 });
 
 describe("mutedRoleNames", () => {

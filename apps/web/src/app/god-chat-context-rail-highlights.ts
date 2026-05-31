@@ -12,6 +12,8 @@
  * roles) are shallow-peeked.
  */
 
+import { STATE_CONTAINER_LABELS, STATE_FIELD_LABELS } from "@/view-models/state-humanize.ts";
+
 /**
  * A flattened state highlight: a human-facing zh-CN `label`, a short stringified
  * `value`, and the raw dotted `path` (kept as the stable React key and a faint
@@ -22,34 +24,6 @@ export type StateHighlight = { path: string; label: string; value: string };
 
 /** Cap so the rail stays a glance, not a dump. The inspector sheet owns the full view. */
 export const MAX_HIGHLIGHTS = 12;
-
-/**
- * The world-state schema uses a fixed set of English top-level containers
- * (publicState / privateState / hiddenState / derivedState / metaState — see the
- * cultivation example). Surfaced raw, these read like a schema, not a world. We
- * skip diving into the *contents* (that is the inspector's job + a privacy line:
- * hidden/private state should not be flattened beside the chat) and instead show
- * a calm zh-CN label + a "N 项" summary so the rail stays a glance.
- *
- * Any key NOT in this map (a custom world's own top-level fields like `qi` /
- * `sect`) is shown verbatim as its own label — those are author-chosen and
- * already human-meaningful, so we do not invent a translation for them.
- */
-const STATE_KEY_LABELS: Record<string, string> = {
-  derivedState: "推演结果",
-  hiddenState: "天机（隐藏）",
-  metaState: "运行元数据",
-  privateState: "角色私密",
-  publicState: "世界全景",
-};
-
-/** Friendly zh-CN labels for the well-known nested container keys. */
-const NESTED_KEY_LABELS: Record<string, string> = {
-  roles: "角色",
-  rules: "规则",
-  sect: "宗门",
-  world: "世界",
-};
 
 /** Label used for each muted-role highlight ("禁言"). */
 const MUTED_ROLE_LABEL = "禁言";
@@ -149,7 +123,7 @@ export function flattenStateHighlights(
       continue;
     }
     highlights.push({
-      label: friendlyLabel(key),
+      label: containerLabel(key),
       path: key,
       value: summarizeValue(value),
     });
@@ -168,7 +142,12 @@ function pushExpandedChildren(
       return;
     }
     highlights.push({
-      label: friendlyLabel(childKey),
+      // Children of an expanded container (publicState's company / financials /
+      // capTable / threats / keyAccounts, cultivation's world / sect / roles) are
+      // FIELD keys, so they resolve through `STATE_FIELD_LABELS` — the same map the
+      // desktop inspect tree + mobile humanized rows use. This is the I2 fix: before
+      // this, boardroom-saga's publicState children leaked the bare English tokens.
+      label: fieldLabel(childKey),
       path: `${parentKey}.${childKey}`,
       value: summarizeValue(childValue),
     });
@@ -208,7 +187,7 @@ export function pushMetaHighlights(
   const remaining = Object.keys(meta).filter((key) => key !== "rules" && key !== "roles").length;
   if (remaining > 0 && highlights.length < MAX_HIGHLIGHTS) {
     highlights.push({
-      label: friendlyLabel(META_CONTAINER_KEY),
+      label: containerLabel(META_CONTAINER_KEY),
       path: META_CONTAINER_KEY,
       value: `${remaining} 项`,
     });
@@ -269,9 +248,29 @@ export function mutedRoleNames(
   return names;
 }
 
-/** Map a schema key to a zh-CN label, falling back to the (human-meaningful) key. */
-function friendlyLabel(key: string): string {
-  return STATE_KEY_LABELS[key] ?? NESTED_KEY_LABELS[key] ?? key;
+/**
+ * Map a TOP-LEVEL container key to its zh-CN label, mirroring `stateKeyLabel` in
+ * state-humanize.ts: a known container (publicState / metaState / … and the
+ * field-named `roles` container boardroom-saga surfaces) gets its zh-CN label;
+ * anything else (a custom world's own top-level field like cultivation's `qi`) is
+ * passed through VERBATIM — deliberately NOT routed through `STATE_FIELD_LABELS`,
+ * so `qi` stays its author-chosen top-level reading rather than the field-leaf 灵气.
+ */
+function containerLabel(key: string): string {
+  return STATE_CONTAINER_LABELS[key] ?? key;
+}
+
+/**
+ * Map a CHILD / field key to its zh-CN label, mirroring the field branch of
+ * `fieldKeyLabel` in state-humanize.ts (no role-id resolution here — the rail's
+ * role rows resolve display names separately). `STATE_FIELD_LABELS` is the single
+ * source of truth, carrying the full boardroom-saga finance/equity/governance set
+ * (company / financials / capTable / threats / keyAccounts / …) plus the
+ * cultivation fields (world / sect / roles / …); an unknown author-chosen key is
+ * passed through VERBATIM.
+ */
+function fieldLabel(key: string): string {
+  return STATE_FIELD_LABELS[key] ?? key;
 }
 
 function isPlainObject(value: unknown): value is Record<string, unknown> {
